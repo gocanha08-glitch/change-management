@@ -3138,7 +3138,7 @@ const apiPut  = (path, body) => apiFetch(path, { method: 'PUT',  body });
 
 // ---- Main App ----
 function App() {
-  const { C } = useTheme();
+  const { C, theme, setTheme } = useTheme();
   const [loggedIn, setLI] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('dashboard');
@@ -3315,17 +3315,17 @@ function App() {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:168,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNewReq={()=>nav('new')}/>}
-      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id)} onOpenAction={(r,a)=>nav('detail',r.id)}/>}
+      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
-      {view==='indicators'&&<Indicators requests={requests} crits={crits}/>}
-      {view==='new'       &&<NewRequestForm currentUser={loggedIn} onSave={(r)=>{createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')} C={C}/>}
+      {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
+      {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq}/>}
-      {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||buildDefaultMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
+      {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
       {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
-      {view==='settings'  &&isAdmin&&<SettingsPage phaseDl={phaseDl} requests={requests} allUsers={users} currentUser={loggedIn} isAdmin={isAdmin} onSavePhaseDl={savePhaseDl} onUpdate={updateReq}/>}
+      {view==='settings'  &&isAdmin&&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
     </div>
   </div>;
