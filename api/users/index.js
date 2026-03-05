@@ -61,7 +61,7 @@ module.exports = async (req, res) => {
     const body = req.body || {};
 
     // Batch update (from Excel import or full list save)
-    if (Array.isArray(body.users)) {
+    if (Array.isArray(body.users) && body.users.length > 0 && !body.users.some(u => u._new)) {
       try {
         for (const u of body.users) {
           if (u._new && u.pwd) {
