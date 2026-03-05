@@ -109,9 +109,9 @@ function App() {
 
 const saveUsers = async (list, by, action, detail) => {
     try {
-      const existingIds = new Set(users.map(u => u.id));
-      const newUsers = list.filter(u => !existingIds.has(u.id));
-      const updatedUsers = list.filter(u => existingIds.has(u.id));
+        const existingIds = new Set(users.map(u => String(u.id)));
+        const newUsers = list.filter(u => !existingIds.has(String(u.id)) && u.pwd);
+        const updatedUsers = list.filter(u => existingIds.has(String(u.id)));
       for (const u of newUsers) {
         await apiPost('/api/users', {
           name: u.name, email: u.email, area: u.area||'',
