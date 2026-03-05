@@ -462,8 +462,7 @@ function Login({users,onLogin}){
   const [pwd,setPwd]=useState("");
   const [err,setErr]=useState("");
   const go=()=>{
-    const u=users.find(u=>u.active&&(u.email===email.trim()||u.name===email.trim())&&u.pwd===pwd);
-    u?onLogin(u):setErr("Usuario ou senha invalidos.");
+     onLogin(email.trim(),pwd).then(err=>{if(err)setErr(err);});
   };
   return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
     <div style={{width:380,...Sg.card({padding:36,borderRadius:16})}}>
