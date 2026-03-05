@@ -3287,7 +3287,7 @@ function App() {
   const [inEval, setInEval] = useState(null);
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#888'}}>Carregando...</div>;
-  if (!loggedIn) return <LoginScreen onLogin={login} C={C}/>;
+  if (!loggedIn) return <Login users={users} onLogin={(u)=>{setLI(u);setView('dashboard');}} />;
 
   const Sidebar = () => (
     <div style={{width:168,background:'#13162B',borderRight:'1px solid #1E2333',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',left:0,top:0,zIndex:10,overflowY:'auto'}}>
