@@ -1,0 +1,3336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CHANGE - Gestao de Mudancas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1117;font-family:'Segoe UI',system-ui,sans-serif;color:#E8EAF0;font-size:14px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2A3050;border-radius:3px}
+select option{background:#1E2333;color:#E8EAF0}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
+textarea,input,select,button{font-family:inherit}
+</style>
+</head>
+<body><div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useMemo,useRef}=React;
+// ================================================================
+// CHANGE v10 — CONSTANTS & SEED DATA
+// ================================================================
+const APP_VERSION = "10.0.0";
+const APP_DATE = "2026-03-03";
+
+const DEFAULT_CRITS = [
+  {v:"C1", label:"Baixa",    color:"#2DD4BF", desc:"Impacto minimo, sem risco regulatorio"},
+  {v:"C2", label:"Moderada", color:"#F59E0B", desc:"Impacto limitado, risco controlado"},
+  {v:"C3", label:"Alta",     color:"#EF4444", desc:"Impacto significativo em processos"},
+  {v:"C4", label:"Critica",  color:"#C026D3", desc:"Alto risco regulatorio ou impacto direto"},
+];
+
+// Prazos padrão POR ETAPA DO PROCESSO (em dias corridos a partir do inicio da etapa)
+const DEFAULT_PHASE_DEADLINES = {
+  triagem:   {days:3,  label:"Triagem",              desc:"Prazo para o admin realizar a triagem apos abertura"},
+  avaliacao: {days:7,  label:"Avaliacao por area",    desc:"Prazo padrao para cada avaliador concluir sua analise"},
+  revisao:   {days:2,  label:"Revisao SGQ (Aprov. 2)",desc:"Prazo para admin revisar e aprovar avaliacoes"},
+  plano:     {days:5,  label:"Montagem do Plano",     desc:"Prazo para montar o plano de acoes apos aprovacao"},
+  execucao:  {days:30, label:"Execucao",              desc:"Prazo padrao para conclusao de acoes"},
+};
+
+const CHANGE_TYPES=[
+  "Alteracao Regulatoria","Alteracao de Produto",
+  "Software (nao relacionado a produto)",
+  "Infraestrutura / Equipamentos / Maquinario",
+  "Metodo / Processo","Outras",
+];
+
+const ALL_DEPTS=[
+  "Assuntos Regulatorios","Sistema de Gestao da Qualidade (SGQ)",
+  "Pesquisa e Desenvolvimento (P&D)","Producao/Embalagem",
+  "Controle de Qualidade","Assistencia Tecnica (AT)","Compras","PCP",
+  "Gestao de Fornecedores","Almoxarifado/Expedicao","Marketing",
+  "Clinico/Centro de Treinamento","Comercial",
+  "Tecnologia da Informacao (TI)","RH/Infraestrutura",
+  "Seguranca do Trabalho","Fiscal","Financeiro",
+];
+
+const DEPT_Q={
+  "Assuntos Regulatorios":["A alteracao infringe um requisito regulatorio?","A mudanca altera requisitos regulatorios aplicaveis?","Ha necessidade de submissao/atualizacao junto a autoridade?","Impacta documentacao tecnica (dossies, IFU, rotulagem/UDI)?","Requer adequacao a nova norma (ISO, IEC, RDC, MDR)?","Impacta certificados vigentes (ISO 13485, MDSAP, CE)?","Ha necessidade de notificar terceiros?"],
+  "Sistema de Gestao da Qualidade (SGQ)":["A mudanca altera a forma de executar algum processo do SGQ?","Documentos do SGQ precisam ser revisados ou criados?","Ha necessidade de validacao/revalidacao?","Ha impacto no gerenciamento de riscos?","Sera necessario planejar treinamentos?","Havera monitoramento pos-implantacao?","A mudanca impacta planos de PMS ou PMCF?","A alteracao ira impactar a integridade do SGQ?"],
+  "Pesquisa e Desenvolvimento (P&D)":["Necessaria abertura de SAP?"],
+  "Producao/Embalagem":["A mudanca altera o metodo ou sequencia de fabricacao/embalagem?","Sao necessarias instrucoes ou documentos de suporte atualizados?","Impacta rotinas de setup, ferramental ou parametros de operacao?"],
+  "Controle de Qualidade":["Ha impacto em metodos de inspecao/ensaio?","Criterios de aceitacao/amostragem precisam ser alterados?","Planos de controle e registros precisam ser atualizados?"],
+  "Assistencia Tecnica (AT)":["A mudanca impacta procedimentos de manutencao/diagnostico/reparo?","Sao necessarias instrucoes ou documentos de suporte atualizados?","Ha impacto em pecas de reposicao e kits de assistencia?"],
+  "Compras":["Impacta compras ja emitidas ou entregas em andamento?","Ha necessidade de ajustar prazos de entrega ou lead times?","Ha necessidade de notificar fornecedores ou prestadores?"],
+  "PCP":["A mudanca impacta ordens de producao ja planejadas ou em andamento?"],
+  "Gestao de Fornecedores":["A mudanca envolve inclusao/troca/descontinuidade de fornecedor critico?","E necessaria homologacao, avaliacao ou auditoria adicional?","Algum contrato ou QA precisa ser atualizado?","Ha necessidade de notificar terceiros?"],
+  "Almoxarifado/Expedicao":["Ha impacto em segregacao/enderecamento de materiais?","Ha necessidade de ajuste em embalagens/rotulagem/identificacao (UDI)?"],
+  "Marketing":["A mudanca exige atualizacao em materiais de marketing?","Ha impacto em materiais de treinamento de distribuidores?"],
+  "Clinico/Centro de Treinamento":["A mudanca impacta protocolos clinicos ou programas de treinamento?"],
+  "Comercial":["A mudanca impacta contratos com clientes?","Ha necessidade de aditivos contratuais?","Existe risco de perda de clientes estrategicos?","Existe necessidade de treinar a equipe de vendas?","Ha necessidade de notificar clientes ou distribuidores?"],
+  "Tecnologia da Informacao (TI)":["Ha implantacao de novo software ou alteracao relevante?","A mudanca requer ajustes de infraestrutura de TI?"],
+  "RH/Infraestrutura":["A mudanca impacta cargos ou descricoes de funcao?","Ha impacto em estrutura fisica ou condicoes ambientais?","Existe necessidade de treinamento externo especifico?"],
+  "Seguranca do Trabalho":["Mudanca gera necessidade de analise de risco (NR)?","Mudanca gera necessidade de novos EPIs e/ou EPCs?","Mudanca gera necessidade de atualizacao do PGR?"],
+  "Fiscal":["Mudanca gera riscos relacionados as normas fiscais?"],
+  "Financeiro":["Apos analise financeira, a alteracao esta aprovada?"],
+};
+
+// Matrix: cell values = "" | "optional" | "mandatory"
+const mkMatrix=()=>{
+  const m={};
+  CHANGE_TYPES.forEach(t=>{m[t]={};ALL_DEPTS.forEach(d=>{m[t][d]={};DEFAULT_CRITS.forEach(c=>{m[t][d][c.v]="";});});});
+  const s=(t,ds,cs,mode)=>ds.forEach(d=>cs.forEach(c=>{if(m[t]&&m[t][d])m[t][d][c]=mode;}));
+  s("Alteracao Regulatoria",["Assuntos Regulatorios","Sistema de Gestao da Qualidade (SGQ)","Producao/Embalagem","Controle de Qualidade"],["C1","C2","C3","C4"],"mandatory");
+  s("Alteracao Regulatoria",["Marketing","Financeiro","Fiscal"],["C3","C4"],"optional");
+  s("Alteracao de Produto",["Pesquisa e Desenvolvimento (P&D)","Producao/Embalagem","Controle de Qualidade","Assistencia Tecnica (AT)"],["C1","C2","C3","C4"],"mandatory");
+  s("Alteracao de Produto",["Almoxarifado/Expedicao","Compras","Marketing","Comercial"],["C1","C2","C3","C4"],"optional");
+  s("Alteracao de Produto",["Assuntos Regulatorios","Gestao de Fornecedores","Financeiro","Fiscal"],["C3","C4"],"optional");
+  s("Software (nao relacionado a produto)",["Tecnologia da Informacao (TI)"],["C1","C2","C3","C4"],"mandatory");
+  s("Software (nao relacionado a produto)",["Financeiro","PCP"],["C2","C3","C4"],"optional");
+  s("Software (nao relacionado a produto)",["Sistema de Gestao da Qualidade (SGQ)","Fiscal"],["C3","C4"],"optional");
+  s("Infraestrutura / Equipamentos / Maquinario",["Producao/Embalagem","Seguranca do Trabalho"],["C1","C2","C3","C4"],"mandatory");
+  s("Infraestrutura / Equipamentos / Maquinario",["RH/Infraestrutura","Compras","PCP"],["C1","C2","C3","C4"],"optional");
+  s("Infraestrutura / Equipamentos / Maquinario",["Sistema de Gestao da Qualidade (SGQ)","Financeiro","Fiscal"],["C3","C4"],"optional");
+  s("Metodo / Processo",["Producao/Embalagem","Controle de Qualidade"],["C1","C2","C3","C4"],"mandatory");
+  s("Metodo / Processo",["RH/Infraestrutura","PCP"],["C1","C2","C3","C4"],"optional");
+  s("Metodo / Processo",["Sistema de Gestao da Qualidade (SGQ)","Financeiro"],["C3","C4"],"optional");
+  s("Outras",["Sistema de Gestao da Qualidade (SGQ)"],["C1","C2","C3","C4"],"mandatory");
+  return m;
+};
+
+const INIT_USERS=[
+  {id:1,name:"Ana Paula Silva",  role:"admin",    evalDepts:[],email:"ana@empresa.com",     pwd:"Admin@123", active:true},
+  {id:2,name:"Fernanda Lima",    role:"evaluator",evalDepts:["Producao/Embalagem","Almoxarifado/Expedicao","Compras","Seguranca do Trabalho"],email:"fernanda@empresa.com",pwd:"Avalia@123",active:true},
+  {id:3,name:"Joao Oliveira",    role:"evaluator",evalDepts:["Controle de Qualidade","Assuntos Regulatorios","Fiscal"],email:"joao@empresa.com",pwd:"Avalia@123",active:true},
+  {id:4,name:"Roberto Alves",    role:"evaluator",evalDepts:["Tecnologia da Informacao (TI)","PCP","RH/Infraestrutura"],email:"roberto@empresa.com",pwd:"Avalia@123",active:true},
+  {id:5,name:"Carla Mendes",     role:"evaluator",evalDepts:["Financeiro","Gestao de Fornecedores","Comercial"],email:"carla@empresa.com",pwd:"Avalia@123",active:true},
+  {id:6,name:"Thiago Rocha",     role:"evaluator",evalDepts:["Sistema de Gestao da Qualidade (SGQ)","Pesquisa e Desenvolvimento (P&D)","Marketing","Clinico/Centro de Treinamento"],email:"thiago@empresa.com",pwd:"Avalia@123",active:true},
+  {id:7,name:"Mariana Costa",    role:"geral",    evalDepts:[],email:"mariana@empresa.com",  pwd:"Geral@123", active:true},
+  {id:8,name:"Pedro Santos",     role:"geral",    evalDepts:[],email:"pedro@empresa.com",    pwd:"Geral@123", active:true},
+];
+
+const mkSeed=(phaseDl)=>{
+  const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
+  return [
+    {id:"SA-001/2025",title:"Atualizacao sistema ERP",type:"Software (nao relacionado a produto)",
+     description:"Migracao do ERP legado para novo sistema cloud-based",justification:"Suporte ao sistema atual encerra em Dez/2025",
+     status:"revisao",planResponsible:1,planResponsibleName:"Ana Paula Silva",
+     triage:{criticality:"C3",flagReg:false,flagProd:false,justification:"Mudanca de infraestrutura critica",
+       classifiedBy:1,classifiedByName:"Ana Paula Silva",classifiedAt:"2025-01-11T10:00:00",
+       assignedAreas:["Sistema de Gestao da Qualidade (SGQ)","Tecnologia da Informacao (TI)","Financeiro","PCP","Compras"],
+       assignments:{"Sistema de Gestao da Qualidade (SGQ)":6,"Tecnologia da Informacao (TI)":4,"Financeiro":5,"PCP":4,"Compras":2},
+       deadlines:{"Sistema de Gestao da Qualidade (SGQ)":"2025-01-20","Tecnologia da Informacao (TI)":"2025-01-18","Financeiro":"2025-01-22","PCP":"2025-01-18","Compras":"2025-01-20"},
+       originalDeadlines:{"Sistema de Gestao da Qualidade (SGQ)":"2025-01-20","Tecnologia da Informacao (TI)":"2025-01-18","Financeiro":"2025-01-22","PCP":"2025-01-18","Compras":"2025-01-20"},
+     },
+     evaluations:{
+       "Tecnologia da Informacao (TI)":{answers:[{q:"Ha implantacao de novo software?",a:"S",just:""},{q:"Requer ajustes de infraestrutura de TI?",a:"S",just:""}],obs:"Migracao em fases.",by:4,byName:"Roberto Alves",at:"2025-01-14T16:45:00"},
+       "Sistema de Gestao da Qualidade (SGQ)":{answers:[{q:"A mudanca altera a forma de executar algum processo do SGQ?",a:"S",just:""},{q:"Documentos do SGQ precisam ser revisados?",a:"S",just:""},{q:"Ha necessidade de validacao?",a:"S",just:""},{q:"Ha impacto no gerenciamento de riscos?",a:"N",just:"Sem impacto direto"},{q:"Sera necessario planejar treinamentos?",a:"S",just:""},{q:"Havera monitoramento pos-implantacao?",a:"S",just:""},{q:"A mudanca impacta planos de PMS?",a:"N/A",just:"Software administrativo"},{q:"A alteracao impacta a integridade do SGQ?",a:"N",just:"Integridade mantida"}],obs:"Exige treinamento robusto.",by:6,byName:"Thiago Rocha",at:"2025-01-15T09:30:00"},
+       "Financeiro":{answers:[{q:"Apos analise financeira, a alteracao esta aprovada?",a:"S",just:""}],obs:"ROI positivo em 18 meses.",by:5,byName:"Carla Mendes",at:"2025-01-15T14:00:00"},
+       "PCP":{answers:[{q:"A mudanca impacta ordens de producao em andamento?",a:"N",just:"Migracao em janela de manutencao"}],obs:"",by:4,byName:"Roberto Alves",at:"2025-01-16T10:00:00"},
+       "Compras":{answers:[{q:"Impacta compras em andamento?",a:"N",just:"Sem impacto"},{q:"Ha necessidade de ajustar prazos?",a:"N/A",just:"Nao aplicavel"},{q:"Ha necessidade de notificar fornecedores?",a:"S",just:""}],obs:"",by:2,byName:"Fernanda Lima",at:"2025-01-16T11:30:00"},
+     },
+     actions:[],attachments:[],deadlineExtensions:[],
+     stageDeadlines:{triagem:addDays("2025-01-10",pd.triagem.days),avaliacao:addDays("2025-01-11",pd.avaliacao.days),revisao:null,plano:null,execucao:null},
+     ap1By:1,ap1ByName:"Ana Paula Silva",ap1At:"2025-01-11T10:00:00",
+     log:[
+       {at:"2025-01-10T09:00:00",by:"Mariana Costa",type:"criacao",event:"SA criada",detail:"Tipo: Software"},
+       {at:"2025-01-11T10:00:00",by:"Ana Paula Silva",type:"triagem",event:"Triagem aprovada",detail:"Criticidade: C3 | 5 areas"},
+       {at:"2025-01-16T12:00:00",by:"Sistema",type:"sistema",event:"Todas as avaliacoes concluidas",detail:"Aguarda Aprovacao 2"},
+     ],
+     createdBy:7,createdByName:"Mariana Costa",createdAt:"2025-01-10T09:00:00"},
+    {id:"SA-002/2025",title:"Adequacao embalagem produto X - UDI",type:"Alteracao de Produto",
+     description:"Redesign da embalagem primaria para adequacao UDI conforme RDC 751/2022",
+     justification:"Requisito regulatorio ANVISA com prazo em Junho/2025",
+     status:"aberta",triage:null,evaluations:{},actions:[],attachments:[],deadlineExtensions:[],
+     stageDeadlines:{triagem:addDays("2025-01-20",pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},
+     log:[{at:"2025-01-20T10:00:00",by:"Mariana Costa",type:"criacao",event:"SA criada",detail:"Tipo: Alteracao de Produto"}],
+     createdBy:7,createdByName:"Mariana Costa",createdAt:"2025-01-20T10:00:00"},
+  ];
+};
+
+// ================================================================
+// THEME SYSTEM (dark / light / bw)
+// ================================================================
+const THEMES = {
+  dark: {
+    bg:"#0F1117", surface:"#181C27", card:"#1E2333", border:"#2A3050",
+    accent:"#4F8EF7", success:"#2DD4BF", warning:"#F59E0B", danger:"#EF4444",
+    purple:"#8B5CF6", orange:"#F97316", cyan:"#06B6D4", muted:"#6B7A9F",
+    text:"#E8EAF0", dim:"#9AA3BF", inputBg:"#181C27",
+  },
+  light: {
+    bg:"#F4F6FB", surface:"#FFFFFF", card:"#FFFFFF", border:"#D1D9E6",
+    accent:"#2563EB", success:"#0D9488", warning:"#D97706", danger:"#DC2626",
+    purple:"#7C3AED", orange:"#EA580C", cyan:"#0891B2", muted:"#6B7280",
+    text:"#111827", dim:"#374151", inputBg:"#F9FAFB",
+  },
+  bw: {
+    bg:"#000000", surface:"#111111", card:"#1A1A1A", border:"#333333",
+    accent:"#FFFFFF", success:"#CCCCCC", warning:"#AAAAAA", danger:"#FFFFFF",
+    purple:"#BBBBBB", orange:"#999999", cyan:"#DDDDDD", muted:"#666666",
+    text:"#FFFFFF", dim:"#CCCCCC", inputBg:"#111111",
+  },
+};
+
+// ThemeContext
+const ThemeCtx = React.createContext({theme:"dark", C:THEMES.dark, setTheme:()=>{}});
+const useTheme = () => React.useContext(ThemeCtx);
+
+function ThemeProvider({children}){
+  const [theme, setThemeRaw] = useState(()=>localStorage.getItem("cm_theme_v9")||"dark");
+  const setTheme = t => { setThemeRaw(t); localStorage.setItem("cm_theme_v9", t); };
+  const C = THEMES[theme] || THEMES.dark;
+  return <ThemeCtx.Provider value={{theme, C, setTheme}}>{children}</ThemeCtx.Provider>;
+}
+
+// ================================================================
+// HELPERS, STYLES & PRIMITIVES v10
+// ================================================================
+const fmt=d=>!d?"--":new Date(d).toLocaleDateString("pt-BR")+" "+new Date(d).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const fmtD=s=>{if(!s)return"--";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const addDays=(base,n)=>{const d=new Date(base);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+const isOD=(dl,st)=>!["concluida","cancelada"].includes(st)&&dl&&new Date(dl+"T23:59:59")<new Date();
+const mkI=n=>n.trim().split(/\s+/).filter((_,i,a)=>i===0||i===a.length-1).map(w=>w[0]).join("").toUpperCase();
+const urgCls=(dl,st)=>{if(!dl||["concluida","cancelada"].includes(st))return"normal";const d=(new Date(dl+"T23:59:59")-Date.now())/86400000;if(d<0)return"overdue";if(d<1)return"today";if(d<=7)return"soon";return"normal";};
+const mkLog=(req,by,type,event,detail)=>({...req,log:[...(req.log||[]),{at:new Date().toISOString(),by,type:type||"acao",event,detail:detail||""}]});
+const RC={admin:"#EF4444",evaluator:"#4F8EF7",geral:"#2DD4BF"};
+const ROLES={admin:{label:"Admin / SGQ"},evaluator:{label:"Avaliador"},geral:{label:"Geral"}};
+const REQ_ST={
+  aberta:   {label:"Aguarda Triagem",   color:"#F97316",step:1},
+  avaliacao:{label:"Em Avaliacao",      color:"#F59E0B",step:2},
+  revisao:  {label:"Aguarda Revisao",   color:"#8B5CF6",step:3},
+  plano:    {label:"Montagem do Plano", color:"#06B6D4",step:4},
+  execucao: {label:"Em Execucao",       color:"#4F8EF7",step:5},
+  concluida:{label:"Concluida",         color:"#2DD4BF",step:6},
+  cancelada:{label:"Cancelada",         color:"#EF4444",step:0},
+};
+const validatePwd=p=>{
+  if(!p||p.length<6)return"Minimo 6 caracteres";
+  if(!/[A-Z]/.test(p))return"Precisa de ao menos 1 letra maiuscula";
+  if(!/[0-9]/.test(p))return"Precisa de ao menos 1 numero";
+  if(!/[^A-Za-z0-9]/.test(p))return"Precisa de ao menos 1 caractere especial";
+  return null;
+};
+
+const mkSg=C=>({
+  card:(x={})=>({background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:16,...x}),
+  btn:(v="ghost")=>({padding:"7px 14px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,outline:"none",flexShrink:0,transition:"opacity .15s",
+    ...(v==="primary"?{background:C.accent,color:"#fff"}:
+        v==="danger" ?{background:C.danger,color:"#fff"}:
+        v==="success"?{background:C.success,color:"#000"}:
+        v==="warning"?{background:C.warning,color:"#000"}:
+        v==="purple" ?{background:C.purple,color:"#fff"}:
+                      {background:C.border,color:C.dim})}),
+  input:()=>({background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}),
+  lbl:{fontSize:11,fontWeight:700,letterSpacing:.7,color:"#6B7A9F",textTransform:"uppercase",display:"block",marginBottom:4},
+});
+
+function Badge({label,color}){return <span style={{display:"inline-flex",alignItems:"center",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,background:color+"28",color,border:"1px solid "+color+"44",whiteSpace:"nowrap",flexShrink:0}}>{label}</span>;}
+function Av({user,size=32}){if(!user)return null;const col=RC[user.role]||"#6B7A9F";return <div style={{width:size,height:size,borderRadius:"50%",background:col+"22",border:"2px solid "+col+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,color:col,flexShrink:0}}>{mkI(user.name)}</div>;}
+
+function Sel({value,onChange,options,placeholder,disabled,C}){
+  const st=C?{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}:{};
+  return <select value={value} onChange={e=>onChange(e.target.value)} disabled={!!disabled} style={{...st,appearance:"none",cursor:disabled?"default":"pointer",opacity:disabled?.5:1}}>
+    {placeholder&&<option value="">{placeholder}</option>}
+    {(options||[]).map(o=><option key={o.value!=null?o.value:o} value={o.value!=null?o.value:o}>{o.label!=null?o.label:o}</option>)}
+  </select>;
+}
+
+function Modal({open,onClose,title,children,width=600}){
+  const {C}=useTheme();
+  if(!open)return null;
+  return <div style={{position:"fixed",inset:0,background:"#000d",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+    <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,width:"100%",maxWidth:width,maxHeight:"93vh",overflow:"auto",padding:24}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <h2 style={{margin:0,fontSize:15,color:C.text,fontWeight:700}}>{title}</h2>
+        <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:20,padding:4,fontFamily:"inherit"}}>x</button>
+      </div>
+      {children}
+    </div>
+  </div>;
+}
+
+function Collapse({title,sub,badge,defaultOpen=false,children}){
+  const {C}=useTheme();
+  const [open,setOpen]=useState(defaultOpen);
+  return <div style={{border:"1px solid "+C.border,borderRadius:9,overflow:"hidden",marginBottom:6}}>
+    <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:open?C.surface:C.card,border:"none",cursor:"pointer",padding:"9px 13px",display:"flex",alignItems:"center",gap:9,textAlign:"left",fontFamily:"inherit"}}>
+      <span style={{fontSize:10,color:open?C.accent:C.muted,transform:open?"rotate(90deg)":"none",transition:"transform .2s",flexShrink:0,display:"inline-block"}}>&#9658;</span>
+      <span style={{flex:1,fontSize:13,fontWeight:600,color:C.text}}>{title}</span>
+      {sub&&<span style={{fontSize:11,color:C.muted}}>{sub}</span>}
+      {badge}
+    </button>
+    {open&&<div style={{padding:"12px 13px",borderTop:"1px solid "+C.border,background:C.surface}}>{children}</div>}
+  </div>;
+}
+
+function Stepper({request,C}){
+  const status=request.status;
+  const sd=request.stageDeadlines||{};
+  const tr=request.triage||{};
+  const evs=request.evaluations||{};
+  const areas=tr.assignedAreas||[];
+  const doneEv=areas.filter(d=>evs[d]&&evs[d].at).length;
+
+  // last eval date (most recent area completion)
+  const lastEvAt=areas.map(d=>evs[d]&&evs[d].at).filter(Boolean).sort().reverse()[0];
+  // eval deadline = max area deadline
+  const evalDl=areas.map(d=>tr.deadlines&&tr.deadlines[d]).filter(Boolean).sort().reverse()[0];
+
+  const steps=[
+    {
+      key:"triagem",
+      gate:"SGQ 1",
+      label:"Triagem",
+      statuses:["aberta"],
+      doneWhen:s=>!["aberta"].includes(s)&&s!=="cancelada",
+      activeWhen:s=>s==="aberta",
+      info:()=>request.ap1At?[
+        {l:"Realizado por",v:request.ap1ByName},
+        {l:"Data",v:fmt(request.ap1At)},
+        {l:"Prazo definido",v:fmtD(sd.triagem)},
+      ]:[
+        {l:"Prazo",v:fmtD(sd.triagem)},
+      ],
+    },
+    {
+      key:"avaliacao",
+      gate:"SGQ 2",
+      label:"Avaliacao",
+      statuses:["avaliacao","revisao"],
+      doneWhen:s=>["plano","execucao","concluida"].includes(s),
+      activeWhen:s=>["avaliacao","revisao"].includes(s),
+      info:()=>{
+        if(request.ap2At) return[
+          {l:"Aprovado por",v:request.ap2ByName},
+          {l:"Data",v:fmt(request.ap2At)},
+          {l:"Areas",v:doneEv+"/"+areas.length+" concluidas"},
+        ];
+        if(lastEvAt) return[
+          {l:"Areas",v:doneEv+"/"+areas.length+" concluidas"},
+          {l:"Ultima avaliacao",v:fmt(lastEvAt)},
+          {l:"Prazo",v:fmtD(evalDl)},
+        ];
+        return[
+          {l:"Areas",v:areas.length+" atribuidas"},
+          {l:"Prazo",v:fmtD(evalDl)},
+        ];
+      },
+    },
+    {
+      key:"plano",
+      gate:"SGQ 3",
+      label:"Plano",
+      statuses:["plano"],
+      doneWhen:s=>["execucao","concluida"].includes(s),
+      activeWhen:s=>s==="plano",
+      info:()=>{
+        const acs=request.actions||[];
+        const acDone=acs.filter(a=>a.status==="concluida").length;
+        if(request.ap3At) return[
+          {l:"Aprovado por",v:request.ap3ByName},
+          {l:"Data",v:fmt(request.ap3At)},
+          {l:"Acoes",v:acs.length+" no plano"},
+        ];
+        return[
+          {l:"Acoes",v:acs.length+" cadastradas"},
+          {l:"Prazo montagem",v:fmtD(sd.plano)},
+        ];
+      },
+    },
+    {
+      key:"execucao",
+      label:"Execucao",
+      statuses:["execucao"],
+      doneWhen:s=>s==="concluida",
+      activeWhen:s=>s==="execucao",
+      info:()=>{
+        const acs=request.actions||[];
+        const acDone=acs.filter(a=>a.status==="concluida").length;
+        return[
+          {l:"Acoes",v:acDone+"/"+acs.length+" concluidas"},
+          {l:"Prazo",v:fmtD(sd.execucao)},
+        ];
+      },
+    },
+    {
+      key:"concluida",
+      label:"Concluida",
+      statuses:["concluida"],
+      doneWhen:s=>false,
+      activeWhen:s=>s==="concluida",
+      info:()=>request.closedAt?[
+        {l:"Concluido em",v:fmt(request.closedAt)},
+      ]:[],
+    },
+  ];
+
+  const stIdx={aberta:0,avaliacao:1,revisao:1,plano:2,execucao:3,concluida:4,cancelada:-1}[status]||0;
+  const gw=i=>(i===0&&status==="aberta")||(i===1&&status==="revisao")||(i===2&&status==="plano");
+
+  return <div style={{display:"flex",alignItems:"stretch",gap:0,marginBottom:16,overflowX:"auto"}}>
+    {steps.map((st,i)=>{
+      const done=st.doneWhen(status);
+      const active=st.activeWhen(status);
+      const waiting=gw(i);
+      const col=done?C.success:waiting?C.warning:active?(REQ_ST[status]&&REQ_ST[status].color||C.accent):C.border;
+      const infos=done||active||waiting?st.info():[];
+      return <React.Fragment key={st.key}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"stretch",minWidth:120,maxWidth:160,flex:1}}>
+          {/* Gate badge */}
+          <div style={{height:18,display:"flex",justifyContent:"center",alignItems:"center",marginBottom:3}}>
+            {st.gate&&<div style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,
+              background:done?C.success+"22":waiting?C.warning+"22":active?col+"22":C.border+"22",
+              color:done?C.success:waiting?C.warning:active?col:C.muted,
+              border:"1px solid "+(done?C.success:waiting?C.warning:active?col:C.border)}}>
+              {st.gate}
+            </div>}
+          </div>
+          {/* Circle + label */}
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,marginBottom:6}}>
+            <div style={{width:26,height:26,borderRadius:"50%",
+              background:done?C.success:active||waiting?col:"transparent",
+              border:"2.5px solid "+col,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:11,fontWeight:800,color:(done||active||waiting)?"#000":C.muted}}>
+              {done?"✓":i+1}
+            </div>
+            <span style={{fontSize:10,color:done?C.success:active||waiting?col:C.muted,
+              fontWeight:active||waiting?700:400,textAlign:"center",lineHeight:1.2}}>{st.label}</span>
+          </div>
+          {/* Info card */}
+          {infos.length>0&&<div style={{background:col+"0D",border:"1px solid "+col+"33",borderRadius:7,
+            padding:"5px 8px",fontSize:10,display:"flex",flexDirection:"column",gap:3,flex:1}}>
+            {infos.map((inf,ii)=><div key={ii} style={{display:"flex",flexDirection:"column",gap:0}}>
+              <span style={{color:C.muted,fontSize:9,letterSpacing:.4}}>{inf.l}</span>
+              <span style={{color:col,fontWeight:600,lineHeight:1.3,wordBreak:"break-word"}}>{inf.v||"—"}</span>
+            </div>)}
+          </div>}
+          {/* Empty spacer for non-active steps */}
+          {infos.length===0&&<div style={{flex:1}}/>}
+        </div>
+        {i<steps.length-1&&<div style={{width:20,display:"flex",alignItems:"flex-start",paddingTop:30,flexShrink:0}}>
+          <div style={{flex:1,height:2,background:i<stIdx?C.success:C.border,marginTop:11}}/>
+        </div>}
+      </React.Fragment>;
+    })}
+  </div>;
+}
+
+// Prazo final da etapa atual — em avaliação usa o maior prazo pendente entre as áreas
+function getPhaseDeadline(r){
+  if(["concluida","cancelada"].includes(r.status))return null;
+  const sd=r.stageDeadlines||{};
+  if(r.status==="avaliacao"&&r.triage){
+    const dls=(r.triage.assignedAreas||[])
+      .filter(d=>!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at))
+      .map(d=>r.triage.deadlines&&r.triage.deadlines[d])
+      .filter(Boolean);
+    if(dls.length)return dls.sort().reverse()[0];
+    return sd.avaliacao||null;
+  }
+  // revisao: stageDeadlines.revisao so eh preenchido apos ap2 — usa maior prazo de aval como referencia
+  if(r.status==="revisao"){
+    if(sd.revisao)return sd.revisao;
+    if(r.triage){
+      const dls=(r.triage.assignedAreas||[])
+        .map(d=>r.triage.deadlines&&r.triage.deadlines[d]).filter(Boolean);
+      if(dls.length)return dls.sort().reverse()[0];
+    }
+    return null;
+  }
+  const map={aberta:sd.triagem,plano:sd.plano,execucao:sd.execucao};
+  return map[r.status]||null;
+}
+
+// ================================================================
+// LOGIN
+// ================================================================
+function Login({users,onLogin}){
+  const {C}=useTheme();
+  const Sg=mkSg(C);
+  const [email,setEmail]=useState("");
+  const [pwd,setPwd]=useState("");
+  const [err,setErr]=useState("");
+  const go=()=>{
+    const u=users.find(u=>u.active&&(u.email===email.trim()||u.name===email.trim())&&u.pwd===pwd);
+    u?onLogin(u):setErr("Usuario ou senha invalidos.");
+  };
+  return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{width:380,...Sg.card({padding:36,borderRadius:16})}}>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:24,fontWeight:900,letterSpacing:3,color:C.accent,marginBottom:3}}>CHANGE</div>
+        <div style={{fontSize:9,color:C.muted,letterSpacing:2}}>GESTAO DE MUDANCAS v{APP_VERSION}</div>
+      </div>
+      <div style={{marginBottom:12}}>
+        <label style={Sg.lbl}>E-mail ou Nome</label>
+        <input style={Sg.input()} value={email} onChange={e=>{setEmail(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="ana@empresa.com" autoFocus/>
+      </div>
+      <div style={{marginBottom:18}}>
+        <label style={Sg.lbl}>Senha</label>
+        <input type="password" style={Sg.input()} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="..."/>
+      </div>
+      {err&&<div style={{fontSize:12,color:C.danger,textAlign:"center",marginBottom:13,padding:8,background:C.danger+"11",borderRadius:7}}>{err}</div>}
+      <button style={{...Sg.btn("primary"),width:"100%",padding:11,fontSize:14,borderRadius:8}} onClick={go}>Entrar</button>
+      <details style={{marginTop:16}}>
+        <summary style={{fontSize:11,color:C.muted,cursor:"pointer",padding:"4px 0",userSelect:"none"}}>Credenciais demo</summary>
+        <div style={{marginTop:7,padding:9,background:C.surface,borderRadius:7,fontSize:11,color:C.muted,lineHeight:2.1}}>
+          <b style={{color:C.dim}}>Admin:</b> ana@empresa.com / Admin@123<br/>
+          <b style={{color:C.dim}}>Avaliador:</b> roberto@empresa.com / Avalia@123<br/>
+          <b style={{color:C.dim}}>Geral:</b> mariana@empresa.com / Geral@123
+        </div>
+      </details>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// ATTACHMENTS PANEL — upload real com base64, limite 5MB total
+// ================================================================
+const LS_ATT_STORAGE = "cm_att_v9";
+
+function getAttStorage(){
+  try{ return JSON.parse(localStorage.getItem(LS_ATT_STORAGE))||{}; }catch(e){ return {}; }
+}
+function setAttStorage(obj){
+  try{ localStorage.setItem(LS_ATT_STORAGE,JSON.stringify(obj)); }catch(e){ return false; }
+  return true;
+}
+function getStorageUsedKB(){
+  let total=0;
+  for(let k in localStorage){ try{ total+=localStorage[k].length*2; }catch(e){} }
+  return Math.round(total/1024);
+}
+
+function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C}){
+  const Sg=mkSg(C);
+  const [name,setName]=useState("");
+  const [ref,setRef]=useState("");
+  const [uploading,setUploading]=useState(false);
+  const [err,setErr]=useState("");
+  const [pendingFile,setPendingFile]=useState(null);
+  const fileRef=React.useRef();
+
+  const onFileChange=e=>{
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    setErr("");
+    if(file.size>4*1024*1024){setErr("Arquivo muito grande. Maximo 4MB por arquivo.");e.target.value="";return;}
+    const usedKB=getStorageUsedKB();
+    if(usedKB>4800){setErr("Armazenamento local quase cheio ("+usedKB+"KB / ~5000KB). Remova dados antigos.");e.target.value="";return;}
+    setName(file.name);
+    setPendingFile(file);
+    e.target.value="";
+  };
+
+  const add=()=>{
+    if(!name.trim())return;
+    if(pendingFile){
+      setUploading(true);
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const b64=ev.target.result;
+        const id="att_"+Date.now();
+        const store=getAttStorage();
+        store[id]=b64;
+        const ok=setAttStorage(store);
+        if(!ok){setErr("Erro ao salvar: armazenamento cheio.");setUploading(false);return;}
+        onAdd({id,name:name.trim(),ref:ref.trim(),stage,addedBy:currentUser.name,addedAt:new Date().toISOString(),hasFile:true,mimeType:pendingFile.type,sizeKB:Math.round(pendingFile.size/1024)});
+        setName("");setRef("");setPendingFile(null);setUploading(false);setErr("");
+      };
+      reader.onerror=()=>{setErr("Erro ao ler o arquivo.");setUploading(false);};
+      reader.readAsDataURL(pendingFile);
+    } else {
+      onAdd({id:"att_"+Date.now(),name:name.trim(),ref:ref.trim(),stage,addedBy:currentUser.name,addedAt:new Date().toISOString(),hasFile:false});
+      setName("");setRef("");setErr("");
+    }
+  };
+
+  const download=att=>{
+    if(!att.hasFile)return;
+    const store=getAttStorage();
+    const b64=store[att.id];
+    if(!b64){alert("Arquivo nao encontrado no armazenamento local.");return;}
+    const a=document.createElement("a");a.href=b64;a.download=att.name;a.click();
+  };
+
+  const all=attachments||[];
+  const usedKB=getStorageUsedKB();
+  const pct=Math.min(100,Math.round(usedKB/50));
+
+  return <div style={{marginTop:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.7}}>ANEXOS ({all.length})</div>
+      <div style={{fontSize:9,color:usedKB>4000?C.danger:C.muted}}>Storage: {usedKB}KB / ~5000KB</div>
+    </div>
+    {!readOnly&&<div style={{marginBottom:9}}>
+      <div style={{display:"flex",gap:7,marginBottom:5,flexWrap:"wrap"}}>
+        <button style={{...Sg.btn(),fontSize:11,padding:"5px 11px"}} onClick={()=>fileRef.current&&fileRef.current.click()}>
+          {pendingFile?"Trocar arquivo":"Escolher arquivo"}
+        </button>
+        {pendingFile&&<span style={{fontSize:11,color:C.success,alignSelf:"center",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pendingFile.name} ({Math.round(pendingFile.size/1024)}KB)</span>}
+        <input ref={fileRef} type="file" style={{display:"none"}} onChange={onFileChange}/>
+      </div>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <input style={{...Sg.input(),flex:2,minWidth:130}} value={name} onChange={e=>setName(e.target.value)} placeholder="Nome / descricao do documento..."/>
+        <input style={{...Sg.input(),flex:1,minWidth:100}} value={ref} onChange={e=>setRef(e.target.value)} placeholder="Ref (numero, codigo...)"/>
+        <button style={{...Sg.btn("primary"),fontSize:11,padding:"6px 12px",opacity:name.trim()&&!uploading?1:.4}} disabled={!name.trim()||uploading} onClick={add}>
+          {uploading?"Salvando...":"Adicionar"}
+        </button>
+      </div>
+      {err&&<div style={{fontSize:11,color:C.danger,marginTop:4}}>{err}</div>}
+    </div>}
+    {all.length===0&&<div style={{fontSize:11,color:C.muted,padding:"6px 0"}}>Nenhum anexo registrado.</div>}
+    {all.map((a,i)=>(
+      <div key={a.id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:C.surface,borderRadius:7,marginBottom:4}}>
+        <div style={{fontSize:13,flexShrink:0}}>{a.hasFile?"F":"R"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:600,color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+          <div style={{fontSize:10,color:C.muted,display:"flex",gap:8,flexWrap:"wrap"}}>
+            {a.ref&&<span>Ref: {a.ref}</span>}
+            {a.sizeKB&&<span>{a.sizeKB}KB</span>}
+            <span style={{color:C.accent}}>{a.stage}</span>
+            <span>{a.addedBy}</span>
+            <span>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</span>
+          </div>
+        </div>
+        {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px",flexShrink:0}} onClick={()=>download(a)}>Download</button>}
+      </div>
+    ))}
+  </div>;
+}
+
+// ================================================================
+// CRIT EDITOR — admin cria/edita/remove niveis livremente
+// ================================================================
+function CritEditor({crits,currentUser,onSave}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [local,setLocal]=useState(()=>crits.map(c=>({...c})));
+  const [saved,setSaved]=useState(false);
+  const [showNew,setShowNew]=useState(false);
+  const [nCrit,setNC]=useState({v:"",label:"",color:"#4F8EF7",desc:""});
+  const [ncErr,setNcErr]=useState("");
+
+  const COLORS=["#2DD4BF","#F59E0B","#EF4444","#C026D3","#4F8EF7","#F97316","#8B5CF6","#06B6D4","#10B981","#F43F5E","#64748B","#FBBF24"];
+
+  const save=()=>{
+    if(local.length===0){alert("Mantenha ao menos 1 nivel.");return;}
+    onSave(local,currentUser.name);setSaved(true);setTimeout(()=>setSaved(false),2500);
+  };
+
+  const addCrit=()=>{
+    if(!nCrit.v.trim()){setNcErr("Informe um codigo (ex: C5, ALTO...)");return;}
+    if(!nCrit.label.trim()){setNcErr("Informe um nome");return;}
+    if(local.find(c=>c.v.toUpperCase()===nCrit.v.toUpperCase())){setNcErr("Codigo ja existe");return;}
+    setLocal(p=>[...p,{v:nCrit.v.toUpperCase().trim(),label:nCrit.label.trim(),color:nCrit.color,desc:nCrit.desc.trim()}]);
+    setNC({v:"",label:"",color:"#4F8EF7",desc:""});setNcErr("");setShowNew(false);
+  };
+
+  const upd=(i,field,val)=>setLocal(p=>p.map((x,xi)=>xi===i?{...x,[field]:val}:x));
+  const remove=(i)=>{if(local.length<=1){alert("Mantenha ao menos 1 nivel.");return;}setLocal(p=>p.filter((_,xi)=>xi!==i));};
+  const moveUp=(i)=>{if(i===0)return;setLocal(p=>{const n=[...p];[n[i-1],n[i]]=[n[i],n[i-1]];return n;});};
+  const moveDown=(i)=>{if(i===local.length-1)return;setLocal(p=>{const n=[...p];[n[i],n[i+1]]=[n[i+1],n[i]];return n;});};
+
+  return <div style={{padding:"18px 22px",maxWidth:740}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:12,alignItems:"center",flexWrap:"wrap",gap:9}}>
+      <div>
+        <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Niveis de Criticidade</h1>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Crie e edite os niveis usados na triagem das SAs</div>
+      </div>
+      <div style={{display:"flex",gap:7}}>
+        <button style={Sg.btn()} onClick={()=>setShowNew(v=>!v)}>+ Novo Nivel</button>
+        <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>
+      </div>
+    </div>
+
+    {showNew&&<div style={{...Sg.card({marginBottom:14,border:"1px solid "+C.accent+"44"})}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:10}}>NOVO NIVEL</div>
+      <div style={{display:"grid",gridTemplateColumns:"80px 1fr 1fr",gap:10,marginBottom:8}}>
+        <div><label style={Sg.lbl}>Codigo *</label><input style={Sg.input()} value={nCrit.v} onChange={e=>setNC(n=>({...n,v:e.target.value}))} placeholder="C5"/></div>
+        <div><label style={Sg.lbl}>Nome *</label><input style={Sg.input()} value={nCrit.label} onChange={e=>setNC(n=>({...n,label:e.target.value}))} placeholder="Critica"/></div>
+        <div><label style={Sg.lbl}>Descricao</label><input style={Sg.input()} value={nCrit.desc} onChange={e=>setNC(n=>({...n,desc:e.target.value}))} placeholder="Impacto regulatorio..."/></div>
+      </div>
+      <div style={{marginBottom:8}}>
+        <label style={Sg.lbl}>Cor</label>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+          {COLORS.map(col=>(
+            <button key={col} onClick={()=>setNC(n=>({...n,color:col}))} style={{width:26,height:26,borderRadius:5,background:col,border:"3px solid "+(nCrit.color===col?"#fff":"transparent"),cursor:"pointer",flexShrink:0}}/>
+          ))}
+          <input type="color" value={nCrit.color} onChange={e=>setNC(n=>({...n,color:e.target.value}))} style={{width:30,height:26,border:"none",borderRadius:4,cursor:"pointer",background:"transparent"}}/>
+          <div style={{width:32,height:32,borderRadius:6,background:nCrit.color+"22",border:"2px solid "+nCrit.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:nCrit.color}}>{nCrit.v||"?"}</div>
+        </div>
+      </div>
+      {ncErr&&<div style={{fontSize:11,color:C.danger,marginBottom:6}}>{ncErr}</div>}
+      <div style={{display:"flex",gap:7,justifyContent:"flex-end"}}>
+        <button style={Sg.btn()} onClick={()=>{setShowNew(false);setNcErr("");}}>Cancelar</button>
+        <button style={Sg.btn("primary")} onClick={addCrit}>Adicionar</button>
+      </div>
+    </div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:7}}>
+      {local.map((cr,i)=>(
+        <div key={cr.v} style={{...Sg.card({borderLeft:"4px solid "+cr.color,padding:"12px 14px"})}}>
+          <div style={{display:"grid",gridTemplateColumns:"64px 1fr 1fr auto",gap:10,alignItems:"start"}}>
+            <div style={{padding:"8px 4px",borderRadius:7,background:cr.color+"22",textAlign:"center"}}>
+              <div style={{fontSize:16,fontWeight:800,color:cr.color}}>{cr.v}</div>
+            </div>
+            <div>
+              <label style={Sg.lbl}>Nome</label>
+              <input style={Sg.input()} value={cr.label} onChange={e=>upd(i,"label",e.target.value)}/>
+              <label style={{...Sg.lbl,marginTop:7}}>Descricao</label>
+              <input style={Sg.input()} value={cr.desc||""} onChange={e=>upd(i,"desc",e.target.value)} placeholder="Descricao do impacto..."/>
+            </div>
+            <div>
+              <label style={Sg.lbl}>Cor</label>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>
+                {COLORS.map(col=>(
+                  <button key={col} onClick={()=>upd(i,"color",col)} style={{width:22,height:22,borderRadius:4,background:col,border:"2px solid "+(cr.color===col?"#fff":"transparent"),cursor:"pointer",flexShrink:0}}/>
+                ))}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <input type="color" value={cr.color} onChange={e=>upd(i,"color",e.target.value)} style={{width:28,height:24,border:"none",borderRadius:3,cursor:"pointer",background:"transparent"}}/>
+                <span style={{fontSize:10,color:C.muted}}>Cor hex customizada</span>
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"center"}}>
+              <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===0?.3:1}} onClick={()=>moveUp(i)} disabled={i===0} title="Mover para cima">^</button>
+              <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===local.length-1?.3:1}} onClick={()=>moveDown(i)} disabled={i===local.length-1} title="Mover para baixo">v</button>
+              <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>remove(i)} title="Remover nivel">X</button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+    {local.length===0&&<div style={{...Sg.card({textAlign:"center",padding:28,color:C.muted})}}>Nenhum nivel. Adicione ao menos 1 para poder fazer triagens.</div>}
+  </div>;
+}
+
+// ================================================================
+// EVAL FORM v10 — obs ao responder Sim, perguntas vem de deptQuestions state
+// ================================================================
+function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQuestions,onChangeOwner,onClose,onSave,onSaveDraft,C}){
+  const Sg=mkSg(C);
+  // Use custom questions if available, fallback to DEPT_Q constant
+  const qs=(deptQuestions&&deptQuestions[dept])||DEPT_Q[dept]||[];
+  const [ans,setAns]=useState(()=>
+    existing&&existing.answers&&existing.answers.length
+      ?existing.answers.map(a=>({...a}))
+      :qs.map(q=>({q,a:"",just:"",obs:""}))
+  );
+  const [obs,setObs]=useState((existing&&existing.obs)||"");
+  const [newOwner,setNewOwner]=useState("");
+  const [showOwner,setShowOwner]=useState(false);
+  const [submitted,setSubmitted]=useState(false);
+
+  useEffect(()=>{
+    setAns(existing&&existing.answers&&existing.answers.length
+      ?existing.answers.map(a=>({...a}))
+      :qs.map(q=>({q,a:"",just:"",obs:""})));
+    setObs((existing&&existing.obs)||"");setSubmitted(false);
+  },[dept]);
+
+  const needsJ=a=>a==="N"||a==="N/A";
+  const setA=(i,a)=>setAns(p=>p.map((x,xi)=>xi===i?{...x,a}:x));
+  const setJ=(i,j)=>setAns(p=>p.map((x,xi)=>xi===i?{...x,just:j}:x));
+  const setQObs=(i,v)=>setAns(p=>p.map((x,xi)=>xi===i?{...x,obs:v}:x));
+  const missing=ans.filter(a=>needsJ(a.a)&&!(a.just&&a.just.trim())).length;
+  const unanswered=ans.filter(a=>!a.a).length;
+  const canSave=unanswered===0&&missing===0;
+  const evOpts=allUsers.filter(u=>u.active&&u.role==="evaluator"&&(u.evalDepts||[]).includes(dept));
+  const aUser=allUsers.find(u=>u.id===assignedUserId);
+  const trySubmit=()=>{setSubmitted(true);if(canSave)onSave(dept,ans,obs);};
+
+  return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:C.surface,borderRadius:8}}>
+      {aUser&&<Av user={aUser} size={26}/>}
+      <div style={{flex:1,fontSize:12,color:C.dim}}>Responsavel: <strong style={{color:C.text}}>{aUser&&aUser.name||"--"}</strong></div>
+      {isAdmin&&!readOnly&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={()=>setShowOwner(v=>!v)}>Trocar</button>}
+    </div>
+    {showOwner&&<div style={{display:"flex",gap:8}}>
+      <div style={{flex:1}}><Sel value={newOwner} onChange={setNewOwner} options={evOpts.map(u=>({value:u.id,label:u.name}))} placeholder="Novo responsavel..." C={C}/></div>
+      <button style={Sg.btn("primary")} onClick={()=>{if(newOwner){onChangeOwner(dept,parseInt(newOwner));setShowOwner(false);setNewOwner("");}}} disabled={!newOwner}>OK</button>
+      <button style={Sg.btn()} onClick={()=>setShowOwner(false)}>X</button>
+    </div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {ans.map((a,i)=>{
+        const needJ=needsJ(a.a);const justErr=submitted&&needJ&&!(a.just&&a.just.trim());const noAnsErr=submitted&&!a.a;
+        const isSim=a.a==="S";
+        return <div key={i} style={{padding:"8px 10px",background:C.surface,borderRadius:8,
+          border:"1px solid "+(justErr||noAnsErr?C.danger+"55":isSim?C.warning+"33":C.border)}}>
+          <div style={{fontSize:12,color:C.text,marginBottom:6,lineHeight:1.5}}>{i+1}. {a.q}</div>
+          <div style={{display:"flex",gap:6,marginBottom:(needJ||isSim)?6:0,flexWrap:"wrap"}}>
+            {["S","N","N/A"].map(opt=>(
+              <button key={opt} onClick={()=>!readOnly&&setA(i,opt)}
+                style={{padding:"4px 13px",borderRadius:6,cursor:readOnly?"default":"pointer",fontSize:12,fontWeight:a.a===opt?700:400,
+                  border:"1.5px solid "+(a.a===opt?(opt==="S"?C.warning:opt==="N"?C.danger:C.muted):C.border),
+                  background:a.a===opt?(opt==="S"?C.warning+"22":opt==="N"?C.danger+"22":C.muted+"22"):"transparent",
+                  color:a.a===opt?(opt==="S"?C.warning:opt==="N"?C.danger:C.muted):C.muted,fontFamily:"inherit"}}>
+                {opt==="S"?"Sim":opt==="N"?"Nao":"N/A"}
+              </button>
+            ))}
+            {noAnsErr&&<span style={{fontSize:11,color:C.danger,alignSelf:"center"}}>Obrigatorio</span>}
+          </div>
+          {/* Obs opcional ao responder Sim */}
+          {isSim&&<div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:3}}>Observacao (opcional)</div>
+            <textarea style={{...Sg.input(),minHeight:36,fontSize:12,resize:"vertical"}}
+              value={a.obs||""} onChange={e=>!readOnly&&setQObs(i,e.target.value)}
+              readOnly={readOnly} placeholder="Detalhes adicionais sobre o impacto..."/>
+          </div>}
+          {/* Justificativa obrigatoria para Nao/NA */}
+          {needJ&&<div>
+            <div style={{fontSize:10,marginBottom:3,color:justErr?C.danger:C.muted,fontWeight:justErr?600:400}}>
+              {justErr?"ATENCAO: ":""}Justificativa obrigatoria para Nao / N/A
+            </div>
+            <textarea style={{...Sg.input(),minHeight:42,fontSize:12,resize:"vertical",borderColor:justErr?C.danger:C.border}}
+              value={a.just||""} onChange={e=>setJ(i,e.target.value)} readOnly={readOnly} placeholder="Descreva o motivo..."/>
+          </div>}
+        </div>;
+      })}
+    </div>
+
+    <div><label style={Sg.lbl}>Observacoes Gerais</label>
+      <textarea style={{...Sg.input(),minHeight:42,resize:"vertical"}} value={obs} onChange={e=>!readOnly&&setObs(e.target.value)} readOnly={readOnly}/>
+    </div>
+    {existing&&existing.at&&<div style={{fontSize:11,color:C.success}}>Registrado por {existing.byName} em {fmt(existing.at)}</div>}
+    {submitted&&!canSave&&<div style={{padding:"6px 10px",background:C.danger+"11",borderRadius:7,fontSize:12,color:C.danger}}>
+      {unanswered>0&&<div>{unanswered} pergunta{unanswered!==1?"s":""} sem resposta</div>}
+      {missing>0&&<div>{missing} justificativa{missing!==1?"s":""} pendente{missing!==1?"s":""}</div>}
+    </div>}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingTop:4,flexWrap:"wrap"}}>
+      <div style={{fontSize:10,color:C.muted}}>{!readOnly&&onSaveDraft&&"Voce pode salvar rascunho e continuar depois."}</div>
+      <div style={{display:"flex",gap:8}}>
+        <button style={Sg.btn()} onClick={onClose}>Fechar</button>
+        {!readOnly&&onSaveDraft&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>onSaveDraft(dept,ans,obs)}>Salvar Rascunho</button>}
+        {!readOnly&&<button style={Sg.btn("primary")} onClick={trySubmit}>Registrar Avaliacao</button>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// TRIAGE PANEL v10 — mandatory/optional + phase deadline auto-fill
+// ================================================================
+function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C}){
+  const Sg=mkSg(C);
+  const existing=request.triage;
+  const [crit,setCrit]=useState((existing&&existing.criticality)||"");
+  const [fR,setFR]=useState((existing&&existing.flagReg)||false);
+  const [fP,setFP]=useState((existing&&existing.flagProd)||false);
+  const [just,setJust]=useState((existing&&existing.justification)||"");
+  const [areas,setAreas]=useState((existing&&existing.assignedAreas)||[]);
+  const [assigns,setAssigns]=useState((existing&&existing.assignments)||{});
+  const [dls,setDls]=useState((existing&&existing.deadlines)||{});
+
+  const evalDays=(phaseDl&&phaseDl.avaliacao&&phaseDl.avaliacao.days)||7;
+
+  const getCell=(dept)=>{
+    if(!crit||!matrix[request.type]||!matrix[request.type][dept])return"";
+    return matrix[request.type][dept][crit]||"";
+  };
+
+  const isMandatory=dept=>{
+    if(getCell(dept)==="mandatory")return true;
+    if(fR&&dept==="Assuntos Regulatorios")return true;
+    if(fP&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
+    return false;
+  };
+
+  const isOptional=dept=>getCell(dept)==="optional"&&!isMandatory(dept);
+
+  useEffect(()=>{
+    if(!crit||existing)return;
+    const mand=ALL_DEPTS.filter(d=>isMandatory(d));
+    setAreas(mand);
+    const dl={};
+    mand.forEach(d=>{dl[d]=addDays(todayStr(),evalDays);});
+    setDls(dl);
+  },[crit,fR,fP]);
+
+  const toggleArea=d=>{
+    if(isMandatory(d))return;
+    setAreas(p=>{
+      if(p.includes(d))return p.filter(x=>x!==d);
+      setDls(prev=>({...prev,[d]:addDays(todayStr(),evalDays)}));
+      return [...p,d];
+    });
+  };
+
+  const evFor=dept=>allUsers.filter(u=>u.active&&u.role==="evaluator"&&(u.evalDepts||[]).includes(dept));
+  const allSet=areas.length>0&&areas.every(a=>assigns[a]&&dls[a]);
+  const canSave=crit&&just.trim()&&areas.length>0&&allSet;
+
+  // Read-only
+  if(existing&&request.status!=="aberta"){
+    const t=existing;const cr=crits.find(c=>c.v===t.criticality);
+    return <div>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:9}}>
+        <div style={{padding:"6px 11px",borderRadius:7,background:(cr&&cr.color||C.muted)+"22",border:"2px solid "+(cr&&cr.color||C.muted),textAlign:"center",flexShrink:0}}>
+          <div style={{fontSize:16,fontWeight:800,color:cr&&cr.color}}>{t.criticality}</div>
+          <div style={{fontSize:9,color:cr&&cr.color}}>{cr&&cr.label}</div>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12,color:C.text,lineHeight:1.4}}>{t.justification}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:2}}>por {t.classifiedByName} {fmt(t.classifiedAt)}</div>
+          <div style={{display:"flex",gap:5,marginTop:3,flexWrap:"wrap"}}>
+            {t.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
+            {t.flagProd&&<Badge label="Impacto Produto" color={C.accent}/>}
+          </div>
+        </div>
+      </div>
+      {(t.assignedAreas||[]).map(d=>{
+        const u=allUsers.find(x=>x.id===(t.assignments&&t.assignments[d]));
+        const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
+        const dl=t.deadlines&&t.deadlines[d];
+        const orig=t.originalDeadlines&&t.originalDeadlines[d];
+        const extended=orig&&dl&&dl!==orig;
+        return <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 9px",background:C.surface,borderRadius:6,marginBottom:3,fontSize:11}}>
+          {isMandatory(d)&&<span style={{fontSize:8,fontWeight:700,color:C.warning,background:C.warning+"22",padding:"1px 4px",borderRadius:3,flexShrink:0}}>OBR</span>}
+          <span style={{flex:1,color:C.text}}>{d}</span>
+          {u&&<><Av user={u} size={17}/><span style={{color:C.dim}}>{u.name}</span></>}
+          <span style={{color:isOD(dl,done?"concluida":"")?"#EF4444":C.muted}}>{fmtD(dl)}{extended&&<span style={{fontSize:9,color:C.warning,marginLeft:3}}>ext.</span>}</span>
+          {done?<Badge label="Feito" color={C.success}/>:<Badge label="Pend." color={C.muted}/>}
+        </div>;
+      })}
+    </div>;
+  }
+
+  return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+    <div>
+      <label style={Sg.lbl}>Criticidade *</label>
+      <div style={{display:"grid",gridTemplateColumns:"repeat("+Math.min(crits.length,4)+",1fr)",gap:6}}>
+        {crits.map(cr=>(
+          <button key={cr.v} onClick={()=>setCrit(cr.v)} style={{padding:"8px 4px",borderRadius:8,border:"2px solid "+(crit===cr.v?cr.color:C.border),background:crit===cr.v?cr.color+"22":C.surface,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
+            <div style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</div>
+            <div style={{fontSize:9,color:crit===cr.v?cr.color:C.muted,marginTop:1}}>{cr.label}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+      {[{v:fR,s:setFR,l:"Risco Regulatorio",c:C.warning},{v:fP,s:setFP,l:"Impacto em Produto",c:C.accent}].map((f,i)=>(
+        <button key={i} onClick={()=>f.s(!f.v)} style={{padding:"7px 10px",borderRadius:7,border:"2px solid "+(f.v?f.c:C.border),background:f.v?f.c+"15":C.surface,cursor:"pointer",display:"flex",alignItems:"center",gap:7,fontFamily:"inherit"}}>
+          <div style={{width:12,height:12,borderRadius:3,border:"2px solid "+(f.v?f.c:C.border),background:f.v?f.c:"transparent",flexShrink:0}}/>
+          <span style={{fontSize:12,fontWeight:600,color:f.v?f.c:C.muted}}>{f.l}</span>
+        </button>
+      ))}
+    </div>
+    <div>
+      <label style={Sg.lbl}>Justificativa *</label>
+      <textarea style={{...Sg.input(),minHeight:50,resize:"vertical"}} value={just} onChange={e=>setJust(e.target.value)} placeholder="Motivo da classificacao..."/>
+    </div>
+    {crit&&<div>
+      <label style={Sg.lbl}>
+        Areas
+        <span style={{fontWeight:400,textTransform:"none",fontSize:10,marginLeft:5,color:C.muted}}>
+          — <span style={{color:C.warning,fontWeight:700}}>OBR</span> fixo na triagem | <span style={{color:C.accent,fontWeight:700}}>OPC</span> opcional | cinza = nao aplicavel
+        </span>
+      </label>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:4}}>
+        {ALL_DEPTS.map(d=>{
+          const mand=isMandatory(d);const opt=isOptional(d);const sel=areas.includes(d);
+          const hasEv=evFor(d).length>0;
+          return <label key={d} style={{display:"flex",alignItems:"center",gap:4,cursor:mand?"not-allowed":"pointer",padding:"4px 6px",borderRadius:6,
+            background:mand?C.warning+"18":sel?C.accent+"15":C.surface,
+            border:"1px solid "+(mand?C.warning+"66":sel?C.accent+"66":C.border),
+            fontSize:10.5,opacity:(!mand&&!opt&&!sel)?.45:1}}>
+            <input type="checkbox" checked={sel} onChange={()=>toggleArea(d)} disabled={mand} style={{accentColor:mand?C.warning:C.accent,flexShrink:0}}/>
+            <span style={{color:sel?C.text:C.muted,flex:1,lineHeight:1.3}}>
+              {mand&&<span style={{fontSize:8,color:C.warning,fontWeight:700,marginRight:2}}>OBR</span>}
+              {opt&&!mand&&!sel&&<span style={{fontSize:8,color:C.accent,marginRight:2}}>OPC</span>}
+              {d}
+            </span>
+            {sel&&!hasEv&&<span style={{fontSize:9,color:C.danger}} title="Sem avaliador cadastrado">!</span>}
+          </label>;
+        })}
+      </div>
+    </div>}
+    {areas.length>0&&<div>
+      <label style={Sg.lbl}>
+        Responsavel e Prazo
+        <span style={{fontWeight:400,textTransform:"none",fontSize:10,marginLeft:5,color:C.muted}}>
+          (prazo calculado pelo padrao de {evalDays} dias da etapa Avaliacao — editavel)
+        </span>
+      </label>
+      {areas.map(dept=>{
+        const opts=evFor(dept);const mand=isMandatory(dept);
+        return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 185px 115px",gap:6,alignItems:"center",padding:"5px 8px",background:C.surface,borderRadius:7,marginBottom:4,border:"1px solid "+(assigns[dept]&&dls[dept]?C.success+"44":C.border)}}>
+          <div style={{fontSize:11.5,fontWeight:600,color:C.text,display:"flex",alignItems:"center",gap:5}}>
+            {mand&&<span style={{fontSize:8,color:C.warning,fontWeight:700,background:C.warning+"22",padding:"1px 4px",borderRadius:3}}>OBR</span>}
+            {dept}
+          </div>
+          {opts.length>0
+            ?<Sel value={assigns[dept]||""} onChange={v=>setAssigns(p=>({...p,[dept]:parseInt(v)||null}))} options={opts.map(u=>({value:u.id,label:u.name}))} placeholder="Responsavel..." C={C}/>
+            :<div style={{fontSize:11,color:C.danger}}>Sem avaliador cadastrado</div>}
+          <input type="date" style={{...Sg.input(),fontSize:11,padding:"5px 7px"}} value={dls[dept]||""} min={todayStr()} onChange={e=>setDls(p=>({...p,[dept]:e.target.value}))}/>
+        </div>;
+      })}
+      {!allSet&&<div style={{fontSize:11,color:C.warning}}>Preencha responsavel e prazo para todas as areas.</div>}
+    </div>}
+    <div style={{display:"flex",justifyContent:"flex-end"}}>
+      <button style={{...Sg.btn("warning"),opacity:canSave?1:.4,padding:"8px 18px"}} disabled={!canSave}
+        onClick={()=>onSave({criticality:crit,flagReg:fR,flagProd:fP,justification:just,classifiedBy:currentUser.id,classifiedByName:currentUser.name,classifiedAt:new Date().toISOString(),assignedAreas:areas,assignments:assigns,deadlines:{...dls},originalDeadlines:{...dls}})}>
+        Confirmar Triagem
+      </button>
+    </div>
+  </div>;
+}
+
+// Collapsible evaluation detail card
+function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
+  const [open,setOpen]=useState(false);
+  const simCount=(ev.answers||[]).filter(a=>a.a==="S").length;
+  const naoCount=(ev.answers||[]).filter(a=>a.a==="N").length;
+  const naCount=(ev.answers||[]).filter(a=>a.a==="N/A").length;
+  return <div style={{...Sg.card({marginBottom:8,padding:0,overflow:"hidden"})}}>
+    {/* Header — always visible, click to expand */}
+    <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:open?C.surface:C.card,border:"none",cursor:"pointer",padding:"9px 13px",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:"inherit"}}>
+      <span style={{fontSize:11,color:open?C.accent:C.muted,transform:open?"rotate(90deg)":"none",transition:"transform .2s",flexShrink:0}}>&#9658;</span>
+      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
+        {u&&<Av user={u} size={22}/>}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dept}</div>
+          <div style={{fontSize:10,color:C.muted}}>
+            <strong style={{color:C.dim}}>{ev.byName}</strong> · {fmt(ev.at)}
+          </div>
+        </div>
+      </div>
+      {/* Mini summary badges */}
+      <div style={{display:"flex",gap:5,flexShrink:0}}>
+        {simCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.warning+"22",color:C.warning}}>{simCount} Sim</span>}
+        {naoCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.danger+"22",color:C.danger}}>{naoCount} Nao</span>}
+        {naCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.muted+"22",color:C.muted}}>{naCount} N/A</span>}
+        <Badge label="OK" color={C.success}/>
+      </div>
+    </button>
+    {/* Expandable answers */}
+    {open&&<div style={{borderTop:"1px solid "+C.border}}>
+      <div style={{display:"grid",gridTemplateColumns:"60px 1fr 1fr",background:C.surface+"88",padding:"4px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
+        {["Resp.","Pergunta","Justificativa / Obs"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.4}}>{h}</div>)}
+      </div>
+      {(ev.answers||[]).map((a,ai)=>{
+        const hasNote=(a.just&&a.just.trim())||(a.obs&&a.obs.trim());
+        return <div key={ai} style={{display:"grid",gridTemplateColumns:"60px 1fr 1fr",padding:"6px 13px",borderBottom:"1px solid "+C.border+"18",gap:8,alignItems:"start",background:ai%2===0?"transparent":C.surface+"44"}}>
+          <span style={{fontSize:12,fontWeight:700,color:a.a==="S"?C.warning:a.a==="N"?C.danger:C.muted}}>
+            {a.a==="S"?"Sim":a.a==="N"?"Nao":"N/A"}
+          </span>
+          <span style={{fontSize:12,color:C.text,lineHeight:1.4}}>{a.q}</span>
+          <span style={{fontSize:11,color:C.muted,lineHeight:1.4,fontStyle:hasNote?"normal":"italic"}}>
+            {a.just&&a.just.trim()?"— "+a.just:""}{a.obs&&a.obs.trim()?(a.just?"; ":"")+a.obs:""}
+            {!hasNote?"—":""}
+          </span>
+        </div>;
+      })}
+      {ev.obs&&<div style={{padding:"7px 13px",borderTop:"1px solid "+C.border+"33",fontSize:11,color:C.muted}}>
+        <strong>Obs gerais:</strong> {ev.obs}
+      </div>}
+      {isAdmin&&<div style={{padding:"7px 13px",borderTop:"1px solid "+C.border+"22"}}>
+        <button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={onEdit}>Editar avaliacao</button>
+      </div>}
+    </div>}
+  </div>;
+}
+
+// ================================================================
+// REQUEST DETAIL v10 — with deadline extension requests
+// ================================================================
+function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [tab,setTab]=useState("overview");
+  const [evalOpen,setEO]=useState(null);
+  const [showAddAc,setAddAc]=useState(false);
+  const [editAc,setEditAc]=useState(null);
+  const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
+  const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
+  const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
+  // Extension request state
+  const [extTarget,setExtTarget]=useState(null); // {type:"eval"|"action", key, label, currentDate}
+
+  const isAdmin=currentUser.role==="admin";
+  const cr=crits.find(c=>c.v===(request.triage&&request.triage.criticality));
+  const st=REQ_ST[request.status]||{};
+  const getU=id=>allUsers.find(u=>u.id===id);
+  const getUN=id=>{const u=getU(id);return u?u.name:"--";};
+  const aa=(request.triage&&request.triage.assignedAreas)||[];
+  const doneEv=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length;
+  const myAreas=aa.filter(d=>request.triage&&request.triage.assignments&&request.triage.assignments[d]===currentUser.id);
+  const otherAreas=aa.filter(d=>request.triage&&request.triage.assignments&&request.triage.assignments[d]!==currentUser.id);
+  const myPend=(request.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente");
+  const canPlan=currentUser.role==="admin"||(request.planResponsible===currentUser.id);
+  const pendExt=(request.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
+
+  const upd=(patch,type,ev,detail)=>{let r={...request,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);onUpdate(r);};
+
+  const saveTriage=triage=>{
+    const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
+    const existSD=request.stageDeadlines||{};
+    const newSD={...existSD,avaliacao:addDays(todayStr(),pd.avaliacao.days),revisao:null,plano:null,execucao:null};
+    let r={...request,triage,status:"avaliacao",evaluations:{},ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
+    r=mkLog(r,currentUser.name,"triagem","Triagem aprovada","Criticidade: "+triage.criticality+" | "+triage.assignedAreas.length+" areas acionadas");
+    onUpdate(r);setTab("avaliacoes");
+  };
+
+  const saveDraftEval=(dept,answers,obs)=>{
+    // Save draft — no "at" timestamp, just raw answers stored
+    const evs={...(request.evaluations||{}),[dept]:{answers,obs,draft:true,byId:currentUser.id,byName:currentUser.name,savedAt:new Date().toISOString()}};
+    const r=mkLog({...request,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,"");
+    onUpdate(r);setEO(null);
+  };
+  const saveEval=(dept,answers,obs)=>{
+    const evs={...request.evaluations,[dept]:{answers,obs,by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+    const allDone=aa.every(d=>evs[d]&&evs[d].at);
+    let r={...request,evaluations:evs,status:allDone?"revisao":"avaliacao"};
+    r=mkLog(r,currentUser.name,"avaliacao","Avaliacao registrada","Area: "+dept);
+    if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2");
+    onUpdate(r);setEO(null);
+  };
+
+  const ap2=(customDate)=>{
+    const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
+    const planDl=customDate||addDays(todayStr(),pd.plano.days);
+    const newSD={...request.stageDeadlines,revisao:new Date().toISOString(),plano:planDl};
+    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:newSD},"aprovacao","Avaliacao aprovada - Montagem do Plano iniciada","Prazo plano: "+fmtD(planDl));
+  };
+  const ap3=(customDate)=>{
+    const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
+    const execDl=customDate||addDays(todayStr(),pd.execucao.days);
+    const newSD={...request.stageDeadlines,execucao:execDl};
+    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:newSD},"aprovacao","Plano aprovado - Execucao iniciada","Prazo execucao: "+fmtD(execDl));
+  };
+
+  const addAction=()=>{
+    const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
+    upd({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao adicionada","Desc: "+nAc.desc+" | Resp: "+getUN(parseInt(nAc.responsible)));
+    setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
+  };
+
+  const updAc=(aid,ch,ev,detail)=>{
+    const actions=(request.actions||[]).map(a=>a.id===aid?{...a,...ch}:a);
+    const allDone=actions.length>0&&actions.every(a=>["concluida","cancelada"].includes(a.status));
+    let r={...request,actions};
+    if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");
+    if(allDone){r={...r,status:"concluida",closedAt:new Date().toISOString()};r=mkLog(r,"Sistema","sistema","SA encerrada","Todas as acoes concluidas");}
+    onUpdate(r);
+  };
+
+  const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name+" | Etapa: "+att.stage);
+
+  // Deadline extension request (by owner)
+  const requestExtension=(newDate,reason)=>{
+    if(!extTarget)return;
+    const ext={id:"EXT-"+Date.now(),targetType:extTarget.type,targetKey:extTarget.key,targetLabel:extTarget.label,currentDate:extTarget.currentDate,newDate,reason,status:"pending",requestedBy:currentUser.id,requestedByName:currentUser.name,requestedAt:new Date().toISOString()};
+    let r={...request,deadlineExtensions:[...(request.deadlineExtensions||[]),ext]};
+    r=mkLog(r,currentUser.name,"extensao","Extensao de prazo solicitada",extTarget.label+" | Novo prazo: "+fmtD(newDate)+" | Motivo: "+reason);
+    onUpdate(r);setExtTarget(null);
+  };
+
+  // Admin: directly change deadline (with reason)
+  const [ap2Date,setAp2Date]=useState(null);
+  const [ap3Date,setAp3Date]=useState(null);
+  const [adminDlTarget,setAdminDlTarget]=useState(null);
+  const applyAdminDl=(newDate,reason)=>{
+    if(!adminDlTarget)return;
+    let r={...request};
+    if(adminDlTarget.type==="eval"){
+      const dl={...request.triage.deadlines,[adminDlTarget.key]:newDate};
+      r={...r,triage:{...r.triage,deadlines:dl}};
+    } else {
+      const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);
+      r={...r,actions};
+    }
+    r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | Novo prazo: "+fmtD(newDate)+" | Motivo: "+reason);
+    onUpdate(r);setAdminDlTarget(null);
+  };
+
+  // Decide on pending extension
+  const decideExt=(ext,approved,note)=>{
+    const exts=(request.deadlineExtensions||[]).map(e=>{
+      if(e.id!==ext.id)return e;
+      return {...e,status:approved?"approved":"rejected",decidedBy:currentUser.id,decidedByName:currentUser.name,decidedAt:new Date().toISOString(),decisionNote:note||""};
+    });
+    let r={...request,deadlineExtensions:exts};
+    if(approved){
+      if(ext.targetType==="eval"){
+        const dl={...request.triage.deadlines,[ext.targetKey]:ext.newDate};
+        r={...r,triage:{...r.triage,deadlines:dl}};
+      } else {
+        const actions=r.actions.map(a=>a.id===ext.targetKey?{...a,deadline:ext.newDate}:a);
+        r={...r,actions};
+      }
+      r=mkLog(r,currentUser.name,"extensao","Extensao aprovada",ext.targetLabel+" → "+fmtD(ext.newDate));
+    } else {
+      r=mkLog(r,currentUser.name,"extensao","Extensao rejeitada",ext.targetLabel+" | Motivo: "+(note||"--"));
+    }
+    onUpdate(r);
+  };
+
+  const rejeitar=()=>{
+    let r={...request,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
+      rejections:[...(request.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:request.status}]};
+    r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada","Motivo: "+rejectNote);
+    onUpdate(r);setReject(false);setRN("");onBack();
+  };
+  const regredir=()=>{
+    const prev={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
+    if(!prev)return;
+    let r={...request,status:prev};
+    r=mkLog(r,currentUser.name,"retorno","Retorno a fase anterior","De: "+st.label+" Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" Motivo: "+regressNote);
+    onUpdate(r);setRegress(false);setGN("");
+  };
+  const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
+
+  const tabs=[
+    {id:"overview",l:"Visao Geral"},
+    {id:"triagem",l:request.triage?"Triagem ✓":"Triagem"},
+    {id:"avaliacoes",l:"Avaliacoes ("+doneEv+"/"+aa.length+")"},
+    {id:"plano",l:"Plano ("+(request.actions&&request.actions.length||0)+")"},
+    {id:"anexos",l:"Anexos ("+(request.attachments&&request.attachments.length||0)+")"},
+    {id:"extensoes",l:"Prazos"+(pendExt>0?" ("+pendExt+")":"")},
+    {id:"log",l:"Historico"},
+  ];
+
+  const ExtRequestModal=({target,onClose,onSubmit})=>target?<Modal open={!!target} onClose={onClose} title="Solicitar Extensao de Prazo" width={420}>
+    <div style={{padding:"8px 11px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:7,marginBottom:12,fontSize:12,color:C.warning}}>
+      <div style={{fontWeight:700}}>{target.label}</div>
+      <div>Prazo atual: {fmtD(target.currentDate)}</div>
+    </div>
+    <ExtReqForm onClose={onClose} onSubmit={onSubmit} currentDeadline={target.currentDate} C={C} Sg={Sg}/>
+  </Modal>:null;
+
+  return <div style={{padding:"20px 22px",maxWidth:980,margin:"0 auto"}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>Voltar</button>
+      <span style={{fontSize:11,fontWeight:700,color:C.accent,flexShrink:0}}>{request.id}</span>
+      <h1 style={{margin:0,fontSize:15,color:C.text,flex:1,minWidth:140,fontWeight:700}}>{request.title}</h1>
+      {cr&&<Badge label={cr.v+" "+cr.label} color={cr.color}/>}
+      {request.triage&&request.triage.flagReg&&<Badge label="Reg." color={C.warning}/>}
+      {request.triage&&request.triage.flagProd&&<Badge label="Prod." color={C.accent}/>}
+      <Badge label={st.label} color={st.color||C.muted}/>
+      {isAdmin&&prevSt&&!["concluida","cancelada","aberta"].includes(request.status)&&
+        <button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setRegress(true)}>Fase Anterior</button>}
+      {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
+        <button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 9px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
+    </div>
+    {/* Simple stepper — circles only */}
+    <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:14,overflowX:"auto"}}>
+      {[
+        {key:"aberta",   label:"Triagem",   gate:"SGQ 1", done:!!request.ap1At, active:request.status==="aberta",  waiting:false},
+        {key:"avaliacao",label:"Avaliacao",  gate:"SGQ 2", done:!!request.ap2At, active:["avaliacao","revisao"].includes(request.status), waiting:request.status==="revisao"},
+        {key:"plano",    label:"Plano",      gate:"SGQ 3", done:!!request.ap3At, active:request.status==="plano",  waiting:false},
+        {key:"execucao", label:"Execucao",   gate:null,    done:request.status==="concluida", active:request.status==="execucao", waiting:false},
+        {key:"concluida",label:"Concluida",  gate:null,    done:false, active:request.status==="concluida", waiting:false},
+      ].map((st,i,arr)=>{
+        const col=st.done?C.success:st.waiting?C.warning:st.active?(REQ_ST[request.status]&&REQ_ST[request.status].color||C.accent):C.border;
+        return <React.Fragment key={st.key}>
+          <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,minWidth:68}}>
+            {st.gate?<div style={{fontSize:9,fontWeight:700,padding:"1px 5px",borderRadius:4,marginBottom:3,
+              background:st.done?C.success+"22":st.waiting?C.warning+"22":st.active?col+"22":C.border+"22",
+              color:st.done?C.success:st.waiting?C.warning:st.active?col:C.muted,
+              border:"1px solid "+(st.done?C.success:st.waiting?C.warning:st.active?col:C.border)}}>{st.gate}</div>
+            :<div style={{height:18}}/>}
+            <div style={{width:24,height:24,borderRadius:"50%",
+              background:st.done?C.success:st.active||st.waiting?col:"transparent",
+              border:"2.5px solid "+col,display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:10,fontWeight:800,color:(st.done||st.active||st.waiting)?"#000":C.muted}}>
+              {st.done?"✓":i+1}
+            </div>
+            <span style={{fontSize:10,color:st.done?C.success:st.active||st.waiting?col:C.muted,
+              fontWeight:st.active||st.waiting?700:400,textAlign:"center",marginTop:2,lineHeight:1.2}}>{st.label}</span>
+          </div>
+          {i<arr.length-1&&<div style={{flex:1,height:2,background:st.done?C.success:C.border,marginBottom:12,minWidth:8}}/>}
+        </React.Fragment>;
+      })}
+    </div>
+
+    {/* Stage deadlines strip */}
+
+
+    {/* Approval banners */}
+    {request.status==="aberta"&&isAdmin&&
+      <div style={{padding:"9px 13px",borderRadius:7,background:C.warning+"0D",border:"1px solid "+C.warning+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.warning}}>Triagem necessaria</div>
+        <button style={Sg.btn("warning")} onClick={()=>setTab("triagem")}>Fazer Triagem</button>
+      </div>}
+    {request.status==="revisao"&&isAdmin&&
+      <div style={{padding:"10px 13px",borderRadius:7,background:C.purple+"0D",border:"1px solid "+C.purple+"44",marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:ap2Date?8:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar Avaliacoes</div>
+          <div style={{display:"flex",gap:7,alignItems:"center"}}>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setTab("avaliacoes")}>Ver</button>
+            <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar → Plano</button>
+          </div>
+        </div>
+        {ap2Date&&<div style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderTop:"1px solid "+C.purple+"33",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.muted}}>Prazo para montagem do plano:</span>
+          <input type="date" style={{...Sg.input(),width:150,fontSize:12}} value={ap2Date} min={todayStr()} onChange={e=>setAp2Date(e.target.value)}/>
+          <span style={{fontSize:11,color:C.muted}}>(padrao: {(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5} dias)</span>
+          <button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setAp2Date(null)}>Cancelar</button>
+          <button style={{...Sg.btn("purple"),fontSize:12,padding:"5px 13px"}} onClick={()=>{ap2(ap2Date);setAp2Date(null);}}>Confirmar</button>
+        </div>}
+      </div>}
+    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&
+      <div style={{padding:"10px 13px",borderRadius:7,background:C.success+"0D",border:"1px solid "+C.success+"44",marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:ap3Date?8:0}}>
+          <div style={{fontSize:13,fontWeight:600,color:C.success}}>Aprovacao 3 — Plano ({(request.actions||[]).length} acoes)</div>
+          <button style={Sg.btn("success")} onClick={()=>setAp3Date(addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30))}>Iniciar Execucao</button>
+        </div>
+        {ap3Date&&<div style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderTop:"1px solid "+C.success+"33",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,color:C.muted}}>Prazo de execucao (referencia):</span>
+          <input type="date" style={{...Sg.input(),width:150,fontSize:12}} value={ap3Date} min={todayStr()} onChange={e=>setAp3Date(e.target.value)}/>
+          <span style={{fontSize:11,color:C.muted}}>(padrao: {(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30} dias)</span>
+          <button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setAp3Date(null)}>Cancelar</button>
+          <button style={{...Sg.btn("success"),fontSize:12,padding:"5px 13px"}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
+        </div>}
+      </div>}
+
+    {/* Pending extensions banner for admin */}
+    {isAdmin&&pendExt>0&&
+      <div style={{padding:"9px 13px",borderRadius:7,background:C.orange+"0D",border:"1px solid "+C.orange+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <div style={{fontSize:13,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} de prazo aguardando aprovacao</div>
+        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setTab("extensoes")}>Revisar</button>
+      </div>}
+
+    {/* My pending actions */}
+    {myPend.length>0&&
+      <div style={{padding:"9px 12px",borderRadius:7,background:C.accent+"0D",border:"1px solid "+C.accent+"33",marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:600,color:C.accent,marginBottom:5}}>{myPend.length} acao{myPend.length!==1?"oes":""} pendente{myPend.length!==1?"s":""} com voce</div>
+        {myPend.map(a=>{
+          const ov=isOD(a.deadline,a.status);
+          return <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderTop:"1px solid "+C.border+"22",flexWrap:"wrap"}}>
+            <span style={{flex:1,fontSize:12,color:C.text}}>{a.desc}</span>
+            <span style={{fontSize:11,color:ov?C.danger:C.muted}}>{fmtD(a.deadline)}{ov&&" Atrasado"}</span>
+            <button style={{...Sg.btn("success"),fontSize:11,padding:"3px 9px"}} onClick={()=>updAc(a.id,{status:"concluida",doneAt:new Date().toISOString()},"Acao concluida","Desc: "+a.desc)}>Concluir</button>
+            <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setExtTarget({type:"action",key:a.id,label:a.desc,currentDate:a.deadline})}>Pedir Extensao</button>
+          </div>;
+        })}
+      </div>}
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:0,marginBottom:13,borderBottom:"1px solid "+C.border,overflowX:"auto"}}>
+      {tabs.map(t=>(
+        <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"7px 11px",fontSize:12,fontWeight:tab===t.id?700:400,color:tab===t.id?C.accent:C.muted,borderBottom:"2px solid "+(tab===t.id?C.accent:"transparent"),whiteSpace:"nowrap",fontFamily:"inherit"}}>
+          {t.l}
+        </button>
+      ))}
+    </div>
+
+    {/* OVERVIEW */}
+    {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:9,letterSpacing:.6}}>SOLICITACAO</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Tipo</div><div style={{fontSize:13,color:C.text,marginBottom:8}}>{request.type}</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Descricao</div><div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:8}}>{request.description}</div>
+        {request.justification&&<><div style={{fontSize:11,color:C.muted,marginBottom:1}}>Justificativa</div><div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{request.justification}</div></>}
+        <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid "+C.border,fontSize:11,color:C.muted}}>
+          Criado por <strong style={{color:C.dim}}>{request.createdByName}</strong> em {fmtD(request.createdAt&&request.createdAt.slice(0,10))}
+        </div>
+        {(request.rejections||[]).length>0&&<div style={{marginTop:9,paddingTop:8,borderTop:"1px solid "+C.border}}>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:5,letterSpacing:.6}}>REJEICOES</div>
+          {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"4px 8px",background:C.danger+"0D",borderRadius:6,marginBottom:3}}>
+            <div style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}</div>
+            {r.note&&<div style={{color:C.muted,marginTop:1}}>{r.note}</div>}
+          </div>)}
+        </div>}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {request.triage&&<div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/></div>}
+        {!request.triage&&isAdmin&&<div style={{...Sg.card({border:"1px solid "+C.warning+"44",background:C.warning+"08",textAlign:"center",padding:22,cursor:"pointer"}),}} onClick={()=>setTab("triagem")}>
+          <div style={{fontSize:13,fontWeight:600,color:C.warning}}>Aguarda Triagem</div></div>}
+        <div style={Sg.card()}>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:7,letterSpacing:.6}}>LINHA DO TEMPO</div>
+          {[{l:"Criada",n:request.createdByName,at:request.createdAt},{l:"Triagem",n:request.ap1ByName,at:request.ap1At},{l:"Avaliacao aprovada",n:request.ap2ByName,at:request.ap2At},{l:"Plano aprovado",n:request.ap3ByName,at:request.ap3At},{l:"Encerrada",n:"",at:request.closedAt}].filter(e=>e.at).map((e,i)=>(
+            <div key={i} style={{display:"flex",gap:7,marginBottom:4,fontSize:11}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:C.accent,marginTop:4,flexShrink:0}}/>
+              <div><span style={{color:C.text}}>{e.l}{e.n?" — "+e.n:""}</span><br/><span style={{color:C.muted,fontSize:10}}>{fmt(e.at)}</span></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>}
+
+    {/* TRIAGEM */}
+    {tab==="triagem"&&<div>
+      {/* Triagem done: show what was decided */}
+      {request.triage&&request.ap1At?<div>
+        <div style={{...Sg.card({marginBottom:10,padding:"13px 15px",borderLeft:"3px solid "+C.success})}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:10}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6}}>TRIAGEM CONCLUIDA</div>
+            {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={()=>setTab("_triagem_edit")}>Editar Triagem</button>}
+          </div>
+          {/* Key decisions */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:12}}>
+            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>REALIZADO POR</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap1ByName}</div></div>
+            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>DATA</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap1At)}</div></div>
+            {cr&&<div style={{...Sg.card({padding:"9px 12px",background:C.surface,borderLeft:"3px solid "+cr.color})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>CRITICIDADE</div><div style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v} — {cr.label}</div></div>}
+            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>PRAZO AVALIACAO</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmtD(request.stageDeadlines&&request.stageDeadlines.avaliacao)}</div></div>
+            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>AREAS ATRIBUIDAS</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{(request.triage.assignedAreas||[]).length} areas</div></div>
+          </div>
+          {/* Flags */}
+          {(request.triage.flagReg||request.triage.flagProd)&&<div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+            {request.triage.flagReg&&<Badge label="Impacto Regulatorio" color={C.warning}/>}
+            {request.triage.flagProd&&<Badge label="Impacto Producao/Produto" color={C.accent}/>}
+          </div>}
+          {request.triage.notes&&<div style={{fontSize:12,color:C.muted,padding:"8px 10px",background:C.surface,borderRadius:7}}><strong style={{color:C.dim}}>Obs da triagem:</strong> {request.triage.notes}</div>}
+        </div>
+        {/* Areas table */}
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:6}}>AREAS ATRIBUIDAS ({(request.triage.assignedAreas||[]).length})</div>
+        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 90px",background:C.surface,padding:"5px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
+            {["Area","Avaliador","Prazo","Tipo"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
+          </div>
+          {(request.triage.assignedAreas||[]).map((dept,i)=>{
+            const u=getU(request.triage.assignments&&request.triage.assignments[dept]);
+            const dl=request.triage.deadlines&&request.triage.deadlines[dept];
+            const mand=(request.triage.mandatory||{})[dept];
+            const ev=request.evaluations&&request.evaluations[dept];
+            const done=!!(ev&&ev.at);
+            return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 90px",padding:"7px 13px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                {done?<span style={{color:C.success,fontSize:11}}>✓</span>:<span style={{color:C.muted,fontSize:11}}>○</span>}
+                <span style={{fontSize:12,color:C.text}}>{dept}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>{u&&<Av user={u} size={18}/>}<span style={{fontSize:11,color:C.dim}}>{u&&u.name||"—"}</span></div>
+              <span style={{fontSize:11,color:C.muted}}>{fmtD(dl)}</span>
+              <span style={{fontSize:10,fontWeight:700,color:mand?C.warning:C.accent}}>{mand?"Obrig.":"Opcional"}</span>
+            </div>;
+          })}
+        </div>
+      </div>
+      /* Pending or edit mode */
+      :<div>
+        {isAdmin
+          ?<div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/></div>
+          :<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:32}}>Aguardando triagem pelo SGQ.</div>}
+      </div>}
+    </div>}
+    {/* Triagem edit mode */}
+    {tab==="_triagem_edit"&&isAdmin&&<div>
+      <button style={{...Sg.btn(),fontSize:11,padding:"4px 10px",marginBottom:10}} onClick={()=>setTab("triagem")}>← Voltar</button>
+      <div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t);setTab("triagem");}} C={C}/></div>
+    </div>}
+
+    {/* AVALIACOES */}
+    {tab==="avaliacoes"&&<div>
+      {!request.triage&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:28}}>Aguardando triagem.</div>}
+      {request.triage&&<>
+        {/* Summary header */}
+        {request.ap2At&&<div style={{...Sg.card({marginBottom:12,padding:"11px 14px",borderLeft:"3px solid "+C.success})}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:7}}>AVALIACAO APROVADA (SGQ 2)</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
+            <div><div style={{fontSize:10,color:C.muted}}>Aprovado por</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap2ByName}</div></div>
+            <div><div style={{fontSize:10,color:C.muted}}>Data de aprovacao</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap2At)}</div></div>
+            <div><div style={{fontSize:10,color:C.muted}}>Areas concluidas</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{doneEv}/{aa.length}</div></div>
+          </div>
+        </div>}
+
+        {/* Table of all areas */}
+        <div style={{...Sg.card({padding:0,overflow:"hidden",marginBottom:12})}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 130px 120px 95px 100px",background:C.surface,padding:"6px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
+            {["Area / Avaliador","Prazo","Status","Finalizado em","Acao"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
+          </div>
+          {aa.map((dept,i)=>{
+            const ev=request.evaluations&&request.evaluations[dept];
+            const done=!!(ev&&ev.at);
+            const draft=!!(ev&&!ev.at&&ev.draft);
+            const u=getU(request.triage&&request.triage.assignments&&request.triage.assignments[dept]);
+            const dl=request.triage&&request.triage.deadlines&&request.triage.deadlines[dept];
+            const isMe=u&&u.id===currentUser.id;
+            const canAct=(isMe||isAdmin)&&request.status==="avaliacao";
+            const stColor=done?C.success:draft?C.accent:C.muted;
+            const stLabel=done?"Concluida":draft?"Rascunho":"Pendente";
+            return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 130px 120px 95px 100px",padding:"8px 13px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:C.text}}>{dept}</div>
+                <div style={{display:"flex",alignItems:"center",gap:5,marginTop:2}}>{u&&<Av user={u} size={16}/>}<span style={{fontSize:10,color:C.muted}}>{u&&u.name||"—"}</span></div>
+              </div>
+              <span style={{fontSize:11,color:C.muted}}>{fmtD(dl)}</span>
+              <Badge label={stLabel} color={stColor}/>
+              <span style={{fontSize:11,color:done?C.success:C.muted}}>{done?fmtD(ev.at.slice(0,10)):"—"}</span>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {done&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>setEO({dept,readOnly:true})}>Ver</button>}
+                {canAct&&!done&&<button style={{...Sg.btn("primary"),fontSize:10,padding:"3px 8px"}} onClick={()=>setEO({dept,readOnly:false})}>{draft?"Continuar":"Avaliar"}</button>}
+                {isAdmin&&done&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>setEO({dept,readOnly:false})}>Editar</button>}
+              </div>
+            </div>;
+          })}
+        </div>
+
+        {/* Completed evaluations — collapsible per area */}
+        {aa.filter(d=>{const ev=request.evaluations&&request.evaluations[d];return ev&&ev.at;}).map(dept=>{
+          const ev=request.evaluations[dept];
+          const u=getU(request.triage&&request.triage.assignments&&request.triage.assignments[dept]);
+          return <EvalDetail key={dept} dept={dept} ev={ev} u={u} isAdmin={isAdmin} onEdit={()=>setEO({dept,readOnly:false})} C={C} Sg={Sg}/>;
+        })}
+      </>}
+    </div>}
+
+    {/* PLANO */}
+    {tab==="plano"&&<div>
+      {["aberta","avaliacao","revisao"].includes(request.status)&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:26}}>Disponivel apos Aprovacao 2.</div>}
+      {["plano","execucao","concluida"].includes(request.status)&&<>
+        <div style={{...Sg.card({marginBottom:10,padding:"9px 13px"})}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:12}}>
+              <span style={{color:C.muted}}>Responsavel pelo plano: </span>
+              <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong>
+            </div>
+            {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{const u=allUsers.find(x=>x.id===parseInt(v));upd({planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},"plano","Responsavel do plano alterado","Novo: "+(u&&u.name||"--"));}} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir..." C={C}/>}
+          </div>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}>
+          <span style={{fontSize:13,fontWeight:700,color:C.text}}>{(request.actions||[]).length} acao{(request.actions||[]).length!==1?"oes":""}</span>
+          {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+        </div>
+        {(request.actions||[]).map(ac=>{
+          const ov=isOD(ac.deadline,ac.status);
+          const acColor=ov?C.danger:(ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:C.accent);
+          const resp=getU(ac.responsible);const isMine=ac.responsible===currentUser.id;
+          const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+          const canEdit=canPlan||isMine;
+          return <div key={ac.id} style={{...Sg.card({borderLeft:"3px solid "+acColor,marginBottom:6,padding:"10px 13px"})}}>
+            <div style={{display:"flex",gap:9,alignItems:"flex-start"}}>
+              {resp&&<Av user={resp} size={29}/>}
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",gap:7,marginBottom:2,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:600,color:C.text}}>{ac.id} — {ac.desc}</span>
+                  <Badge label={ac.status==="concluida"?"Concluida":ov?"Atrasada":ac.status} color={acColor}/>
+                </div>
+                <div style={{fontSize:11,color:C.muted,display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <span>Resp: {resp&&resp.name||"--"}</span>
+                  <span style={{color:ov?C.danger:C.muted}}>Prazo: {fmtD(ac.deadline)}</span>
+                  {ac.obs&&<span>Obs: {ac.obs}</span>}
+                  {ac.doneAt&&<span style={{color:C.success}}>Concluida: {fmtD(ac.doneAt.slice(0,10))}</span>}
+                </div>
+              </div>
+            </div>
+            {(canAct||canEdit)&&!["concluida","cancelada"].includes(ac.status)&&
+              <div style={{display:"flex",gap:5,marginTop:7,paddingTop:7,borderTop:"1px solid "+C.border+"22",flexWrap:"wrap"}}>
+                {canAct&&<button style={{...Sg.btn("success"),fontSize:11,padding:"4px 9px"}} onClick={()=>updAc(ac.id,{status:"concluida",doneAt:new Date().toISOString()},"Acao concluida","Desc: "+ac.desc)}>Concluir</button>}
+                {isMine&&request.status==="execucao"&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Ext.</button>}
+                {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
+                {canEdit&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setEditAc(ac)}>Editar</button>}
+                {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 9px"}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida","Desc: "+ac.desc)}>Remover</button>}
+              </div>}
+          </div>;
+        })}
+        {!(request.actions||[]).length&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:20}}>{canPlan&&request.status==="plano"?"Adicione acoes acima.":"Nenhuma acao."}</div>}
+      </>}
+    </div>}
+
+    {/* ANEXOS */}
+    {tab==="anexos"&&<div style={Sg.card()}>
+      <AttachmentsPanel attachments={request.attachments||[]} onAdd={att=>addAttachment(att)} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+    </div>}
+
+    {/* EXTENSOES DE PRAZO */}
+    {tab==="extensoes"&&<ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg}/>}
+
+    {/* LOG */}
+    {tab==="log"&&<div style={Sg.card()}>
+      <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:9,letterSpacing:.6}}>HISTORICO — {request.id}</div>
+      {(request.log||[]).slice().reverse().map((e,i)=>{
+        const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success}[e.type]||C.muted;
+        return <div key={i} style={{padding:"7px 0",borderBottom:"1px solid "+C.border+"22",fontSize:11.5}}>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:2,flexWrap:"wrap"}}>
+            <span style={{color:C.muted,fontSize:10,width:120,flexShrink:0}}>{fmt(e.at)}</span>
+            <span style={{color:C.dim,width:110,flexShrink:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.by}</span>
+            <span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:700,background:tc+"22",color:tc}}>{e.type||"--"}</span>
+          </div>
+          <div style={{paddingLeft:0,color:C.text,paddingTop:2}}>{e.event}</div>
+          {e.detail&&<div style={{color:C.muted,fontSize:10.5,marginTop:1}}>{e.detail}</div>}
+        </div>;
+      })}
+      {!(request.log||[]).length&&<div style={{color:C.muted,textAlign:"center",padding:18}}>Nenhum evento.</div>}
+    </div>}
+
+    {/* MODALS */}
+    <Modal open={!!evalOpen} onClose={()=>setEO(null)} title={"Analise — "+(evalOpen&&evalOpen.dept||"")} width={740}>
+      {evalOpen&&<EvalForm dept={evalOpen.dept} existing={request.evaluations&&request.evaluations[evalOpen.dept]} readOnly={evalOpen.readOnly}
+        allUsers={allUsers} deptQuestions={deptQuestions} assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[evalOpen.dept]} isAdmin={isAdmin}
+        onChangeOwner={(d,id)=>{const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};const rr=mkLog(r,currentUser.name,"owner","Responsavel de avaliacao alterado","Area: "+d+" -> "+getUN(id));onUpdate(rr);}}
+        onClose={()=>setEO(null)} onSaveDraft={saveDraftEval} onSave={saveEval} C={C}/>}
+    </Modal>
+    <Modal open={showAddAc} onClose={()=>setAddAc(false)} title="Nova Acao" width={460}>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:50,resize:"vertical"}} value={nAc.desc} onChange={e=>setNAc(n=>({...n,desc:e.target.value}))}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><label style={Sg.lbl}>Responsavel *</label><Sel value={nAc.responsible} onChange={v=>setNAc(n=>({...n,responsible:v}))} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Selecione..." C={C}/></div>
+          <div><label style={Sg.lbl}>Prazo *</label><input type="date" style={Sg.input()} value={nAc.deadline} min={todayStr()} onChange={e=>setNAc(n=>({...n,deadline:e.target.value}))}/></div>
+        </div>
+        <div><label style={Sg.lbl}>Obs</label><input style={Sg.input()} value={nAc.obs} onChange={e=>setNAc(n=>({...n,obs:e.target.value}))}/></div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>setAddAc(false)}>Cancelar</button>
+          <button style={{...Sg.btn("primary"),opacity:nAc.desc&&nAc.responsible&&nAc.deadline?1:.4}} disabled={!nAc.desc||!nAc.responsible||!nAc.deadline} onClick={addAction}>Adicionar</button>
+        </div>
+      </div>
+    </Modal>
+    <Modal open={!!editAc} onClose={()=>setEditAc(null)} title="Editar Acao" width={420}>
+      {editAc&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div><label style={Sg.lbl}>Descricao</label><textarea style={{...Sg.input(),minHeight:46,resize:"vertical"}} defaultValue={editAc.desc} onChange={e=>setEditAc(a=>({...a,desc:e.target.value}))}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><label style={Sg.lbl}>Prazo</label><input type="date" style={Sg.input()} defaultValue={editAc.deadline} onChange={e=>setEditAc(a=>({...a,deadline:e.target.value}))}/></div>
+          <div><label style={Sg.lbl}>Status</label><Sel value={editAc.status} onChange={v=>setEditAc(a=>({...a,status:v}))} options={[{value:"pendente",label:"Pendente"},{value:"andamento",label:"Em andamento"},{value:"concluida",label:"Concluida"},{value:"cancelada",label:"Cancelada"}]} C={C}/></div>
+        </div>
+        <div><label style={Sg.lbl}>Obs</label><input style={Sg.input()} defaultValue={editAc.obs||""} onChange={e=>setEditAc(a=>({...a,obs:e.target.value}))}/></div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>setEditAc(null)}>Cancelar</button>
+          <button style={Sg.btn("primary")} onClick={()=>{updAc(editAc.id,editAc,"Acao editada","Desc: "+editAc.desc);setEditAc(null);}}>Salvar</button>
+        </div>
+      </div>}
+    </Modal>
+    <Modal open={showReject} onClose={()=>setReject(false)} title="Rejeitar SA" width={400}>
+      <div style={{padding:"7px 10px",background:C.danger+"0D",borderRadius:7,marginBottom:10,fontSize:12,color:C.danger}}>SA sera devolvida ao inicio. Triagem, avaliacoes e acoes serao resetadas.</div>
+      <label style={Sg.lbl}>Motivo *</label>
+      <textarea style={{...Sg.input(),minHeight:56,resize:"vertical",marginBottom:12}} value={rejectNote} onChange={e=>setRN(e.target.value)}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>setReject(false)}>Cancelar</button>
+        <button style={{...Sg.btn("danger"),opacity:rejectNote.trim()?1:.4}} disabled={!rejectNote.trim()} onClick={rejeitar}>Confirmar</button>
+      </div>
+    </Modal>
+    <Modal open={showRegress} onClose={()=>setRegress(false)} title="Retornar a Fase Anterior" width={400}>
+      <div style={{fontSize:12,color:C.muted,marginBottom:8}}><Badge label={st.label} color={st.color||C.muted}/> {" → "} <strong>{REQ_ST[prevSt]&&REQ_ST[prevSt].label||"--"}</strong></div>
+      <label style={Sg.lbl}>Motivo *</label>
+      <textarea style={{...Sg.input(),minHeight:50,resize:"vertical",marginBottom:12}} value={regressNote} onChange={e=>setGN(e.target.value)}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>setRegress(false)}>Cancelar</button>
+        <button style={{...Sg.btn("warning"),opacity:regressNote.trim()?1:.4}} disabled={!regressNote.trim()} onClick={regredir}>Confirmar</button>
+      </div>
+    </Modal>
+    {/* Extension request modal (by owner) */}
+    {extTarget&&<Modal open={!!extTarget} onClose={()=>setExtTarget(null)} title="Solicitar Extensao de Prazo" width={420}>
+      <div style={{padding:"8px 11px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:7,marginBottom:12,fontSize:12,color:C.warning}}>
+        <div style={{fontWeight:700}}>{extTarget.label}</div>
+        <div>Prazo atual: {fmtD(extTarget.currentDate)}</div>
+      </div>
+      <ExtReqForm onClose={()=>setExtTarget(null)} onSubmit={requestExtension} currentDeadline={extTarget.currentDate} C={C} Sg={Sg}/>
+    </Modal>}
+    {/* Admin direct change modal */}
+    {adminDlTarget&&<Modal open={!!adminDlTarget} onClose={()=>setAdminDlTarget(null)} title="Alterar Prazo (Admin)" width={420}>
+      <div style={{padding:"8px 11px",background:C.accent+"0D",border:"1px solid "+C.accent+"44",borderRadius:7,marginBottom:12,fontSize:12}}>
+        <div style={{fontWeight:700,color:C.text}}>{adminDlTarget.label}</div>
+        <div style={{color:C.muted}}>Prazo atual: {fmtD(adminDlTarget.currentDate)}</div>
+      </div>
+      <ExtReqForm onClose={()=>setAdminDlTarget(null)} onSubmit={applyAdminDl} currentDeadline={adminDlTarget.currentDate} C={C} Sg={Sg} isAdmin/>
+    </Modal>}
+  </div>;
+}
+
+// Shared form for extension request
+function ExtReqForm({onClose,onSubmit,currentDeadline,C,Sg,isAdmin}){
+  const [newDate,setND]=useState("");const [reason,setR]=useState("");
+  return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+    <div><label style={Sg.lbl}>Novo prazo *</label><input type="date" style={Sg.input()} value={newDate} min={currentDeadline||todayStr()} onChange={e=>setND(e.target.value)}/></div>
+    <div><label style={Sg.lbl}>{isAdmin?"Motivo da alteracao *":"Justificativa *"}</label><textarea style={{...Sg.input(),minHeight:56,resize:"vertical"}} value={reason} onChange={e=>setR(e.target.value)} placeholder={isAdmin?"Motivo da alteracao direta...":"Descreva o motivo da necessidade de extensao..."}/></div>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+      <button style={Sg.btn()} onClick={onClose}>Cancelar</button>
+      <button style={{...Sg.btn(isAdmin?"primary":"warning"),opacity:newDate&&reason.trim()?1:.4}} disabled={!newDate||!reason.trim()} onClick={()=>onSubmit(newDate,reason)}>{isAdmin?"Alterar":"Solicitar"}</button>
+    </div>
+  </div>;
+}
+
+// Extensions tab
+function ExtensionsTab({request,currentUser,allUsers,isAdmin,onDecide,onAdminChange,C,Sg}){
+  const all=request.deadlineExtensions||[];
+  const pending=all.filter(e=>e.status==="pending");
+  const decided=all.filter(e=>e.status!=="pending");
+  const EItem=({ext})=>{
+    const [rejNote,setRN]=useState("");const [showRej,setSR]=useState(false);
+    const req=allUsers.find(u=>u.id===ext.requestedBy);
+    const sc={pending:C.warning,approved:C.success,rejected:C.danger}[ext.status]||C.muted;
+    return <div style={{...Sg.card({padding:"10px 13px",marginBottom:6,borderLeft:"3px solid "+sc})}}>
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-start"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>{ext.targetLabel}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+            {fmtD(ext.currentDate)} → <strong style={{color:sc}}>{fmtD(ext.newDate)}</strong>
+          </div>
+          <div style={{fontSize:11,color:C.dim,marginTop:2}}>por {req&&req.name||"--"} em {fmt(ext.requestedAt)}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:3,fontStyle:"italic"}}>"{ext.reason}"</div>
+          {ext.decisionNote&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>Resposta: {ext.decisionNote}</div>}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+          <Badge label={ext.status==="pending"?"Pendente":ext.status==="approved"?"Aprovada":"Rejeitada"} color={sc}/>
+          {ext.decidedByName&&<div style={{fontSize:10,color:C.muted}}>por {ext.decidedByName}</div>}
+          {isAdmin&&ext.status==="pending"&&<div style={{display:"flex",gap:5,marginTop:3}}>
+            <button style={{...Sg.btn("success"),fontSize:11,padding:"3px 9px"}} onClick={()=>onDecide(ext,true,"")}>Aprovar</button>
+            <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 9px"}} onClick={()=>setSR(v=>!v)}>Rejeitar</button>
+          </div>}
+        </div>
+      </div>
+      {showRej&&<div style={{marginTop:8,display:"flex",gap:7}}>
+        <input style={{...Sg.input(),flex:1,fontSize:12}} value={rejNote} onChange={e=>setRN(e.target.value)} placeholder="Motivo da rejeicao..."/>
+        <button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 9px",opacity:rejNote.trim()?1:.4}} disabled={!rejNote.trim()} onClick={()=>onDecide(ext,false,rejNote)}>OK</button>
+      </div>}
+    </div>;
+  };
+  return <div>
+    {pending.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.warning,marginBottom:7,letterSpacing:.6}}>AGUARDANDO APROVACAO ({pending.length})</div>
+      {pending.map(e=><EItem key={e.id} ext={e}/>)}
+    </div>}
+    {decided.length>0&&<div>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:7,letterSpacing:.6}}>HISTORICO DE EXTENSOES ({decided.length})</div>
+      {decided.map(e=><EItem key={e.id} ext={e}/>)}
+    </div>}
+    {!all.length&&<div style={{...Sg.card({textAlign:"center",color:C.muted,padding:28})}}>Nenhuma solicitacao de extensao de prazo.</div>}
+  </div>;
+}
+
+// ================================================================
+// DASHBOARD v10 — compact tables, prazo em todas as seções
+// ================================================================
+function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenAction,onNew}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const isAdmin=currentUser.role==="admin";
+  const h=new Date().getHours(),nome=currentUser.name.split(" ")[0];
+  const getCrit=v=>crits.find(c=>c.v===v);
+
+  const aprovSGQ=isAdmin?[
+    ...requests.filter(r=>r.status==="aberta").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Triagem",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="revisao").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
+  ]:[];
+
+  const pendExt=isAdmin?requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")):[];
+
+  // Analises — prazo específico da área do avaliador
+  const analises=[];
+  requests.forEach(r=>{
+    if(r.status!=="avaliacao"||!r.triage)return;
+    (r.triage.assignedAreas||[]).forEach(dept=>{
+      if(r.triage.assignments&&r.triage.assignments[dept]!==currentUser.id)return;
+      if(r.evaluations&&r.evaluations[dept]&&r.evaluations[dept].at)return;
+      const dl=r.triage.deadlines&&r.triage.deadlines[dept];
+      analises.push({r,dept,dl,urg:urgCls(dl,"")});
+    });
+  });
+
+  // Acoes — prazo específico da ação
+  const acoes=[];
+  requests.forEach(r=>{
+    if(r.status!=="execucao")return;
+    (r.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente").forEach(a=>{
+      acoes.push({r,a,dl:a.deadline,urg:urgCls(a.deadline,a.status)});
+    });
+  });
+
+  const minhasSAs=requests.filter(r=>r.createdBy===currentUser.id&&!["concluida","cancelada"].includes(r.status));
+  const O={overdue:0,today:1,soon:2,normal:3};
+  const sortU=arr=>[...arr].sort((a,b)=>(O[a.urg||"normal"]||3)-(O[b.urg||"normal"]||3));
+
+  const UrgChip=({urg,dl})=>{
+    if(!dl)return null;
+    const color=urg==="overdue"?C.danger:urg==="today"?C.warning:urg==="soon"?C.accent:C.muted;
+    const label=urg==="overdue"?"Atrasado":urg==="today"?"Hoje":urg==="soon"?"Em breve":"";
+    return <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"flex-start"}}>
+      <span style={{fontSize:11,fontWeight:700,color}}>{fmtD(dl)}</span>
+      {label&&<span style={{fontSize:9,fontWeight:700,color,background:color+"18",borderRadius:3,padding:"0 4px"}}>{label}</span>}
+    </div>;
+  };
+
+  const Th=({cols,labels})=>(
+    <div style={{display:"grid",gridTemplateColumns:cols,background:C.surface,padding:"5px 11px",borderBottom:"1px solid "+C.border,gap:8}}>
+      {labels.map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
+    </div>
+  );
+  const Row=({cols,children,i,onClick})=>(
+    <div onClick={onClick} style={{display:"grid",gridTemplateColumns:cols,padding:"7px 11px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44",cursor:onClick?"pointer":"default"}}
+      onMouseEnter={e=>{if(onClick)e.currentTarget.style.background=C.accent+"0D";}}
+      onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44";}}>
+      {children}
+    </div>
+  );
+
+  const total=aprovSGQ.length+analises.length+acoes.length+minhasSAs.length;
+
+  return <div style={{padding:"18px 22px",maxWidth:1060}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h1 style={{fontSize:18,margin:"0 0 3px",color:C.text,fontWeight:700}}>
+          {h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}, {nome}
+        </h1>
+        <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:7}}>
+          {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
+          <Badge label={ROLES[currentUser.role]&&ROLES[currentUser.role].label} color={RC[currentUser.role]||C.muted}/>
+        </div>
+      </div>
+      <button style={{...Sg.btn("primary"),padding:"8px 16px",fontSize:13}} onClick={onNew}>+ Nova Solicitacao</button>
+    </div>
+
+    {pendExt.length>0&&<div style={{...Sg.card({marginBottom:12,padding:"9px 13px",border:"1px solid "+C.warning+"55",background:C.warning+"09"})}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{fontSize:12,fontWeight:700,color:C.warning}}>{pendExt.length} SA{pendExt.length!==1?"s":""} com extensao de prazo aguardando aprovacao</span>
+        <button style={{...Sg.btn("warning"),fontSize:11,padding:"4px 10px"}} onClick={()=>onNav("changes")}>Revisar</button>
+      </div>
+    </div>}
+
+    {total===0&&pendExt.length===0&&<div style={{...Sg.card({textAlign:"center",padding:48})}}>
+      <div style={{fontSize:32,marginBottom:8}}>✓</div>
+      <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:2}}>Tudo em dia!</div>
+      <div style={{fontSize:12,color:C.muted}}>Nenhuma tarefa pendente no momento.</div>
+      <button style={{...Sg.btn("primary"),marginTop:14}} onClick={()=>onNav("changes")}>Ver Controles</button>
+    </div>}
+
+    {/* APROVAÇÕES SGQ — admin */}
+    {aprovSGQ.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="130px 1fr 60px 90px 120px 100px" labels={["ID","Titulo","Crit.","Prazo Etapa","Acao","Status"]}/>
+        {sortU(aprovSGQ).map((item,i)=>{
+          const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
+          return <Row key={i} cols="130px 1fr 60px 90px 120px 100px" i={i} onClick={()=>onNav("detail",item.r.id)}>
+            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>
+            <div><div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.type}</div></div>
+            <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+            <UrgChip urg={item.urg} dl={item.deadline}/>
+            <span style={{fontSize:11,fontWeight:700,color:item.tagColor}}>{item.tag}</span>
+            <Badge label={st.label||""} color={st.color||C.muted}/>
+          </Row>;
+        })}
+      </div>
+    </div>}
+
+    {/* ANÁLISES — avaliador */}
+    {analises.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>ANALISES PENDENTES ({analises.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="130px 1fr 60px 100px 120px" labels={["SA","Area","Crit.","Prazo","Acao"]}/>
+        {sortU(analises).map((item,i)=>{
+          const cr=getCrit(item.r.triage&&item.r.triage.criticality);
+          return <Row key={i} cols="130px 1fr 60px 100px 120px" i={i}>
+            <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div></div>
+            <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.dept}</span>
+            <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+            <UrgChip urg={item.urg} dl={item.dl}/>
+            <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={()=>onOpenEval(item.r,item.dept)}>Avaliar</button>
+          </Row>;
+        })}
+      </div>
+    </div>}
+
+    {/* AÇÕES — responsável */}
+    {acoes.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="130px 1fr 60px 100px 120px" labels={["SA","Descricao Acao","Crit.","Prazo","Acao"]}/>
+        {sortU(acoes).map((item,i)=>{
+          const cr=getCrit(item.r.triage&&item.r.triage.criticality);
+          return <Row key={i} cols="130px 1fr 60px 100px 120px" i={i}>
+            <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div></div>
+            <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.a.desc}</span>
+            <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+            <UrgChip urg={item.urg} dl={item.a.deadline}/>
+            <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={()=>onOpenAction(item.r,item.a)}>Executar</button>
+          </Row>;
+        })}
+      </div>
+    </div>}
+
+    {/* MINHAS SAs */}
+    {minhasSAs.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:6}}>MINHAS SOLICITACOES ({minhasSAs.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="130px 1fr 60px 100px 120px 90px" labels={["ID","Titulo","Crit.","Prazo Etapa","Status",""]}/>
+        {minhasSAs.map((r,i)=>{
+          const cr=getCrit(r.triage&&r.triage.criticality);const st=REQ_ST[r.status]||{};
+          const dl=getPhaseDeadline(r);const urg=urgCls(dl,"");
+          return <Row key={r.id} cols="130px 1fr 60px 100px 120px 90px" i={i} onClick={()=>onNav("detail",r.id)}>
+            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>
+            <div><div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.type}</div></div>
+            <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+            <UrgChip urg={urg} dl={dl}/>
+            <Badge label={st.label} color={st.color||C.muted}/>
+            <span style={{fontSize:11,color:C.accent}}>Ver →</span>
+          </Row>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ================================================================
+// CONTROLES DE MUDANCA v10 — lista de SAs com data abertura + prazo etapa
+// ================================================================
+function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [q,setQ]=useState("");const [sf,setSF]=useState("");const [st2,setST2]=useState("");
+
+  const pool=currentUser.role==="geral"?requests.filter(r=>r.createdBy===currentUser.id):requests;
+  const vis=pool.filter(r=>(
+    (!q||(r.id+r.title+r.type+(r.description||"")).toLowerCase().includes(q.toLowerCase()))&&
+    (!sf||r.status===sf)&&(!st2||r.type===st2)
+  )).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const counts=Object.fromEntries(Object.keys(REQ_ST).map(s=>[s,pool.filter(r=>r.status===s).length]));
+  const getCrit=v=>crits.find(c=>c.v===v);
+
+  const DeadlineCell=({r})=>{
+    const dl=getPhaseDeadline(r);
+    if(!dl)return <span style={{color:C.muted,fontSize:11}}>—</span>;
+    // mostra apenas a data, sem badge de urgencia (gestao de atrasos fica nos indicadores)
+    return <span style={{fontSize:11,color:C.muted,fontWeight:500}}>{fmtD(dl)}</span>;
+  };
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
+      <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Controles de Mudanca</h1>
+      <span style={{fontSize:11,color:C.muted}}>{vis.length} registro{vis.length!==1?"s":""}</span>
+    </div>
+    <div style={{display:"flex",gap:8,marginBottom:9,flexWrap:"wrap",alignItems:"center"}}>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar ID, titulo, tipo..." style={{...Sg.input(),maxWidth:280}}/>
+      <select value={st2} onChange={e=>setST2(e.target.value)} style={{...Sg.input(),maxWidth:200}}>
+        <option value="">Todos os tipos</option>
+        {CHANGE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+      </select>
+    </div>
+    <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+      <button onClick={()=>setSF("")} style={{...Sg.btn(sf===""?"primary":""),fontSize:11,padding:"3px 9px"}}>Todos ({pool.length})</button>
+      {Object.entries(REQ_ST).filter(([k])=>counts[k]>0).map(([k,v])=>(
+        <button key={k} onClick={()=>setSF(sf===k?"":k)} style={{fontSize:11,padding:"3px 9px",borderRadius:6,border:"1px solid "+(sf===k?v.color:C.border),background:sf===k?v.color+"28":"transparent",color:sf===k?v.color:C.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:sf===k?700:400}}>
+          {v.label} ({counts[k]})
+        </button>
+      ))}
+    </div>
+    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+      <div style={{display:"grid",gridTemplateColumns:"115px 1fr 140px 55px 110px 105px 105px",background:C.surface,padding:"6px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
+        {["ID","Titulo / Tipo","Status","Crit.","Responsavel","Data Abertura","Prazo Etapa"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
+      </div>
+      <div style={{maxHeight:"calc(100vh - 290px)",overflowY:"auto"}}>
+        {vis.map((r,i)=>{
+          const cr=getCrit(r.triage&&r.triage.criticality);const st=REQ_ST[r.status]||{};
+          const aa=(r.triage&&r.triage.assignedAreas)||[];const doneEv=aa.filter(d=>r.evaluations&&r.evaluations[d]&&r.evaluations[d].at).length;
+          const ovAc=(r.actions||[]).filter(a=>isOD(a.deadline,a.status)).length;
+          const pendExt=(r.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
+          return <div key={r.id} onClick={()=>onOpen(r.id)}
+            style={{display:"grid",gridTemplateColumns:"115px 1fr 140px 55px 110px 105px 105px",padding:"8px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s"}}
+            onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
+            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
+            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
+              <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.type}</div>
+              <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>
+                {r.triage&&r.triage.flagReg&&<Badge label="Reg." color={C.warning}/>}
+                {r.triage&&r.triage.flagProd&&<Badge label="Prod." color={C.accent}/>}
+                {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
+                {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
+              </div>
+            </div>
+            <div>
+              <Badge label={st.label||""} color={st.color||C.muted}/>
+              {aa.length>0&&<div style={{display:"flex",alignItems:"center",gap:5,marginTop:4}}>
+                <div style={{width:40,height:2.5,background:C.border,borderRadius:2}}><div style={{height:"100%",width:(aa.length?doneEv/aa.length*100:0)+"%",background:doneEv===aa.length?C.success:C.warning,borderRadius:2}}/></div>
+                <span style={{fontSize:9,color:C.muted}}>{doneEv}/{aa.length}</span>
+              </div>}
+            </div>
+            <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>
+            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.createdByName}</span>
+            <span style={{fontSize:11,color:C.muted}}>{fmtD(r.createdAt&&r.createdAt.slice(0,10))}</span>
+            <DeadlineCell r={r}/>
+          </div>;
+        })}
+        {vis.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhum registro encontrado.</div>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// TAREFAS v10 — duas abas: Acoes (todos) + Avaliacoes (todas)
+// ================================================================
+function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [tab,setTab]=useState("acoes");
+
+  // ---- filters acoes ----
+  const [aq,setAQ]=useState("");const [ast,setAST]=useState("");
+  const [acr,setACR]=useState("");const [aResp,setAResp]=useState("");const [aSA,setASA]=useState("");
+
+  // ---- filters avals ----
+  const [vq,setVQ]=useState("");const [vst,setVST]=useState("pendente"); // pendente | feita | todas
+  const [vcr,setVCR]=useState("");const [vResp,setVResp]=useState("");const [vSA,setVSA]=useState("");
+
+  const pool=currentUser.role==="geral"?requests.filter(r=>r.createdBy===currentUser.id):requests;
+
+  // ---- ACOES ----
+  const allActions=pool.flatMap(r=>(r.actions||[]).map(a=>{
+    const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
+    const resp=allUsers.find(u=>u.id===a.responsible);
+    return {...a,r,cr,resp};
+  }));
+  const acRespList=[...new Set(allActions.map(a=>a.resp&&a.resp.name).filter(Boolean))].sort();
+  const acSAList=[...new Set(pool.flatMap(r=>(r.actions||[]).length?[r.id]:[]))].sort();
+
+  const visAc=allActions.filter(a=>(
+    (!aq||(a.desc+(a.obs||"")+a.r.id+a.r.title).toLowerCase().includes(aq.toLowerCase()))&&
+    (!ast||a.status===ast)&&(!acr||(a.cr&&a.cr.v===acr))&&
+    (!aResp||(a.resp&&a.resp.name===aResp))&&(!aSA||a.r.id===aSA)
+  )).sort((a,b)=>{
+    const oa=isOD(a.deadline,a.status)?0:["concluida","cancelada"].includes(a.status)?2:1;
+    const ob=isOD(b.deadline,b.status)?0:["concluida","cancelada"].includes(b.status)?2:1;
+    if(oa!==ob)return oa-ob;
+    return (a.deadline||"9999").localeCompare(b.deadline||"9999");
+  });
+
+  // ---- AVALIACOES ----
+  const allEvals=pool.flatMap(r=>{
+    if(!r.triage)return[];
+    return (r.triage.assignedAreas||[]).map(dept=>{
+      const cr=crits.find(c=>c.v===r.triage.criticality);
+      const resp=allUsers.find(u=>u.id===(r.triage.assignments&&r.triage.assignments[dept]));
+      const ev=r.evaluations&&r.evaluations[dept];
+      const dl=r.triage.deadlines&&r.triage.deadlines[dept];
+      const orig=r.triage.originalDeadlines&&r.triage.originalDeadlines[dept];
+      const extended=orig&&dl&&dl!==orig;
+      const done=!!(ev&&ev.at);
+      return {r,dept,cr,resp,ev,dl,orig,extended,done,urg:urgCls(dl,done?"concluida":"")};
+    });
+  });
+  const evalRespList=[...new Set(allEvals.map(e=>e.resp&&e.resp.name).filter(Boolean))].sort();
+  const evalSAList=[...new Set(allEvals.map(e=>e.r.id))].sort();
+
+  const visEv=allEvals.filter(e=>(
+    (!vq||(e.dept+e.r.id+e.r.title+(e.resp&&e.resp.name||"")).toLowerCase().includes(vq.toLowerCase()))&&
+    (vst==="todas"||(vst==="pendente"&&!e.done)||(vst==="feita"&&e.done))&&
+    (!vcr||(e.cr&&e.cr.v===vcr))&&(!vResp||(e.resp&&e.resp.name===vResp))&&(!vSA||e.r.id===vSA)
+  )).sort((a,b)=>{
+    if(!a.done&&b.done)return -1;if(a.done&&!b.done)return 1;
+    const oa=isOD(a.dl,a.done?"concluida":"")?0:1;
+    const ob=isOD(b.dl,b.done?"concluida":"")?0:1;
+    if(oa!==ob)return oa-ob;
+    return (a.dl||"9999").localeCompare(b.dl||"9999");
+  });
+
+  // KPIs
+  const acPend=allActions.filter(a=>a.status==="pendente").length;
+  const acLate=allActions.filter(a=>isOD(a.deadline,a.status)).length;
+  const acDone=allActions.filter(a=>a.status==="concluida").length;
+  const evPend=allEvals.filter(e=>!e.done).length;
+  const evLate=allEvals.filter(e=>!e.done&&isOD(e.dl,"")).length;
+  const evDone=allEvals.filter(e=>e.done).length;
+
+  const UrgCell=({urg,dl,done})=>{
+    if(done)return <span style={{fontSize:10,color:C.success}}>✓ Feita</span>;
+    if(!dl)return <span style={{color:C.muted,fontSize:11}}>—</span>;
+    const color=urg==="overdue"?C.danger:urg==="today"?C.warning:urg==="soon"?C.accent:C.muted;
+    return <div style={{display:"flex",flexDirection:"column",gap:1}}>
+      <span style={{fontSize:11,fontWeight:700,color}}>{fmtD(dl)}</span>
+      {urg!=="normal"&&<span style={{fontSize:9,fontWeight:700,color,background:color+"18",borderRadius:3,padding:"0 4px",width:"fit-content"}}>{urg==="overdue"?"Atrasado":urg==="today"?"Hoje":"Breve"}</span>}
+    </div>;
+  };
+
+  const Th=({cols,labels})=><div style={{display:"grid",gridTemplateColumns:cols,background:C.surface,padding:"5px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
+    {labels.map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
+  </div>;
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{marginBottom:12}}>
+      <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Tarefas</h1>
+      <div style={{fontSize:11,color:C.muted,marginTop:2}}>Todas as tarefas em aberto — acoes e avaliacoes</div>
+    </div>
+
+    {/* KPI strip */}
+    <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+      {[
+        {l:"Acoes pendentes",v:acPend,c:C.warning},
+        {l:"Acoes atrasadas",v:acLate,c:C.danger},
+        {l:"Acoes concluidas",v:acDone,c:C.success},
+        {l:"Avals. pendentes",v:evPend,c:C.accent},
+        {l:"Avals. atrasadas",v:evLate,c:C.danger},
+        {l:"Avals. feitas",v:evDone,c:C.success},
+      ].map(k=>(
+        <div key={k.l} style={{...Sg.card({padding:"9px 13px",flex:1,minWidth:90,borderTop:"3px solid "+k.c})}}>
+          <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:2,lineHeight:1.3}}>{k.l}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Tabs */}
+    <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"1px solid "+C.border}}>
+      {[{id:"acoes",l:"Acoes ("+allActions.length+")"},{id:"avaliacoes",l:"Avaliacoes ("+allEvals.length+")"}].map(t=>(
+        <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"7px 16px",fontSize:13,fontWeight:tab===t.id?700:400,color:tab===t.id?C.accent:C.muted,borderBottom:"2px solid "+(tab===t.id?C.accent:"transparent"),fontFamily:"inherit",whiteSpace:"nowrap"}}>
+          {t.l}
+        </button>
+      ))}
+    </div>
+
+    {/* ===== ABA ACOES ===== */}
+    {tab==="acoes"&&<>
+      <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{flex:1,minWidth:180}}><input value={aq} onChange={e=>setAQ(e.target.value)} placeholder="Buscar descricao, SA..." style={Sg.input()}/></div>
+          <select value={ast} onChange={e=>setAST(e.target.value)} style={{...Sg.input(),width:150}}>
+            <option value="">Todos status</option>
+            <option value="pendente">Pendente</option>
+            <option value="andamento">Em andamento</option>
+            <option value="concluida">Concluida</option>
+            <option value="cancelada">Cancelada</option>
+          </select>
+          <select value={acr} onChange={e=>setACR(e.target.value)} style={{...Sg.input(),width:130}}>
+            <option value="">Todas crit.</option>
+            {crits.map(c=><option key={c.v} value={c.v}>{c.v} — {c.label}</option>)}
+          </select>
+          <select value={aResp} onChange={e=>setAResp(e.target.value)} style={{...Sg.input(),width:185}}>
+            <option value="">Todos responsaveis</option>
+            {acRespList.map(n=><option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={aSA} onChange={e=>setASA(e.target.value)} style={{...Sg.input(),width:140}}>
+            <option value="">Todos controles</option>
+            {acSAList.map(id=><option key={id} value={id}>{id}</option>)}
+          </select>
+          {(aq||ast||acr||aResp||aSA)&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 10px"}} onClick={()=>{setAQ("");setAST("");setACR("");setAResp("");setASA("");}}>Limpar</button>}
+        </div>
+      </div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visAc.length} acao{visAc.length!==1?"es":""}</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="105px 1fr 1fr 55px 115px 100px 105px" labels={["SA","Descricao","Responsavel","Crit.","Status","Data Criacao","Prazo"]}/>
+        <div style={{maxHeight:"calc(100vh - 400px)",overflowY:"auto"}}>
+          {visAc.map((a,i)=>{
+            const ov=isOD(a.deadline,a.status);const done=a.status==="concluida";const cancel=a.status==="cancelada";
+            const stColor=done?C.success:cancel?C.muted:ov?C.danger:a.status==="andamento"?C.accent:C.warning;
+            const stLabel=done?"Concluida":cancel?"Cancelada":ov?"Atrasada":a.status==="andamento"?"Em andamento":"Pendente";
+            const urg=urgCls(a.deadline,a.status);
+            return <div key={a.id+"_"+i} onClick={()=>onNav("detail",a.r.id)}
+              style={{display:"grid",gridTemplateColumns:"105px 1fr 1fr 55px 115px 100px 105px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s",opacity:cancel?.65:1}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
+              onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
+              <div><div style={{fontSize:10,fontWeight:700,color:C.accent}}>{a.r.id}</div><div style={{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.r.title}</div></div>
+              <div><div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}<div style={{fontSize:9,color:C.muted,marginTop:1}}>{a.id}</div></div>
+              <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>
+              <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+              <Badge label={stLabel} color={stColor}/>
+              <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>
+              <UrgCell urg={urg} dl={a.deadline} done={done}/>
+            </div>;
+          })}
+          {visAc.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhuma acao encontrada.</div>}
+        </div>
+      </div>
+    </>}
+
+    {/* ===== ABA AVALIACOES ===== */}
+    {tab==="avaliacoes"&&<>
+      <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{flex:1,minWidth:180}}><input value={vq} onChange={e=>setVQ(e.target.value)} placeholder="Buscar area, SA, avaliador..." style={Sg.input()}/></div>
+          <select value={vst} onChange={e=>setVST(e.target.value)} style={{...Sg.input(),width:150}}>
+            <option value="pendente">Pendentes</option>
+            <option value="feita">Feitas</option>
+            <option value="todas">Todas</option>
+          </select>
+          <select value={vcr} onChange={e=>setVCR(e.target.value)} style={{...Sg.input(),width:130}}>
+            <option value="">Todas crit.</option>
+            {crits.map(c=><option key={c.v} value={c.v}>{c.v} — {c.label}</option>)}
+          </select>
+          <select value={vResp} onChange={e=>setVResp(e.target.value)} style={{...Sg.input(),width:185}}>
+            <option value="">Todos avaliadores</option>
+            {evalRespList.map(n=><option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={vSA} onChange={e=>setVSA(e.target.value)} style={{...Sg.input(),width:140}}>
+            <option value="">Todos controles</option>
+            {evalSAList.map(id=><option key={id} value={id}>{id}</option>)}
+          </select>
+          {(vq||vst!=="pendente"||vcr||vResp||vSA)&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 10px"}} onClick={()=>{setVQ("");setVST("pendente");setVCR("");setVResp("");setVSA("");}}>Limpar</button>}
+        </div>
+      </div>
+      <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visEv.length} avaliacao{visEv.length!==1?"oes":""}</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <Th cols="105px 1fr 1fr 55px 110px 100px 105px" labels={["SA","Area","Avaliador","Crit.","Status","Data Criacao","Prazo"]}/>
+        <div style={{maxHeight:"calc(100vh - 400px)",overflowY:"auto"}}>
+          {visEv.map((e,i)=>{
+            const ov=!e.done&&isOD(e.dl,"");
+            const stColor=e.done?C.success:ov?C.danger:C.warning;
+            const stLabel=e.done?"Concluida":ov?"Atrasada":"Pendente";
+            return <div key={e.r.id+e.dept+i} onClick={()=>onNav("detail",e.r.id)}
+              style={{display:"grid",gridTemplateColumns:"105px 1fr 1fr 55px 110px 100px 105px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s"}}
+              onMouseEnter={el=>el.currentTarget.style.background=C.accent+"0D"}
+              onMouseLeave={el=>el.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
+              <div><div style={{fontSize:10,fontWeight:700,color:C.accent}}>{e.r.id}</div><div style={{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.r.title}</div></div>
+              <div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.dept}</div>
+              <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>
+              <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                <Badge label={stLabel} color={stColor}/>
+                {e.done&&e.ev&&<span style={{fontSize:9,color:C.muted}}>{e.ev.byName}</span>}
+              </div>
+              <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>
+              <UrgCell urg={e.urg} dl={e.dl} done={e.done}/>
+            </div>;
+          })}
+          {visEv.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhuma avaliacao encontrada.</div>}
+        </div>
+      </div>
+    </>}
+  </div>;
+}
+
+// ================================================================
+// NEW REQUEST
+// ================================================================
+function NewRequest({currentUser,onSave,onCancel}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [f,setF]=useState({title:"",type:"",description:"",justification:""});
+  const [attachments,setAttachments]=useState([]);
+  const ok=f.title&&f.type&&f.description;
+  return <div style={{padding:"18px 22px",maxWidth:640}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+      <div>
+        <h1 style={{margin:0,fontSize:17,color:C.text,fontWeight:700}}>Nova Solicitacao de Alteracao</h1>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Campos com * sao obrigatorios</div>
+      </div>
+      <button style={Sg.btn()} onClick={onCancel}>Cancelar</button>
+    </div>
+    <div style={{...Sg.card(),display:"flex",flexDirection:"column",gap:12}}>
+      <div><label style={Sg.lbl}>Titulo *</label><input style={Sg.input()} value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))} placeholder="Titulo conciso..."/></div>
+      <div><label style={Sg.lbl}>Tipo *</label>
+        <select value={f.type} onChange={e=>setF(p=>({...p,type:e.target.value}))} style={Sg.input()}>
+          <option value="">Selecione o tipo...</option>
+          {CHANGE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+      <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:72,resize:"vertical"}} value={f.description} onChange={e=>setF(p=>({...p,description:e.target.value}))}/></div>
+      <div><label style={Sg.lbl}>Justificativa</label><textarea style={{...Sg.input(),minHeight:50,resize:"vertical"}} value={f.justification} onChange={e=>setF(p=>({...p,justification:e.target.value}))}/></div>
+      <AttachmentsPanel attachments={attachments} onAdd={a=>setAttachments(p=>[...p,a])} readOnly={false} stage="abertura" currentUser={currentUser} C={C}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:4}}>
+        <button style={Sg.btn()} onClick={onCancel}>Cancelar</button>
+        <button style={{...Sg.btn("primary"),opacity:ok?1:.4,padding:"8px 16px"}} disabled={!ok} onClick={()=>onSave(f,attachments)}>Criar</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// USER MANAGER + AUDIT LOG + SETTINGS
+// ================================================================
+
+function AuditLog({requests,sysLog}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [f,setF]=useState("");const [fType,setFType]=useState("");
+  const evts=requests.flatMap(r=>(r.log||[]).map(e=>({...e,reqId:r.id,reqTitle:r.title,reqType:r.type})));
+  const all=[...evts,...(sysLog||[])].sort((a,b)=>new Date(b.at)-new Date(a.at));
+  const types=[...new Set(all.map(e=>e.type).filter(Boolean))];
+  const vis=all.filter(e=>(!f||(e.event+e.by+(e.reqId||"")+(e.detail||"")).toLowerCase().includes(f.toLowerCase()))&&(!fType||e.type===fType));
+  const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,owner:C.muted,plano:C.accent,execucao:C.success};
+  return <div style={{padding:"18px 22px"}}>
+    <h1 style={{margin:"0 0 12px",fontSize:18,color:C.text,fontWeight:700}}>Auditoria — v{APP_VERSION}</h1>
+    <div style={{display:"flex",gap:8,marginBottom:11,flexWrap:"wrap"}}>
+      <input value={f} onChange={e=>setF(e.target.value)} placeholder="Filtrar..." style={{...Sg.input(),maxWidth:320}}/>
+      <select value={fType} onChange={e=>setFType(e.target.value)} style={{...Sg.input(),maxWidth:180}}>
+        <option value="">Todos os tipos</option>
+        {types.map(t=><option key={t} value={t}>{t}</option>)}
+      </select>
+      <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{vis.length} evento{vis.length!==1?"s":""}</span>
+    </div>
+    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+      <div style={{display:"grid",gridTemplateColumns:"130px 110px 90px 80px 1fr",background:C.surface,padding:"6px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
+        {["Data/Hora","Usuario","SA","Tipo","Evento / Detalhe"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted}}>{h}</div>)}
+      </div>
+      <div style={{maxHeight:"calc(100vh - 230px)",overflow:"auto"}}>
+        {vis.map((e,i)=>(
+          <div key={i} style={{display:"grid",gridTemplateColumns:"130px 110px 90px 80px 1fr",padding:"7px 12px",borderBottom:"1px solid "+C.border+"18",gap:8,background:i%2===0?"transparent":C.surface+"44",alignItems:"start"}}>
+            <span style={{color:C.muted,fontSize:10.5}}>{fmt(e.at)}</span>
+            <span style={{color:C.dim,fontSize:11}}>{e.by}</span>
+            <span style={{color:C.accent,fontSize:11}}>{e.reqId||"—"}</span>
+            <span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:700,background:(tc[e.type]||C.muted)+"22",color:tc[e.type]||C.muted}}>{e.type||"—"}</span>
+            <div><div style={{color:C.text,fontSize:11.5}}>{e.event}</div>{e.detail&&<div style={{color:C.muted,fontSize:10.5,marginTop:1}}>{e.detail}</div>}</div>
+          </div>
+        ))}
+        {vis.length===0&&<div style={{textAlign:"center",padding:26,color:C.muted}}>Nenhum evento.</div>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// USER MANAGER v10 — cadastro unitario + import Excel + perfis
+// ================================================================
+
+// Novos perfis: geral, sgq, admin
+// sgq = pode triar, avaliar, fazer plano, aprovar (como admin mas sem gestao de sistema)
+const PERFIS={
+  admin:{label:"Admin",    color:"#EF4444", desc:"Acesso total — configuracoes, usuarios, todas as aprovacoes"},
+  sgq:  {label:"SGQ",     color:"#8B5CF6", desc:"Gestao do processo — triagem, avaliacao, aprovacoes, planos"},
+  geral:{label:"Geral",   color:"#2DD4BF", desc:"Colaborador — abre SAs, executa acoes, avalia se liberado"},
+};
+
+function UserManager({users,currentUser,onSave,addSysLog}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [lu,setLU]=useState(()=>users.map(u=>({...u})));
+  const [tab,setTab]=useState("lista"); // lista | novo | import
+  const [editing,setEd]=useState(null);
+  const [pwdErr,setPE]=useState("");
+  const [saved,setSaved]=useState(false);
+  const [importRows,setIR]=useState([]);
+  const [importErr,setIE]=useState("");
+  const [importDone,setID]=useState(false);
+  const [search,setSQ]=useState("");
+  const [filterRole,setFR]=useState("");
+  const [filterActive,setFA]=useState("active");
+  const [confirmDel,setCD]=useState(null); // user to delete
+
+  const blank={name:"",role:"geral",area:"",email:"",pwd:"",active:true,evalDepts:[]};
+  const [nU,setNU]=useState({...blank});
+
+  const save=(list,action,detail)=>{
+    onSave(list,currentUser.name,action,detail);
+    setSaved(true);setTimeout(()=>setSaved(false),2200);
+  };
+
+  const addUser=()=>{
+    const err=validatePwd(nU.pwd);if(err){setPE(err);return;}
+    if(!nU.name.trim()||!nU.email.trim()){setPE("Nome e email obrigatorios");return;}
+    if(lu.find(u=>u.email.toLowerCase()===nU.email.toLowerCase())){setPE("Email ja cadastrado");return;}
+    const newUser={...nU,id:Date.now(),evalDepts:nU.evalDepts||[]};
+    const newList=[...lu,newUser];
+    setLU(newList);
+    save(newList,"usuario_criado","Novo usuario: "+nU.name+" ("+PERFIS[nU.role]?.label+")");
+    setNU({...blank});setPE("");setTab("lista");
+  };
+
+  const saveEdit=()=>{
+    if(editing._np){const err=validatePwd(editing._np);if(err){setPE(err);return;}}
+    const u={...editing};if(u._np){u.pwd=u._np;}delete u._np;
+    const newList=lu.map(x=>x.id===u.id?u:x);
+    setLU(newList);
+    save(newList,"usuario_editado","Editado: "+u.name);
+    setEd(null);setPE("");
+  };
+
+  const deactivate=(uid)=>{
+    const u=lu.find(x=>x.id===uid);
+    const newList=lu.map(x=>x.id===uid?{...x,active:false}:x);
+    setLU(newList);
+    save(newList,"usuario_desativado","Desativado: "+(u&&u.name));
+    setCD(null);
+  };
+
+  const reactivate=(uid)=>{
+    const u=lu.find(x=>x.id===uid);
+    const newList=lu.map(x=>x.id===uid?{...x,active:true}:x);
+    setLU(newList);
+    save(newList,"usuario_reativado","Reativado: "+(u&&u.name));
+  };
+
+  // Excel import via SheetJS
+  const handleExcel=async(e)=>{
+    setIE("");setIR([]);setID(false);
+    const file=e.target.files[0];if(!file)return;
+    try{
+      const XLSX=window.XLSX||await import("https://cdn.sheetjs.com/xlsx-0.20.0/package/xlsx.mjs");
+      const buf=await file.arrayBuffer();
+      const wb=XLSX.read(buf,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+      const parsed=rows.map((r,i)=>{
+        const name=(r["Nome"]||r["nome"]||r["NOME"]||"").toString().trim();
+        const email=(r["Email"]||r["email"]||r["EMAIL"]||r["E-mail"]||"").toString().trim();
+        const area=(r["Area"]||r["area"]||r["AREA"]||r["Área"]||"").toString().trim();
+        const rolRaw=(r["Perfil"]||r["perfil"]||r["PERFIL"]||r["Role"]||r["role"]||"geral").toString().trim().toLowerCase();
+        const roleMap={"admin":"admin","sgq":"sgq","geral":"geral","collaborador":"geral","colaborador":"geral","evaluator":"sgq","avaliador":"sgq"};
+        const role=roleMap[rolRaw]||"geral";
+        const pwd=(r["Senha"]||r["senha"]||"Mudar@123").toString().trim();
+        const errors=[];
+        if(!name)errors.push("Nome vazio");
+        if(!email||!email.includes("@"))errors.push("Email invalido");
+        const dup=lu.find(u=>u.email.toLowerCase()===email.toLowerCase());
+        if(dup)errors.push("Email ja existe");
+        return {name,email,area,role,pwd,errors,row:i+2,_import:true};
+      }).filter(r=>r.name||r.email);
+      setIR(parsed);
+    }catch(err){setIE("Erro ao ler arquivo: "+err.message);}
+    e.target.value="";
+  };
+
+  const confirmImport=()=>{
+    const valid=importRows.filter(r=>r.errors.length===0);
+    const newUsers=valid.map(r=>({
+      id:Date.now()+Math.random(),
+      name:r.name,email:r.email,area:r.area,
+      role:r.role,pwd:r.pwd,active:true,evalDepts:[],
+    }));
+    const newList=[...lu,...newUsers];
+    setLU(newList);
+    save(newList,"import_usuarios",valid.length+" usuarios importados via Excel");
+    setID(true);setIR([]);
+  };
+
+  const vis=lu.filter(u=>(
+    (!search||(u.name+u.email+(u.area||"")).toLowerCase().includes(search.toLowerCase()))&&
+    (!filterRole||u.role===filterRole)&&
+    (filterActive==="all"||(filterActive==="active"&&u.active)||(filterActive==="inactive"&&!u.active))
+  ));
+
+  const DeptChk=({user,onChange})=>{
+    if(user.role==="geral")return null;
+    return <div style={{marginTop:8}}>
+      <label style={Sg.lbl}>Areas para avaliacao <span style={{fontSize:10,color:C.muted,fontWeight:400}}>(opcional — define quais areas este usuario pode avaliar)</span></label>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:3,maxHeight:150,overflowY:"auto",padding:4,border:"1px solid "+C.border,borderRadius:7}}>
+        {ALL_DEPTS.map(d=>{const sel=(user.evalDepts||[]).includes(d);return(
+          <label key={d} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",padding:"3px 5px",borderRadius:5,background:sel?C.accent+"18":"transparent",fontSize:10}}>
+            <input type="checkbox" checked={sel} onChange={()=>onChange({...user,evalDepts:sel?(user.evalDepts||[]).filter(x=>x!==d):[...(user.evalDepts||[]),d]})} style={{accentColor:C.accent}}/>
+            <span style={{color:sel?C.text:C.muted}}>{d}</span>
+          </label>
+        );})}
+      </div>
+    </div>;
+  };
+
+  const UserForm=({u,onChange,pwdLabel="Senha *",pwdRequired=true})=><div style={{display:"flex",flexDirection:"column",gap:10}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <div><label style={Sg.lbl}>Nome *</label><input style={Sg.input()} value={u.name} onChange={e=>onChange({...u,name:e.target.value})} placeholder="Nome completo"/></div>
+      <div><label style={Sg.lbl}>E-mail *</label><input style={Sg.input()} value={u.email||""} onChange={e=>onChange({...u,email:e.target.value})} placeholder="usuario@empresa.com"/></div>
+      <div><label style={Sg.lbl}>Area / Departamento</label><input style={Sg.input()} value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..."/></div>
+      <div><label style={Sg.lbl}>Perfil *</label>
+        <select value={u.role} onChange={e=>onChange({...u,role:e.target.value,evalDepts:e.target.value==="geral"?[]:u.evalDepts})} style={Sg.input()}>
+          {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,40)}...</option>)}
+        </select>
+      </div>
+      <div style={{gridColumn:"1/-1"}}><label style={Sg.lbl}>{pwdLabel} <span style={{fontSize:10,color:C.muted,fontWeight:400}}>Min 6 caracteres, 1 maiuscula, 1 numero, 1 especial</span></label>
+        <input type="password" style={Sg.input()} value={u.pwd||u._np||""} onChange={e=>{onChange({...u,[pwdRequired?"pwd":"_np"]:e.target.value});setPE("");}} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"}/>
+        {pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:3}}>{pwdErr}</div>}
+      </div>
+    </div>
+    <DeptChk user={u} onChange={onChange}/>
+  </div>;
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Usuarios</h1>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{lu.filter(u=>u.active).length} ativos · {lu.filter(u=>!u.active).length} inativos</div>
+      </div>
+      <div style={{display:"flex",gap:7}}>
+        <button style={{...Sg.btn(tab==="lista"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("lista")}>Lista</button>
+        <button style={{...Sg.btn(tab==="novo"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("novo")}>+ Novo</button>
+        <button style={{...Sg.btn(tab==="import"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("import")}>↑ Importar Excel</button>
+      </div>
+    </div>
+
+    {/* Perfis legend */}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      {Object.entries(PERFIS).map(([k,v])=>(
+        <div key={k} style={{...Sg.card({padding:"7px 12px",flex:1,minWidth:160,borderLeft:"3px solid "+v.color})}}>
+          <div style={{fontSize:12,fontWeight:700,color:v.color}}>{v.label}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:2,lineHeight:1.4}}>{v.desc}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* LISTA */}
+    {tab==="lista"&&<>
+      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+        <input value={search} onChange={e=>setSQ(e.target.value)} placeholder="Buscar nome, email, area..." style={{...Sg.input(),maxWidth:280}}/>
+        <select value={filterRole} onChange={e=>setFR(e.target.value)} style={{...Sg.input(),width:150}}>
+          <option value="">Todos perfis</option>
+          {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <select value={filterActive} onChange={e=>setFA(e.target.value)} style={{...Sg.input(),width:130}}>
+          <option value="active">Ativos</option>
+          <option value="inactive">Inativos</option>
+          <option value="all">Todos</option>
+        </select>
+        <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{vis.length} usuario{vis.length!==1?"s":""}</span>
+      </div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 160px 130px 110px 160px",background:C.surface,padding:"5px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
+          {["Nome / Email","Area","Perfil","Status","Acoes"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
+        </div>
+        {vis.map((u,i)=>(
+          <div key={u.id} style={{display:"grid",gridTemplateColumns:"1fr 160px 130px 110px 160px",padding:"8px 13px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44",opacity:u.active?1:.6}}>
+            <div style={{display:"flex",alignItems:"center",gap:9}}>
+              <Av user={{...u,role:u.role}} size={30}/>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:C.text}}>{u.name}</div>
+                <div style={{fontSize:10,color:C.muted}}>{u.email}</div>
+              </div>
+            </div>
+            <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.area||"—"}</span>
+            <Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>
+            <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>
+            <div style={{display:"flex",gap:5}}>
+              <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>{setEd({...u,_np:""});setPE("");}}>Editar</button>
+              {u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={()=>setCD(u)}>Desativar</button>}
+              {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={()=>reactivate(u.id)}>Reativar</button>}
+            </div>
+          </div>
+        ))}
+        {vis.length===0&&<div style={{textAlign:"center",padding:28,color:C.muted}}>Nenhum usuario encontrado.</div>}
+      </div>
+    </>}
+
+    {/* NOVO USUARIO */}
+    {tab==="novo"&&<div style={{...Sg.card({maxWidth:680})}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:14}}>Novo Usuario</div>
+      <UserForm u={nU} onChange={setNU} pwdLabel="Senha inicial *" pwdRequired={true}/>
+      {pwdErr&&!nU.pwd&&<div style={{fontSize:11,color:C.danger,marginTop:4}}>{pwdErr}</div>}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
+        <button style={Sg.btn()} onClick={()=>{setNU({...blank});setPE("");setTab("lista");}}>Cancelar</button>
+        <button style={{...Sg.btn("primary"),opacity:nU.name&&nU.email&&nU.pwd?1:.4}} disabled={!nU.name||!nU.email||!nU.pwd} onClick={addUser}>Criar Usuario</button>
+      </div>
+    </div>}
+
+    {/* IMPORTAR EXCEL */}
+    {tab==="import"&&<div style={{maxWidth:760}}>
+      <div style={{...Sg.card({marginBottom:12,padding:"13px 16px",border:"1px dashed "+C.border})}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:8}}>Importar usuarios via Excel</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:10,lineHeight:1.6}}>
+          O arquivo deve ter as colunas: <strong style={{color:C.text}}>Nome</strong>, <strong style={{color:C.text}}>Email</strong>, <strong style={{color:C.text}}>Area</strong>, <strong style={{color:C.text}}>Perfil</strong> (admin/sgq/geral), <strong style={{color:C.text}}>Senha</strong> (opcional — padrao: Mudar@123)
+        </div>
+        <input type="file" accept=".xlsx,.xls" onChange={handleExcel} style={{display:"none"}} id="xl-upload"/>
+        <label htmlFor="xl-upload" style={{...Sg.btn("primary"),display:"inline-block",cursor:"pointer",fontSize:12}}>Selecionar arquivo .xlsx</label>
+        {importErr&&<div style={{color:C.danger,fontSize:11,marginTop:8}}>{importErr}</div>}
+        {importDone&&<div style={{color:C.success,fontSize:12,marginTop:8,fontWeight:600}}>✓ Usuarios importados com sucesso!</div>}
+      </div>
+
+      {importRows.length>0&&<>
+        <div style={{fontSize:12,color:C.muted,marginBottom:8}}>
+          {importRows.filter(r=>r.errors.length===0).length} validos · {importRows.filter(r=>r.errors.length>0).length} com erro
+        </div>
+        <div style={{...Sg.card({padding:0,overflow:"hidden",marginBottom:12})}}>
+          <div style={{display:"grid",gridTemplateColumns:"30px 1fr 160px 100px 90px 1fr",background:C.surface,padding:"5px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
+            {["Ln","Nome","Email","Area","Perfil","Status"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted}}>{h}</div>)}
+          </div>
+          {importRows.map((r,i)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:"30px 1fr 160px 100px 90px 1fr",padding:"6px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:r.errors.length?C.danger+"08":"transparent"}}>
+              <span style={{fontSize:10,color:C.muted}}>{r.row}</span>
+              <span style={{fontSize:11,color:C.text}}>{r.name||"—"}</span>
+              <span style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email||"—"}</span>
+              <span style={{fontSize:10,color:C.muted}}>{r.area||"—"}</span>
+              <Badge label={PERFIS[r.role]?.label||r.role} color={PERFIS[r.role]?.color||C.muted}/>
+              {r.errors.length===0
+                ?<span style={{fontSize:10,color:C.success}}>✓ OK</span>
+                :<span style={{fontSize:10,color:C.danger}}>{r.errors.join("; ")}</span>}
+            </div>
+          ))}
+        </div>
+        {importRows.filter(r=>r.errors.length===0).length>0&&<button style={{...Sg.btn("primary"),fontSize:13}} onClick={confirmImport}>
+          Importar {importRows.filter(r=>r.errors.length===0).length} usuario{importRows.filter(r=>r.errors.length===0).length!==1?"s":""}
+        </button>}
+      </>}
+    </div>}
+
+    {/* EDIT MODAL */}
+    <Modal open={!!editing} onClose={()=>{setEd(null);setPE("");}} title="Editar Usuario" width={600}>
+      {editing&&<div>
+        <UserForm u={{...editing,pwd:editing._np||""}} onChange={u=>setEd({...editing,...u,_np:u.pwd,pwd:editing.pwd})} pwdLabel="Nova senha (vazio = manter)" pwdRequired={false}/>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
+          <button style={Sg.btn()} onClick={()=>{setEd(null);setPE("");}}>Cancelar</button>
+          <button style={Sg.btn("primary")} onClick={saveEdit}>Salvar</button>
+        </div>
+      </div>}
+    </Modal>
+
+    {/* CONFIRM DEACTIVATE */}
+    <Modal open={!!confirmDel} onClose={()=>setCD(null)} title="Desativar usuario" width={400}>
+      {confirmDel&&<div>
+        <div style={{fontSize:13,color:C.text,marginBottom:16,lineHeight:1.6}}>
+          Desativar <strong>{confirmDel.name}</strong>? O usuario nao conseguira mais logar, mas seu historico sera mantido.
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>setCD(null)}>Cancelar</button>
+          <button style={Sg.btn("danger")} onClick={()=>deactivate(confirmDel.id)}>Desativar</button>
+        </div>
+      </div>}
+    </Modal>
+  </div>;
+}
+
+// ================================================================
+// MATRIX EDITOR v10 — mandatory / optional / empty
+// ================================================================
+function MatrixEditor({matrix,crits,currentUser,onSave}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [m,setM]=useState(()=>JSON.parse(JSON.stringify(matrix)));
+  const [selType,setST]=useState(CHANGE_TYPES[0]);
+  const [saved,setSaved]=useState(false);
+
+  const cycle=(t,d,cv)=>setM(prev=>{
+    const n=JSON.parse(JSON.stringify(prev));
+    if(!n[t])n[t]={};if(!n[t][d])n[t][d]={};
+    const cur=n[t][d][cv]||"";
+    n[t][d][cv]=cur===""?"optional":cur==="optional"?"mandatory":"";
+    return n;
+  });
+
+  const save=()=>{onSave(m,currentUser.name);setSaved(true);setTimeout(()=>setSaved(false),2500);};
+  const cellBg=(val)=>val==="mandatory"?C.warning+"22":val==="optional"?C.accent+"18":"transparent";
+  const cellBorder=(val)=>val==="mandatory"?C.warning:val==="optional"?C.accent:C.border;
+  const cellLabel=(val)=>val==="mandatory"?"OBR":val==="optional"?"OPC":"—";
+  const cellColor=(val)=>val==="mandatory"?C.warning:val==="optional"?C.accent:C.muted;
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"center",flexWrap:"wrap",gap:9}}>
+      <div>
+        <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Matriz de Triagem</h1>
+        <div style={{fontSize:11,color:C.muted,marginTop:3}}>
+          Clique na celula para alternar: <span style={{color:C.warning,fontWeight:700}}>OBR</span> = obrigatorio (fixo na triagem) &nbsp;|&nbsp; <span style={{color:C.accent,fontWeight:700}}>OPC</span> = opcional (editavel) &nbsp;|&nbsp; <span style={{color:C.muted}}>—</span> = nao inclui
+        </div>
+      </div>
+      <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>
+    </div>
+
+    <div style={{display:"flex",gap:5,marginBottom:11,flexWrap:"wrap"}}>
+      {CHANGE_TYPES.map(t=><button key={t} onClick={()=>setST(t)} style={{...Sg.btn(selType===t?"primary":""),fontSize:11,padding:"4px 10px"}}>{t}</button>)}
+    </div>
+
+    <div style={{...Sg.card({padding:0,overflow:"auto",maxHeight:"calc(100vh - 220px)"})}}>
+      <div style={{display:"grid",gridTemplateColumns:"210px repeat("+crits.length+",1fr)",minWidth:210+crits.length*80}}>
+        {/* Header */}
+        <div style={{padding:"8px 11px",background:C.surface,fontSize:10,fontWeight:700,color:C.muted,borderBottom:"1px solid "+C.border,borderRight:"1px solid "+C.border,position:"sticky",top:0,left:0,zIndex:3}}>AREA</div>
+        {crits.map(cr=><div key={cr.v} style={{padding:"8px 8px",background:C.surface,textAlign:"center",borderBottom:"1px solid "+C.border,borderLeft:"1px solid "+C.border,position:"sticky",top:0,zIndex:2}}>
+          <div style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</div>
+          <div style={{fontSize:9,color:C.muted,marginTop:1}}>{cr.label}</div>
+        </div>)}
+        {/* Rows */}
+        {ALL_DEPTS.map((dept,di)=>(
+          <React.Fragment key={dept}>
+            <div style={{padding:"6px 11px",fontSize:11,color:C.dim,background:di%2===0?C.card:C.surface,borderTop:"1px solid "+C.border,borderRight:"1px solid "+C.border,display:"flex",alignItems:"center",position:"sticky",left:0,zIndex:1,minHeight:36}}>{dept}</div>
+            {crits.map(cr=>{
+              const val=(m[selType]&&m[selType][dept]&&m[selType][dept][cr.v])||"";
+              return <div key={cr.v} style={{display:"flex",alignItems:"center",justifyContent:"center",borderLeft:"1px solid "+C.border,borderTop:"1px solid "+C.border,background:di%2===0?C.card:C.surface}}>
+                <button onClick={()=>cycle(selType,dept,cr.v)}
+                  title={val===""?"Clique para adicionar como opcional":val==="optional"?"Opcional — clique para tornar obrigatorio":"Obrigatorio — clique para remover"}
+                  style={{width:50,height:28,borderRadius:6,border:"2px solid "+cellBorder(val),background:cellBg(val),cursor:"pointer",fontSize:10,color:cellColor(val),fontWeight:700,fontFamily:"inherit",transition:"all .15s"}}>
+                  {cellLabel(val)}
+                </button>
+              </div>;
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// INDICATORS v10 — filtros + KPIs + gráficos visuais
+// ================================================================
+function IndicatorsPage({requests,allUsers,crits}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [fDe,setDE]=useState("");const [fAte,setAte]=useState("");
+  const [fSt,setFS]=useState("");const [fCr,setFC]=useState("");const [fTp,setFT]=useState("");
+
+  const pool=requests.filter(r=>{
+    if(fDe&&r.createdAt<fDe)return false;
+    if(fAte&&r.createdAt>(fAte+"T23:59:59"))return false;
+    if(fSt&&r.status!==fSt)return false;
+    if(fCr&&(!r.triage||r.triage.criticality!==fCr))return false;
+    if(fTp&&r.type!==fTp)return false;
+    return true;
+  });
+
+  const total=pool.length;
+  const abertas=pool.filter(r=>!["concluida","cancelada"].includes(r.status)).length;
+  const concluidas=pool.filter(r=>r.status==="concluida").length;
+  const abPer=(fDe||fAte)?pool.length:null;
+  const fePer=(fDe||fAte)?pool.filter(r=>r.status==="concluida"&&r.closedAt&&(!fDe||r.closedAt>=fDe)&&(!fAte||r.closedAt<=(fAte+"T23:59:59"))).length:null;
+
+  const byCrit={};crits.forEach(c=>{byCrit[c.v]=pool.filter(r=>r.triage&&r.triage.criticality===c.v).length;});
+  const byStatus={};Object.keys(REQ_ST).forEach(s=>{byStatus[s]=pool.filter(r=>r.status===s).length;});
+  const byType={};CHANGE_TYPES.forEach(t=>{byType[t]=pool.filter(r=>r.type===t).length;});
+  const typeColors=[C.accent,C.warning,C.success,C.purple,C.orange,C.cyan];
+
+  const totalExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).length,0);
+  const approvedExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).filter(e=>e.status==="approved").length,0);
+  const pendingExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).filter(e=>e.status==="pending").length,0);
+  const rejectedExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).filter(e=>e.status==="rejected").length,0);
+
+  const overdueEvals=[];const overdueAcs=[];
+  pool.forEach(r=>{
+    if(r.status==="avaliacao"&&r.triage)(r.triage.assignedAreas||[]).forEach(d=>{if(!(r.evaluations&&r.evaluations[d])&&isOD(r.triage.deadlines&&r.triage.deadlines[d],""))overdueEvals.push({r,d});});
+    if(r.status==="execucao")(r.actions||[]).filter(a=>isOD(a.deadline,a.status)).forEach(a=>overdueAcs.push({r,a}));
+  });
+
+  const acPend=pool.reduce((n,r)=>n+(r.actions||[]).filter(a=>a.status==="pendente").length,0);
+  const acDone=pool.reduce((n,r)=>n+(r.actions||[]).filter(a=>a.status==="concluida").length,0);
+
+  const concluded=pool.filter(r=>r.status==="concluida"&&r.createdAt&&r.closedAt);
+  const avgTotal=concluded.length?Math.round(concluded.reduce((n,r)=>n+(new Date(r.closedAt)-new Date(r.createdAt))/86400000,0)/concluded.length):null;
+  const avgTriagem=pool.filter(r=>r.ap1At&&r.createdAt).length?Math.round(pool.filter(r=>r.ap1At).reduce((n,r)=>n+(new Date(r.ap1At)-new Date(r.createdAt))/86400000,0)/pool.filter(r=>r.ap1At).length):null;
+  const avgEval=pool.filter(r=>r.ap2At&&r.ap1At).length?Math.round(pool.filter(r=>r.ap2At&&r.ap1At).reduce((n,r)=>n+(new Date(r.ap2At)-new Date(r.ap1At))/86400000,0)/pool.filter(r=>r.ap2At&&r.ap1At).length):null;
+
+  const pendEvalArea={};
+  pool.forEach(r=>{if(r.status!=="avaliacao"||!r.triage)return;(r.triage.assignedAreas||[]).forEach(d=>{if(!(r.evaluations&&r.evaluations[d]))pendEvalArea[d]=(pendEvalArea[d]||0)+1;});});
+
+  const hasFilter=fDe||fAte||fSt||fCr||fTp;
+
+  // ---- Chart primitives ----
+  const DonutChart=({data,size=120})=>{
+    const tot=data.reduce((s,d)=>s+d.value,0);if(!tot)return <div style={{width:size,height:size,borderRadius:"50%",background:C.border,margin:"0 auto"}}/>;
+    let angle=0;
+    const slices=data.filter(d=>d.value>0).map(d=>{const pct=d.value/tot;const a=pct*360;const s={...d,startAngle:angle,endAngle:angle+a,pct};angle+=a;return s;});
+    const polarToXY=(deg,r,cx,cy)=>{const rad=(deg-90)*Math.PI/180;return[cx+r*Math.cos(rad),cy+r*Math.sin(rad)];};
+    const cx=size/2,cy=size/2,r=size/2-6,ir=r*0.55;
+    return <svg width={size} height={size} style={{display:"block",margin:"0 auto"}}>
+      {slices.map((s,i)=>{
+        const large=s.endAngle-s.startAngle>180?1:0;
+        const [x1,y1]=polarToXY(s.startAngle,r,cx,cy);const [x2,y2]=polarToXY(s.endAngle,r,cx,cy);
+        const [ix1,iy1]=polarToXY(s.startAngle,ir,cx,cy);const [ix2,iy2]=polarToXY(s.endAngle,ir,cx,cy);
+        const d2=`M${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${ir},${ir} 0 ${large},0 ${ix1},${iy1} Z`;
+        return <path key={i} d={d2} fill={s.color} opacity={.9}/>;
+      })}
+      <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" fontSize={size*.18} fontWeight="800" fill={C.text}>{tot}</text>
+    </svg>;
+  };
+
+  const HBar=({label,value,max,color,pct})=>{
+    const w=max?Math.min(100,value/max*100):0;
+    return <div style={{marginBottom:7}}>
+      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3,gap:6}}>
+        <span style={{color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{label}</span>
+        <span style={{fontWeight:700,color:color||C.accent,flexShrink:0}}>{value}{pct&&total?<span style={{color:C.muted,fontWeight:400,fontSize:10}}> ({Math.round(value/total*100)}%)</span>:null}</span>
+      </div>
+      <div style={{height:7,background:C.border,borderRadius:4,overflow:"hidden"}}>
+        <div style={{height:"100%",width:w+"%",background:color||C.accent,borderRadius:4,transition:"width .5s"}}/>
+      </div>
+    </div>;
+  };
+
+  const VBars=({data,height=90})=>{
+    const max=Math.max(1,...data.map(d=>d.value));
+    return <div style={{display:"flex",alignItems:"flex-end",gap:6,height:height,paddingBottom:18,position:"relative"}}>
+      {data.filter(d=>d.value>0).map((d,i)=>{
+        const h=Math.round((d.value/max)*height*0.78);
+        return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+          <span style={{fontSize:10,fontWeight:700,color:d.color}}>{d.value}</span>
+          <div style={{width:"100%",height:h,background:d.color,borderRadius:"4px 4px 0 0",opacity:.85,minHeight:4,transition:"height .4s"}}/>
+          <span style={{fontSize:8,color:C.muted,textAlign:"center",maxWidth:44,lineHeight:1.1,position:"absolute",bottom:0}}>{d.short||d.label}</span>
+        </div>;
+      })}
+    </div>;
+  };
+
+  const KPI=({label,value,color,sub})=>(
+    <div style={{...Sg.card({padding:"11px 14px",borderTop:"3px solid "+(color||C.accent)})}}>
+      <div style={{fontSize:24,fontWeight:800,color:color||C.text,lineHeight:1}}>{value??0}</div>
+      <div style={{fontSize:11,color:C.muted,marginTop:3,fontWeight:600,lineHeight:1.3}}>{label}</div>
+      {sub&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{sub}</div>}
+    </div>
+  );
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{marginBottom:12}}>
+      <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Indicadores</h1>
+      <div style={{fontSize:11,color:C.muted,marginTop:2}}>{total} SA{total!==1?"s":""} {hasFilter?"no filtro aplicado":"(todos os registros)"}</div>
+    </div>
+
+    {/* FILTERS */}
+    <div style={{...Sg.card({marginBottom:14,padding:"11px 14px"})}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:8,letterSpacing:.7}}>PERIODO E FILTROS</div>
+      <div style={{display:"flex",gap:9,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>De</label><input type="date" style={{...Sg.input(),width:135}} value={fDe} onChange={e=>setDE(e.target.value)}/></div>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>Ate</label><input type="date" style={{...Sg.input(),width:135}} value={fAte} onChange={e=>setAte(e.target.value)}/></div>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>Status</label>
+          <select value={fSt} onChange={e=>setFS(e.target.value)} style={{...Sg.input(),width:165}}>
+            <option value="">Todos</option>
+            {Object.entries(REQ_ST).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>Criticidade</label>
+          <select value={fCr} onChange={e=>setFC(e.target.value)} style={{...Sg.input(),width:130}}>
+            <option value="">Todas</option>
+            {crits.map(c=><option key={c.v} value={c.v}>{c.v} — {c.label}</option>)}
+          </select>
+        </div>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>Tipo</label>
+          <select value={fTp} onChange={e=>setFT(e.target.value)} style={{...Sg.input(),width:210}}>
+            <option value="">Todos</option>
+            {CHANGE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        {hasFilter&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 11px",alignSelf:"flex-end"}} onClick={()=>{setDE("");setAte("");setFS("");setFC("");setFT("");}}>Limpar</button>}
+      </div>
+    </div>
+
+    {/* KPIs row 1 */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9,marginBottom:9}}>
+      <KPI label="Total SAs" value={total} color={C.accent}/>
+      <KPI label="Em andamento" value={abertas} color={C.warning}/>
+      <KPI label="Concluidas" value={concluidas} color={C.success}/>
+      <KPI label={abPer!==null?"Abertas no periodo":"Abertas no periodo"} value={abPer!==null?abPer:"—"} color={abPer!==null?C.cyan:C.muted} sub={abPer===null?"Selecione periodo":undefined}/>
+      <KPI label="Fechadas no periodo" value={fePer!==null?fePer:"—"} color={fePer!==null?C.success:C.muted} sub={fePer===null?"Selecione periodo":undefined}/>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9,marginBottom:14}}>
+      <KPI label="Aval. atrasadas" value={overdueEvals.length} color={overdueEvals.length?C.danger:C.success}/>
+      <KPI label="Acoes pendentes" value={acPend} color={C.warning} sub={acDone+" concluidas"}/>
+      <KPI label="Acoes atrasadas" value={overdueAcs.length} color={overdueAcs.length?C.danger:C.success}/>
+      <KPI label="Extensoes" value={totalExt} color={C.orange} sub={approvedExt+" apr | "+pendingExt+" pend | "+rejectedExt+" rej"}/>
+      <KPI label="Tempo medio total" value={avgTotal!==null?avgTotal+"d":"--"} color={C.purple} sub={avgTriagem!=null?"Ate triagem: "+avgTriagem+"d":""}/>
+    </div>
+
+    {/* Charts row 1: donuts */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+      {/* Status donut */}
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>SAs POR STATUS</div>
+        <DonutChart size={110} data={Object.entries(REQ_ST).filter(([k])=>byStatus[k]>0).map(([k,v])=>({label:v.label,value:byStatus[k]||0,color:v.color}))}/>
+        <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:4}}>
+          {Object.entries(REQ_ST).filter(([k])=>byStatus[k]>0).map(([k,v])=>(
+            <div key={k} style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+              <div style={{width:9,height:9,borderRadius:2,background:v.color,flexShrink:0}}/>
+              <span style={{flex:1,color:C.muted}}>{v.label}</span>
+              <span style={{fontWeight:700,color:v.color}}>{byStatus[k]}</span>
+            </div>
+          ))}
+          {!total&&<div style={{color:C.muted,textAlign:"center"}}>Sem dados</div>}
+        </div>
+      </div>
+
+      {/* Criticidade donut */}
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>SAs POR CRITICIDADE</div>
+        <DonutChart size={110} data={crits.map(c=>({label:c.v+" "+c.label,value:byCrit[c.v]||0,color:c.color}))}/>
+        <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:4}}>
+          {crits.map(c=>(
+            <div key={c.v} style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+              <div style={{width:9,height:9,borderRadius:2,background:c.color,flexShrink:0}}/>
+              <span style={{flex:1,color:C.muted}}>{c.v} — {c.label}</span>
+              <span style={{fontWeight:700,color:c.color}}>{byCrit[c.v]||0}</span>
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,borderTop:"1px solid "+C.border,paddingTop:4,marginTop:2}}>
+            <div style={{width:9,height:9,borderRadius:2,background:C.muted,flexShrink:0}}/>
+            <span style={{flex:1,color:C.muted}}>Sem triagem</span>
+            <span style={{fontWeight:700,color:C.muted}}>{pool.filter(r=>!r.triage).length}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tempo medio por fase */}
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:10,letterSpacing:.6}}>TEMPO MEDIO POR FASE</div>
+        <VBars height={90} data={[
+          {label:"Triagem",short:"Triagem",value:avgTriagem||0,color:C.warning},
+          {label:"Avaliacao",short:"Aval.",value:avgEval||0,color:C.accent},
+          {label:"Total",short:"Total",value:avgTotal||0,color:C.success},
+        ].filter(d=>d.value>0)}/>
+        <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:5}}>
+          {[{l:"Abertura → Triagem",v:avgTriagem,c:C.warning},{l:"Triagem → Aprov. Aval.",v:avgEval,c:C.accent},{l:"Total (abertura→fechamento)",v:avgTotal,c:C.success}].map(r=>(
+            <div key={r.l} style={{display:"flex",justifyContent:"space-between",fontSize:11}}>
+              <span style={{color:C.muted}}>{r.l}</span>
+              <span style={{fontWeight:700,color:r.v!=null?r.c:C.muted}}>{r.v!=null?r.v+"d":"--"}</span>
+            </div>
+          ))}
+          {!concluded.length&&<div style={{fontSize:10,color:C.muted,marginTop:4}}>Sem SAs concluidas no filtro.</div>}
+        </div>
+      </div>
+    </div>
+
+    {/* Charts row 2 */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+      {/* Por tipo de mudança — barras horizontais */}
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>SAs POR TIPO DE MUDANCA</div>
+        {CHANGE_TYPES.map((t,i)=>byType[t]>0?<HBar key={t} label={t} value={byType[t]} max={total} color={typeColors[i%typeColors.length]} pct/>:null)}
+        {!total&&<div style={{color:C.muted,fontSize:11}}>Sem dados</div>}
+      </div>
+
+      {/* Avaliacoes pendentes por area */}
+      <div style={Sg.card()}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>AVALIACOES PENDENTES POR AREA</div>
+        {Object.keys(pendEvalArea).length>0
+          ?Object.entries(pendEvalArea).sort((a,b)=>b[1]-a[1]).map(([d,n])=><HBar key={d} label={d} value={n} max={Math.max(...Object.values(pendEvalArea))} color={C.warning}/>)
+          :<div style={{color:C.muted,fontSize:11,textAlign:"center",paddingTop:18}}>Nenhuma avaliacao pendente</div>}
+      </div>
+    </div>
+
+    {/* Acoes */}
+    {(acPend+acDone+overdueAcs.length)>0&&<div style={{...Sg.card({marginBottom:12})}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>ACOES DO PLANO</div>
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <DonutChart size={80} data={[{label:"Pendentes",value:acPend,color:C.warning},{label:"Concluidas",value:acDone,color:C.success},{label:"Atrasadas",value:overdueAcs.length,color:C.danger}].filter(d=>d.value>0)}/>
+        <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          {[{l:"Pendentes",v:acPend,c:C.warning},{l:"Concluidas",v:acDone,c:C.success},{l:"Atrasadas",v:overdueAcs.length,c:C.danger}].map(r=>(
+            <div key={r.l} style={{textAlign:"center",padding:"10px 8px",background:C.surface,borderRadius:8,border:"1px solid "+r.c+"33"}}>
+              <div style={{fontSize:22,fontWeight:800,color:r.c}}>{r.v}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{r.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>}
+
+    {/* Extensoes */}
+    {totalExt>0&&<div style={{...Sg.card({marginBottom:12})}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:12,letterSpacing:.6}}>EXTENSOES DE PRAZO</div>
+      <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:14}}>
+        <DonutChart size={80} data={[{label:"Aprovadas",value:approvedExt,color:C.success},{label:"Pendentes",value:pendingExt,color:C.warning},{label:"Rejeitadas",value:rejectedExt,color:C.danger}].filter(d=>d.value>0)}/>
+        <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          {[{l:"Aprovadas",v:approvedExt,c:C.success},{l:"Pendentes",v:pendingExt,c:C.warning},{l:"Rejeitadas",v:rejectedExt,c:C.danger}].map(r=>(
+            <div key={r.l} style={{textAlign:"center",padding:"10px 8px",background:C.surface,borderRadius:8,border:"1px solid "+r.c+"33"}}>
+              <div style={{fontSize:22,fontWeight:800,color:r.c}}>{r.v}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{r.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <div style={{display:"grid",gridTemplateColumns:"100px 1fr 110px 85px 85px",background:C.surface,padding:"5px 11px",borderBottom:"1px solid "+C.border,gap:8}}>
+          {["SA","Alvo","Por","Novo Prazo","Status"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted}}>{h}</div>)}
+        </div>
+        {pool.flatMap(r=>(r.deadlineExtensions||[]).map(e=>({...e,r}))).sort((a,b)=>new Date(b.requestedAt)-new Date(a.requestedAt)).slice(0,20).map((e,i)=>{
+          const sc={pending:C.warning,approved:C.success,rejected:C.danger}[e.status]||C.muted;
+          return <div key={e.id+i} style={{display:"grid",gridTemplateColumns:"100px 1fr 110px 85px 85px",padding:"5px 11px",borderBottom:"1px solid "+C.border+"18",gap:8,fontSize:11,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
+            <span style={{color:C.accent,fontWeight:600}}>{e.r.id}</span>
+            <span style={{color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.targetLabel}</span>
+            <span style={{color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.requestedByName}</span>
+            <span style={{color:C.muted}}>{fmtD(e.newDate)}</span>
+            <Badge label={e.status==="pending"?"Pend.":e.status==="approved"?"Aprov.":"Rejeit."} color={sc}/>
+          </div>;
+        })}
+      </div>
+    </div>}
+  </div>;
+}
+
+// ================================================================
+// QUESTIONS EDITOR v10 — admin edita perguntas por area
+// ================================================================
+function QuestionsEditor({deptQuestions,currentUser,onSave}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [selDept,setSD]=useState(ALL_DEPTS[0]);
+  const [localQ,setLQ]=useState(()=>{
+    const base={};
+    ALL_DEPTS.forEach(d=>{ base[d]=[...(deptQuestions&&deptQuestions[d]?deptQuestions[d]:DEPT_Q[d]||[])]; });
+    return base;
+  });
+  const [saved,setSaved]=useState(false);
+  const [newQ,setNewQ]=useState("");
+  const [editIdx,setEI]=useState(null);
+  const [editVal,setEV]=useState("");
+
+  const qs=localQ[selDept]||[];
+
+  const addQ=()=>{
+    if(!newQ.trim())return;
+    setLQ(p=>({...p,[selDept]:[...qs,newQ.trim()]}));
+    setNewQ("");
+  };
+  const removeQ=i=>setLQ(p=>({...p,[selDept]:qs.filter((_,xi)=>xi!==i)}));
+  const startEdit=(i)=>{setEI(i);setEV(qs[i]);};
+  const saveEdit=()=>{
+    if(!editVal.trim()){setEI(null);return;}
+    setLQ(p=>({...p,[selDept]:qs.map((q,xi)=>xi===editIdx?editVal.trim():q)}));
+    setEI(null);setEV("");
+  };
+  const moveQ=(i,dir)=>{
+    const arr=[...qs];
+    const j=i+dir;
+    if(j<0||j>=arr.length)return;
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+    setLQ(p=>({...p,[selDept]:arr}));
+  };
+  const resetDept=()=>setLQ(p=>({...p,[selDept]:[...(DEPT_Q[selDept]||[])]}));
+  const save=()=>{onSave(localQ,currentUser.name);setSaved(true);setTimeout(()=>setSaved(false),2200);};
+
+  const defaultQs=DEPT_Q[selDept]||[];
+  const isModified=JSON.stringify(qs)!==JSON.stringify(defaultQs);
+
+  return <div style={{padding:"18px 22px",maxWidth:860}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Perguntas de Avaliacao</h1>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Configure as perguntas exibidas para cada area durante a avaliacao de uma SA.</div>
+      </div>
+      <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar Tudo"}</button>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:14}}>
+      {/* Area list */}
+      <div style={{...Sg.card({padding:0,overflow:"hidden",height:"fit-content",maxHeight:"calc(100vh - 160px)",overflowY:"auto"})}}>
+        {ALL_DEPTS.map(d=>{
+          const mod=JSON.stringify(localQ[d])!==JSON.stringify(DEPT_Q[d]||[]);
+          const cnt=(localQ[d]||[]).length;
+          return <button key={d} onClick={()=>{setSD(d);setEI(null);setNewQ("");}}
+            style={{width:"100%",padding:"8px 11px",background:selDept===d?C.accent+"18":"transparent",border:"none",borderBottom:"1px solid "+C.border,
+              cursor:"pointer",textAlign:"left",fontFamily:"inherit",color:selDept===d?C.accent:C.text,
+              fontSize:11,fontWeight:selDept===d?700:400,display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
+            <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:1.3}}>{d}</span>
+            <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+              <span style={{fontSize:9,color:selDept===d?C.accent:C.muted}}>{cnt}</span>
+              {mod&&<span style={{width:5,height:5,borderRadius:"50%",background:C.warning,flexShrink:0}}/>}
+            </div>
+          </button>;
+        })}
+      </div>
+
+      {/* Questions editor */}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:700,color:C.text}}>{selDept}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1}}>{qs.length} pergunta{qs.length!==1?"s":""}{isModified&&<span style={{color:C.warning,marginLeft:6}}>Modificado</span>}</div>
+          </div>
+          {isModified&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={resetDept}>Restaurar Padrao</button>}
+        </div>
+
+        {/* Question list */}
+        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+          {qs.map((q,i)=>(
+            <div key={i} style={{...Sg.card({padding:"8px 11px",display:"flex",gap:9,alignItems:"flex-start"})}}>
+              <span style={{fontSize:11,fontWeight:700,color:C.muted,width:20,flexShrink:0,paddingTop:1}}>{i+1}.</span>
+              {editIdx===i
+                ?<div style={{flex:1,display:"flex",gap:7,flexDirection:"column"}}>
+                  <textarea style={{...Sg.input(),minHeight:48,resize:"vertical",fontSize:12}} value={editVal} onChange={e=>setEV(e.target.value)} autoFocus/>
+                  <div style={{display:"flex",gap:6}}>
+                    <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={saveEdit} disabled={!editVal.trim()}>Salvar</button>
+                    <button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={()=>setEI(null)}>Cancelar</button>
+                  </div>
+                </div>
+                :<div style={{flex:1,fontSize:12,color:C.text,lineHeight:1.5,paddingTop:1}}>{q}</div>
+              }
+              {editIdx!==i&&<div style={{display:"flex",gap:3,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                <button title="Mover para cima" style={{...Sg.btn(),fontSize:10,padding:"2px 6px",opacity:i===0?.3:1}} disabled={i===0} onClick={()=>moveQ(i,-1)}>↑</button>
+                <button title="Mover para baixo" style={{...Sg.btn(),fontSize:10,padding:"2px 6px",opacity:i===qs.length-1?.3:1}} disabled={i===qs.length-1} onClick={()=>moveQ(i,1)}>↓</button>
+                <button style={{...Sg.btn(),fontSize:10,padding:"2px 7px"}} onClick={()=>startEdit(i)}>Editar</button>
+                <button style={{...Sg.btn("danger"),fontSize:10,padding:"2px 7px"}} onClick={()=>removeQ(i)}>×</button>
+              </div>}
+            </div>
+          ))}
+          {qs.length===0&&<div style={{...Sg.card({textAlign:"center",padding:24,color:C.muted})}}>Nenhuma pergunta configurada. Adicione abaixo.</div>}
+        </div>
+
+        {/* Add new question */}
+        <div style={{...Sg.card({padding:"11px 13px",border:"1px dashed "+C.border})}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:7,letterSpacing:.5}}>NOVA PERGUNTA</div>
+          <textarea style={{...Sg.input(),minHeight:46,resize:"vertical",fontSize:12,marginBottom:8}}
+            value={newQ} onChange={e=>setNewQ(e.target.value)}
+            placeholder="Digite a pergunta que aparecera na avaliacao desta area..."
+            onKeyDown={e=>{if(e.key==="Enter"&&e.ctrlKey)addQ();}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:10,color:C.muted}}>Ctrl+Enter para adicionar</span>
+            <button style={{...Sg.btn("primary"),fontSize:12,opacity:newQ.trim()?1:.4}} disabled={!newQ.trim()} onClick={addQ}>+ Adicionar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+// ================================================================
+// SETTINGS PAGE — includes phase deadlines editor + theme + pwd
+// ================================================================
+function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,setTheme}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
+  const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
+  const [localPh,setLocalPh]=useState(()=>Object.fromEntries(Object.entries(DEFAULT_PHASE_DEADLINES).map(([k,v])=>[k,{...v,...(phaseDl&&phaseDl[k]?{days:phaseDl[k].days}:{})}])));
+  const [phSaved,setPhSaved]=useState(false);
+
+  const savePh=()=>{onSavePhaseDl(localPh);setPhSaved(true);setTimeout(()=>setPhSaved(false),2200);};
+
+  const go=()=>{
+    if(cur!==currentUser.pwd){setMsg("err:Senha atual incorreta.");return;}
+    const err=validatePwd(n1);if(err){setPwdErr(err);return;}
+    if(n1!==n2){setMsg("err:Senhas nao coincidem.");return;}
+    onChangePwd(n1);setMsg("ok:Senha alterada com sucesso!");setCur("");setN1("");setN2("");setPwdErr("");
+  };
+
+  const themeOpts=[{v:"dark",l:"Escuro"},{v:"light",l:"Claro"},{v:"bw",l:"P&B"}];
+
+  return <div style={{padding:"18px 22px",maxWidth:700}}>
+    <h1 style={{margin:"0 0 16px",fontSize:18,color:C.text,fontWeight:700}}>Configuracoes</h1>
+
+    {/* User + theme card */}
+    <div style={Sg.card()}>
+      <div style={{display:"flex",alignItems:"center",gap:13,marginBottom:14,paddingBottom:13,borderBottom:"1px solid "+C.border}}>
+        <Av user={currentUser} size={44}/>
+        <div>
+          <div style={{fontSize:14,fontWeight:700,color:C.text}}>{currentUser.name}</div>
+          <Badge label={ROLES[currentUser.role]&&ROLES[currentUser.role].label} color={RC[currentUser.role]||C.muted}/>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>{currentUser.email}</div>
+        </div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:8,letterSpacing:.7}}>TEMA</div>
+        <div style={{display:"flex",gap:7}}>
+          {themeOpts.map(t=>(
+            <button key={t.v} onClick={()=>setTheme(t.v)}
+              style={{flex:1,padding:"8px 0",borderRadius:7,border:"2px solid "+(theme===t.v?C.accent:C.border),background:theme===t.v?C.accent+"22":C.surface,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:theme===t.v?700:400,color:theme===t.v?C.accent:C.muted}}>
+              {t.l}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:9,letterSpacing:.7}}>ALTERAR SENHA</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
+          <div><label style={Sg.lbl}>Senha Atual</label><input type="password" style={Sg.input()} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/></div>
+          <div><label style={Sg.lbl}>Nova Senha</label><input type="password" style={Sg.input()} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
+          <div><label style={Sg.lbl}>Confirmar</label><input type="password" style={Sg.input()} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/></div>
+        </div>
+        {msg&&<div style={{fontSize:12,color:msg.startsWith("ok")?C.success:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
+        <button style={Sg.btn("primary")} onClick={go}>Alterar Senha</button>
+      </div>
+    </div>
+
+    {/* Phase deadlines — only admin */}
+    {currentUser.role==="admin"&&<div style={{...Sg.card({marginTop:12})}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:700,color:C.text}}>Prazos Padrao por Etapa</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>Define em quantos dias cada etapa do processo deve ser concluida apos seu inicio. Usado como referencia automatica ao criar SAs.</div>
+        </div>
+        <button style={{...Sg.btn(phSaved?"success":"primary"),minWidth:90}} onClick={savePh}>{phSaved?"Salvo!":"Salvar"}</button>
+      </div>
+      {Object.entries(localPh).map(([key,ph])=>(
+        <div key={key} style={{display:"grid",gridTemplateColumns:"160px 110px 1fr",gap:12,alignItems:"center",padding:"9px 11px",background:C.surface,borderRadius:7,marginBottom:5,border:"1px solid "+C.border}}>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:C.text}}>{ph.label}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:7}}>
+            <input type="number" min="1" max="365" style={{...Sg.input(),width:64,textAlign:"center"}} value={ph.days}
+              onChange={e=>setLocalPh(p=>({...p,[key]:{...p[key],days:parseInt(e.target.value)||1}}))}/>
+            <span style={{fontSize:11,color:C.muted,flexShrink:0}}>dias</span>
+          </div>
+          <div style={{fontSize:10,color:C.muted,lineHeight:1.4}}>{ph.desc}</div>
+        </div>
+      ))}
+    </div>}
+
+    {/* Version info */}
+    <div style={{...Sg.card({marginTop:10,padding:"10px 14px"})}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,letterSpacing:.7}}>SOBRE O SISTEMA</div>
+      <div style={{fontSize:13,fontWeight:700,color:C.text}}>CHANGE — Gestao de Mudancas</div>
+      <div style={{fontSize:11,color:C.muted,marginTop:2}}>Versao {APP_VERSION} | Release {APP_DATE}</div>
+      <div style={{fontSize:10,color:C.muted,marginTop:1}}>Build validado e auditavel | Single-file HTML</div>
+    </div>
+
+    <button style={{...Sg.btn("danger"),width:"100%",padding:11,marginTop:10,fontSize:14}} onClick={onLogout}>Sair da conta</button>
+  </div>;
+}
+
+// ================================================================
+// APP v10 — API mode (Vercel + Neon backend)
+// Replaces localStorage with REST API calls
+// ================================================================
+
+const API = window.API_BASE || '';
+
+// ---- API helpers ----
+async function apiFetch(path, opts={}) {
+  const token = sessionStorage.getItem('cm_token');
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 401) { sessionStorage.removeItem('cm_token'); window.location.reload(); return null; }
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Erro '+res.status); }
+  return res.json();
+}
+
+const apiGet  = (path) => apiFetch(path);
+const apiPost = (path, body) => apiFetch(path, { method: 'POST', body });
+const apiPut  = (path, body) => apiFetch(path, { method: 'PUT',  body });
+
+// ---- Main App ----
+function App() {
+  const { C } = useTheme();
+  const [loggedIn, setLI] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('dashboard');
+  const [selId, setSel] = useState(null);
+
+  // Data state
+  const [users,    setUR] = useState([]);
+  const [requests, setRR] = useState([]);
+  const [matrix,   setMR] = useState(null);
+  const [crits,    setCR] = useState(DEFAULT_CRITS);
+  const [phaseDl,  setPH] = useState(JSON.parse(JSON.stringify(DEFAULT_PHASE_DEADLINES)));
+  const [deptQ,    setDQ] = useState(null);
+  const [sysLog,   setSL] = useState([]);
+
+  // ---- Bootstrap: check existing session ----
+  useEffect(() => {
+    const token = sessionStorage.getItem('cm_token');
+    const userStr = sessionStorage.getItem('cm_user');
+    if (token && userStr) {
+      try { setLI(JSON.parse(userStr)); } catch {}
+    }
+    setLoading(false);
+  }, []);
+
+  // ---- Load data once logged in ----
+  useEffect(() => {
+    if (!loggedIn) return;
+    loadAll();
+  }, [loggedIn]);
+
+  const loadAll = async () => {
+    try {
+      const [us, rs, mx, cr, ph, dq] = await Promise.all([
+        apiGet('/api/users'),
+        apiGet('/api/requests'),
+        apiGet('/api/config/matrix'),
+        apiGet('/api/config/crits'),
+        apiGet('/api/config/phasedl'),
+        apiGet('/api/config/deptq'),
+      ]);
+      if (us) setUR(us);
+      if (rs) setRR(rs);
+      if (mx) setMR(mx);
+      if (cr) setCR(cr);
+      if (ph) setPH(ph);
+      if (dq) setDQ(dq);
+    } catch (err) { console.error('loadAll error:', err); }
+  };
+
+  // ---- Auth ----
+  const login = async (email, password) => {
+    const data = await apiPost('/api/auth/login', { email, password });
+    if (!data) return 'Erro de conexao';
+    sessionStorage.setItem('cm_token', data.token);
+    sessionStorage.setItem('cm_user', JSON.stringify(data.user));
+    setLI(data.user);
+    setView('dashboard');
+    return null; // no error
+  };
+
+  const logout = () => {
+    sessionStorage.removeItem('cm_token');
+    sessionStorage.removeItem('cm_user');
+    setLI(null); setView('dashboard');
+  };
+
+  // ---- Persist helpers ----
+  const addSL = async (by, type, event, detail) => {
+    const entry = { at: new Date().toISOString(), by, type, event, detail: detail||'' };
+    setSL(p => [entry, ...p]);
+    try { await apiPut('/api/config/syslog', entry); } catch {}
+  };
+
+  const saveReq = async (r) => {
+    try {
+      const exists = requests.find(x => x.id === r.id);
+      if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
+      else await apiPost('/api/requests', r);
+      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+    } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
+  };
+
+  const saveUsers = async (list, by, action, detail) => {
+    try {
+      await apiPut('/api/users', { users: list });
+      setUR(list);
+      addSL(by, action||'usuarios', detail||'Usuarios atualizados', '');
+    } catch (err) { alert('Erro ao salvar usuarios: ' + err.message); }
+  };
+
+  const saveMatrix = async (m, by) => {
+    await apiPut('/api/config/matrix', m);
+    setMR(m); addSL(by, 'config', 'Matriz atualizada', '');
+  };
+
+  const saveCrits = async (cr, by) => {
+    await apiPut('/api/config/crits', cr);
+    setCR(cr); addSL(by, 'config', 'Criticidades atualizadas', '');
+  };
+
+  const savePhaseDl = async (ph, by) => {
+    await apiPut('/api/config/phasedl', ph);
+    setPH(ph); addSL(by, 'config', 'Prazos de etapa atualizados', '');
+  };
+
+  const saveDeptQ = async (q, by) => {
+    await apiPut('/api/config/deptq', q);
+    setDQ(q); addSL(by, 'config', 'Perguntas de avaliacao atualizadas', '');
+  };
+
+  const updateReq = (r) => saveReq(r);
+
+  const createReq = async (r) => {
+    await saveReq(r);
+    addSL(r.createdByName, 'criacao', 'Nova SA criada', r.id + ' — ' + r.title);
+  };
+
+  // ---- Derived ----
+  const isAdmin = loggedIn && ['admin','sgq'].includes(loggedIn.role);
+  const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
+  const selected = requests.find(r => r.id === selId);
+
+  const nav = (v, id) => { setView(v); if (id) setSel(id); };
+
+  // ---- Nav items ----
+  const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
+  const pendEv  = loggedIn ? requests.filter(r=>r.status==='avaliacao'&&(r.triage&&r.triage.assignedAreas||[]).some(d=>{const asgn=r.triage&&r.triage.assignments&&r.triage.assignments[d];return asgn===loggedIn.id&&!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at);})).length : 0;
+  const pendAcs = loggedIn ? requests.filter(r=>(r.actions||[]).some(a=>a.responsible===loggedIn.id&&!['concluida','cancelada'].includes(a.status))).length : 0;
+  const pendExt = isAdmin ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
+
+  const navItems=[
+    {id:"dashboard", label:"Inicio",       badge:0},
+    {id:"changes",   label:"Controles",    badge:0},
+    {id:"acoes",     label:"Tarefas",      badge:(pendEv+pendAcs)||0},
+    {id:"indicators",label:"Indicadores",  badge:0},
+    ...(isAdmin?[
+      {id:"matrix",    label:"Matriz",       badge:0,adm:true},
+      {id:"crits",     label:"Criticidade",  badge:0,adm:true},
+      {id:"perguntas", label:"Perguntas",    badge:0,adm:true},
+      {id:"users",     label:"Usuarios",     badge:0,adm:true},
+      {id:"settings",  label:"Configuracoes",badge:pendExt||0,adm:true},
+      {id:"log",       label:"Auditoria",    badge:0,adm:true},
+    ]:[]),
+  ];
+
+  // ---- Inline eval modal state ----
+  const [inEval, setInEval] = useState(null);
+
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#888'}}>Carregando...</div>;
+  if (!loggedIn) return <LoginScreen onLogin={login} C={C}/>;
+
+  const Sidebar = () => (
+    <div style={{width:168,background:'#13162B',borderRight:'1px solid #1E2333',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',left:0,top:0,zIndex:10,overflowY:'auto'}}>
+      <div style={{padding:'16px 14px 12px',borderBottom:'1px solid #1E2333'}}>
+        <div style={{fontSize:11,fontWeight:800,color:C.accent,letterSpacing:1.5}}>CHANGE</div>
+        <div style={{fontSize:9,color:'#3D4A6B',marginTop:1,letterSpacing:.5}}>v10 · {loggedIn.role.toUpperCase()}</div>
+      </div>
+      <div style={{flex:1,padding:'8px 0'}}>
+        {navItems.map(n=>{
+          const active=view===n.id;
+          return <button key={n.id} onClick={()=>nav(n.id)} style={{width:'100%',padding:'8px 14px',background:active?C.accent+'18':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'2px solid '+(active?C.accent:'transparent')}}>
+            <span style={{fontSize:12,color:active?C.accent:n.adm?'#6B7A9F':C.dim,fontWeight:active?700:400,textAlign:'left'}}>{n.label}</span>
+            {n.badge>0&&<span style={{background:C.danger,color:'#fff',borderRadius:9,fontSize:9,fontWeight:700,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{n.badge}</span>}
+          </button>;
+        })}
+      </div>
+      <div style={{padding:'10px 14px',borderTop:'1px solid #1E2333'}}>
+        <div style={{fontSize:11,color:'#4A5670',marginBottom:5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{loggedIn.name}</div>
+        <button onClick={logout} style={{fontSize:11,color:'#4A5670',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0}}>Sair</button>
+      </div>
+    </div>
+  );
+
+  return <div style={{display:'flex',minHeight:'100vh'}}>
+    <Sidebar/>
+    <div style={{marginLeft:168,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNewReq={()=>nav('new')}/>}
+      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
+      {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
+      {view==='indicators'&&<Indicators requests={requests} crits={crits}/>}
+      {view==='new'       &&<NewRequestForm currentUser={loggedIn} onSave={(r)=>{createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')} C={C}/>}
+      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq}/>}
+      {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||buildDefaultMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
+      {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
+      {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
+      {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
+      {view==='settings'  &&isAdmin&&<SettingsPage phaseDl={phaseDl} requests={requests} allUsers={users} currentUser={loggedIn} isAdmin={isAdmin} onSavePhaseDl={savePhaseDl} onUpdate={updateReq}/>}
+      {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+
+</script>
+</body>
+</html>
