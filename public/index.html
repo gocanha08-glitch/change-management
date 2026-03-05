@@ -2372,38 +2372,42 @@ function UserManager({users,currentUser,onSave,addSysLog}){
     (filterActive==="all"||(filterActive==="active"&&u.active)||(filterActive==="inactive"&&!u.active))
   ));
 
- const DeptChk=({user,onChange})=>{
-    if(user.role==="geral")return null;
-    return <div style={{marginTop:8}}>
-      <label style={Sg.lbl}>Areas para avaliacao <span style={{fontSize:10,color:C.muted,fontWeight:400}}>(opcional — define quais areas este usuario pode avaliar)</span></label>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:3,maxHeight:150,overflowY:"auto",padding:4,border:"1px solid "+C.border,borderRadius:7}}>
-        {ALL_DEPTS.map(d=>{const sel=(user.evalDepts||[]).includes(d);return(
-          <label key={d} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",padding:"3px 5px",borderRadius:5,background:sel?C.accent+"18":"transparent",fontSize:10}}>
-            <input type="checkbox" checked={sel} onChange={()=>onChange({...user,evalDepts:sel?(user.evalDepts||[]).filter(x=>x!==d):[...(user.evalDepts||[]),d]})} style={{accentColor:C.accent}}/>
-            <span style={{color:sel?C.text:C.muted}}>{d}</span>
-          </label>
-        );})}
-      </div>
-    </div>;
-  };
+ function DeptChk({user,onChange}){
+  if(user.role==="geral")return null;
+  return <div style={{marginTop:8}}>
+    <label>Areas para avaliacao</label>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:3,maxHeight:150,overflowY:"auto",padding:4,border:"1px solid #2a2f45",borderRadius:7}}>
+      {ALL_DEPTS.map(d=>{const sel=(user.evalDepts||[]).includes(d);return(
+        <label key={d} style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",padding:"3px 5px",borderRadius:5,fontSize:10}}>
+          <input type="checkbox" checked={sel} onChange={()=>onChange({...user,evalDepts:sel?(user.evalDepts||[]).filter(x=>x!==d):[...(user.evalDepts||[]),d]})}/>
+          <span>{d}</span>
+        </label>
+      );})}
+    </div>
+  </div>;
+}
 
-  const UserForm=({u,onChange,pwdLabel="Senha *",pwdRequired=true,pwdErr,onPwdChange})=><div style={{display:"flex",flexDirection:"column",gap:10}}>
+function UserForm({u,onChange,pwdLabel,pwdRequired,pwdErr,onPwdChange}){
+  pwdLabel=pwdLabel||"Senha *";
+  if(pwdRequired===undefined)pwdRequired=true;
+  return <div style={{display:"flex",flexDirection:"column",gap:10}}>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-      <div><label style={Sg.lbl}>Nome *</label><input style={Sg.input()} value={u.name} onChange={e=>onChange({...u,name:e.target.value})} placeholder="Nome completo"/></div>
-      <div><label style={Sg.lbl}>E-mail *</label><input style={Sg.input()} value={u.email||""} onChange={e=>onChange({...u,email:e.target.value})} placeholder="usuario@empresa.com"/></div>
-      <div><label style={Sg.lbl}>Area / Departamento</label><input style={Sg.input()} value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..."/></div>
-      <div><label style={Sg.lbl}>Perfil *</label>
-        <select value={u.role} onChange={e=>onChange({...u,role:e.target.value,evalDepts:e.target.value==="geral"?[]:u.evalDepts})} style={Sg.input()}>
+      <div><label>Nome *</label><input value={u.name} onChange={e=>onChange({...u,name:e.target.value})} placeholder="Nome completo" style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
+      <div><label>E-mail *</label><input value={u.email||""} onChange={e=>onChange({...u,email:e.target.value})} placeholder="usuario@empresa.com" style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
+      <div><label>Area / Departamento</label><input value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
+      <div><label>Perfil *</label>
+        <select value={u.role} onChange={e=>onChange({...u,role:e.target.value,evalDepts:e.target.value==="geral"?[]:u.evalDepts})} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}>
           {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,40)}...</option>)}
         </select>
       </div>
-      <div style={{gridColumn:"1/-1"}}><label style={Sg.lbl}>{pwdLabel} <span style={{fontSize:10,color:C.muted,fontWeight:400}}>Min 6 caracteres, 1 maiuscula, 1 numero, 1 especial</span></label>
-        <input type="password" style={Sg.input()} value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"}/>
-        {pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:3}}>{pwdErr}</div>}
+      <div style={{gridColumn:"1/-1"}}><label>{pwdLabel}</label>
+        <input type="password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
+        {pwdErr&&<div style={{fontSize:11,color:"#f87171",marginTop:3}}>{pwdErr}</div>}
       </div>
     </div>
     <DeptChk user={u} onChange={onChange}/>
   </div>;
+}
 
   return <div style={{padding:"18px 22px"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10}}>
