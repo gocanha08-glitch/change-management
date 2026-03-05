@@ -3223,8 +3223,20 @@ function App() {
 
   const saveUsers = async (list, by, action, detail) => {
     try {
-      await apiPut('/api/users', { users: list });
-      setUR(list);
+      const existingIds = new Set(users.map(u => u.id));
+      const newUsers = list.filter(u => !existingIds.has(u.id));
+      const updatedUsers = list.filter(u => existingIds.has(u.id));
+      for (const u of newUsers) {
+        await apiPost('/api/users', {
+          name: u.name, email: u.email, area: u.area||'',
+          role: u.role||'geral', pwd: u.pwd, evalDepts: u.evalDepts||[]
+        });
+      }
+      if (updatedUsers.length > 0) {
+        await apiPut('/api/users', { users: updatedUsers });
+      }
+      const fresh = await apiGet('/api/users');
+      if (fresh) setUR(fresh); else setUR(list);
       addSL(by, action||'usuarios', detail||'Usuarios atualizados', '');
     } catch (err) { alert('Erro ao salvar usuarios: ' + err.message); }
   };
