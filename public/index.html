@@ -2478,7 +2478,7 @@ function UserManager({users,currentUser,onSave,addSysLog}){
     {/* NOVO USUARIO */}
     {tab==="novo"&&<div style={{...Sg.card({maxWidth:680})}}>
       <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:14}}>Novo Usuario</div>
-      <UserForm u={nU} onChange={setNU} pwdLabel="Senha inicial *" pwdRequired={true} pwdErr={pwdErr} onPwdChange={v=>{setNU({...nU,pwd:v});setPE("");}} C={C} Sg={Sg}/>
+      <UserForm u={nU} onChange={u=>setNU(u)} pwdLabel="Senha inicial *" pwdRequired={true} pwdErr={pwdErr} onPwdChange={v=>{setNU({...nU,pwd:v});setPE("");}} C={C} Sg={Sg}/>
       {pwdErr&&!nU.pwd&&<div style={{fontSize:11,color:C.danger,marginTop:4}}>{pwdErr}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
         <button style={Sg.btn()} onClick={()=>{setNU({...blank});setPE("");setTab("lista");}}>Cancelar</button>
