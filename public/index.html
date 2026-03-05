@@ -2272,14 +2272,14 @@ const PERFIS={
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
       <div><label>Nome *</label><input value={u.name} onChange={e=>onChange({...u,name:e.target.value})} placeholder="Nome completo" style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
       <div><label>E-mail *</label><input value={u.email||""} onChange={e=>onChange({...u,email:e.target.value})} placeholder="usuario@empresa.com" style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
-      <div><label>Area / Departamento</label><input value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
+      <div><label>Area / Departamento</label><input autoComplete="off" value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/></div>
       <div><label>Perfil *</label>
         <select value={u.role} onChange={e=>onChange({...u,role:e.target.value,evalDepts:e.target.value==="geral"?[]:u.evalDepts})} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}>
           {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,40)}...</option>)}
         </select>
       </div>
       <div style={{gridColumn:"1/-1"}}><label>{pwdLabel}</label>
-        <input type="password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
+        <input type="password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} <input type="password"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
         {pwdErr&&<div style={{fontSize:11,color:"#f87171",marginTop:3}}>{pwdErr}</div>}
       </div>
     </div>
