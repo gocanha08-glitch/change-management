@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -3113,11 +3114,12 @@ function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,
 
 // ================================================================
 // APP v10 — API mode (Vercel + Neon backend)
-// CORRIGIDO: nomes de componentes alinhados
+// Replaces localStorage with REST API calls
 // ================================================================
 
 const API = window.API_BASE || '';
 
+// ---- API helpers ----
 async function apiFetch(path, opts={}) {
   const token = sessionStorage.getItem('cm_token');
   const res = await fetch(API + path, {
@@ -3134,69 +3136,89 @@ const apiGet  = (path) => apiFetch(path);
 const apiPost = (path, body) => apiFetch(path, { method: 'POST', body });
 const apiPut  = (path, body) => apiFetch(path, { method: 'PUT',  body });
 
+// ---- Main App ----
 function App() {
-  const { C, theme, setTheme } = useTheme();
+  const { C } = useTheme();
   const [loggedIn, setLI] = useState(null);
-  const [loading,  setLD] = useState(true);
-  const [view,     setView] = useState('dashboard');
-  const [selId,    setSel]  = useState(null);
-  const [users,    setUR]   = useState([]);
-  const [requests, setRR]   = useState([]);
-  const [matrix,   setMR]   = useState(null);
-  const [crits,    setCR]   = useState(DEFAULT_CRITS);
-  const [phaseDl,  setPH]   = useState(JSON.parse(JSON.stringify(DEFAULT_PHASE_DEADLINES)));
-  const [deptQ,    setDQ]   = useState(null);
-  const [sysLog,   setSL]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('dashboard');
+  const [selId, setSel] = useState(null);
 
+  // Data state
+  const [users,    setUR] = useState([]);
+  const [requests, setRR] = useState([]);
+  const [matrix,   setMR] = useState(null);
+  const [crits,    setCR] = useState(DEFAULT_CRITS);
+  const [phaseDl,  setPH] = useState(JSON.parse(JSON.stringify(DEFAULT_PHASE_DEADLINES)));
+  const [deptQ,    setDQ] = useState(null);
+  const [sysLog,   setSL] = useState([]);
+
+  // ---- Bootstrap: check existing session ----
   useEffect(() => {
-    const token   = sessionStorage.getItem('cm_token');
+    const token = sessionStorage.getItem('cm_token');
     const userStr = sessionStorage.getItem('cm_user');
-    if (token && userStr) { try { setLI(JSON.parse(userStr)); } catch {} }
-    setLD(false);
+    if (token && userStr) {
+      try { setLI(JSON.parse(userStr)); } catch {}
+    }
+    setLoading(false);
   }, []);
 
-  useEffect(() => { if (!loggedIn) return; loadAll(); }, [loggedIn]);
+  // ---- Load data once logged in ----
+  useEffect(() => {
+    if (!loggedIn) return;
+    loadAll();
+  }, [loggedIn]);
 
   const loadAll = async () => {
     try {
-      const [us,rs,mx,cr,ph,dq] = await Promise.all([
-        apiGet('/api/users'), apiGet('/api/requests'),
-        apiGet('/api/config/matrix'), apiGet('/api/config/crits'),
-        apiGet('/api/config/phasedl'), apiGet('/api/config/deptq'),
+      const [us, rs, mx, cr, ph, dq] = await Promise.all([
+        apiGet('/api/users'),
+        apiGet('/api/requests'),
+        apiGet('/api/config/matrix'),
+        apiGet('/api/config/crits'),
+        apiGet('/api/config/phasedl'),
+        apiGet('/api/config/deptq'),
       ]);
-      if(us) setUR(us); if(rs) setRR(rs); if(mx) setMR(mx);
-      if(cr) setCR(cr); if(ph) setPH(ph); if(dq) setDQ(dq);
-    } catch(err){ console.error('loadAll:', err); }
+      if (us) setUR(us);
+      if (rs) setRR(rs);
+      if (mx) setMR(mx);
+      if (cr) setCR(cr);
+      if (ph) setPH(ph);
+      if (dq) setDQ(dq);
+    } catch (err) { console.error('loadAll error:', err); }
   };
 
+  // ---- Auth ----
   const login = async (email, password) => {
-    try {
-      const data = await apiPost('/api/auth/login', { email, password });
-      if (!data) return 'Erro de conexao';
-      sessionStorage.setItem('cm_token', data.token);
-      sessionStorage.setItem('cm_user', JSON.stringify(data.user));
-      setLI(data.user); setView('dashboard'); return null;
-    } catch(err){ return err.message||'Erro ao conectar'; }
+    const data = await apiPost('/api/auth/login', { email, password });
+    if (!data) return 'Erro de conexao';
+    sessionStorage.setItem('cm_token', data.token);
+    sessionStorage.setItem('cm_user', JSON.stringify(data.user));
+    setLI(data.user);
+    setView('dashboard');
+    return null; // no error
   };
 
   const logout = () => {
-    sessionStorage.removeItem('cm_token'); sessionStorage.removeItem('cm_user');
+    sessionStorage.removeItem('cm_token');
+    sessionStorage.removeItem('cm_user');
     setLI(null); setView('dashboard');
   };
 
+  // ---- Persist helpers ----
   const addSL = async (by, type, event, detail) => {
-    const e2 = { at: new Date().toISOString(), by, type, event, detail: detail||'' };
-    setSL(p => [e2, ...p]);
-    try { await apiPut('/api/config/syslog', e2); } catch {}
+    const entry = { at: new Date().toISOString(), by, type, event, detail: detail||'' };
+    setSL(p => [entry, ...p]);
+    try { await apiPut('/api/config/syslog', entry); } catch {}
   };
 
   const saveReq = async (r) => {
     try {
       const exists = requests.find(x => x.id === r.id);
       if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
-      else         await apiPost('/api/requests', r);
-      setRR(p => exists ? p.map(x => x.id===r.id ? r : x) : [r,...p]);
-    } catch(err){ alert('Erro ao salvar SA: '+err.message); }
+      else await apiPost('/api/requests', r);
+      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+    } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
   const saveUsers = async (list, by, action, detail) => {
@@ -3204,81 +3226,84 @@ function App() {
       await apiPut('/api/users', { users: list });
       setUR(list);
       addSL(by, action||'usuarios', detail||'Usuarios atualizados', '');
-    } catch(err){ alert('Erro ao salvar usuarios: '+err.message); }
+    } catch (err) { alert('Erro ao salvar usuarios: ' + err.message); }
   };
 
-  const saveMatrix  = async (m,  by) => { await apiPut('/api/config/matrix',  m);  setMR(m);  addSL(by,'config','Matriz atualizada',''); };
-  const saveCrits   = async (cr, by) => { await apiPut('/api/config/crits',   cr); setCR(cr); addSL(by,'config','Criticidades atualizadas',''); };
-  const savePhaseDl = async (ph)     => { await apiPut('/api/config/phasedl', ph); setPH(ph); addSL(loggedIn.name,'config','Prazos atualizados',''); };
-  const saveDeptQ   = async (q,  by) => { await apiPut('/api/config/deptq',   q);  setDQ(q);  addSL(by,'config','Perguntas atualizadas',''); };
+  const saveMatrix = async (m, by) => {
+    await apiPut('/api/config/matrix', m);
+    setMR(m); addSL(by, 'config', 'Matriz atualizada', '');
+  };
+
+  const saveCrits = async (cr, by) => {
+    await apiPut('/api/config/crits', cr);
+    setCR(cr); addSL(by, 'config', 'Criticidades atualizadas', '');
+  };
+
+  const savePhaseDl = async (ph, by) => {
+    await apiPut('/api/config/phasedl', ph);
+    setPH(ph); addSL(by, 'config', 'Prazos de etapa atualizados', '');
+  };
+
+  const saveDeptQ = async (q, by) => {
+    await apiPut('/api/config/deptq', q);
+    setDQ(q); addSL(by, 'config', 'Perguntas de avaliacao atualizadas', '');
+  };
 
   const updateReq = (r) => saveReq(r);
 
-  const createReq = async (form, attachments) => {
-    const pd  = phaseDl || DEFAULT_PHASE_DEADLINES;
-    const now = new Date().toISOString();
-    const yr  = new Date().getFullYear();
-    const id  = 'SA-' + String(requests.length+1).padStart(3,'0') + '/' + yr;
-    const r   = {
-      id, ...form,
-      status:'aberta', triage:null, evaluations:{}, actions:[],
-      attachments: attachments||[], deadlineExtensions:[],
-      stageDeadlines:{ triagem:addDays(now.slice(0,10), pd.triagem.days), avaliacao:null, revisao:null, plano:null, execucao:null },
-      log:[{ at:now, by:loggedIn.name, type:'criacao', event:'SA criada', detail:'Tipo: '+form.type }],
-      createdBy:loggedIn.id, createdByName:loggedIn.name, createdAt:now,
-    };
+  const createReq = async (r) => {
     await saveReq(r);
-    addSL(loggedIn.name,'criacao','Nova SA criada', id+' — '+form.title);
-    nav('detail', id);
+    addSL(r.createdByName, 'criacao', 'Nova SA criada', r.id + ' — ' + r.title);
   };
 
-  const changePwd = async (newPwd) => {
-    const updated  = { ...loggedIn, pwd: newPwd };
-    const newUsers = users.map(u => u.id===loggedIn.id ? updated : u);
-    await saveUsers(newUsers, loggedIn.name, 'senha', 'Senha alterada');
-    setLI(updated);
-    sessionStorage.setItem('cm_user', JSON.stringify(updated));
-  };
-
-  const isAdmin  = loggedIn && ['admin','sgq'].includes(loggedIn.role);
+  // ---- Derived ----
+  const isAdmin = loggedIn && ['admin','sgq'].includes(loggedIn.role);
+  const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
   const selected = requests.find(r => r.id === selId);
-  const nav      = (v, id) => { setView(v); if(id !== undefined) setSel(id); };
 
-  const pendEv  = loggedIn ? requests.filter(r=>r.status==='avaliacao'&&(r.triage&&r.triage.assignedAreas||[]).some(d=>{const a=r.triage&&r.triage.assignments&&r.triage.assignments[d];return a===loggedIn.id&&!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at);})).length : 0;
+  const nav = (v, id) => { setView(v); if (id) setSel(id); };
+
+  // ---- Nav items ----
+  const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
+  const pendEv  = loggedIn ? requests.filter(r=>r.status==='avaliacao'&&(r.triage&&r.triage.assignedAreas||[]).some(d=>{const asgn=r.triage&&r.triage.assignments&&r.triage.assignments[d];return asgn===loggedIn.id&&!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at);})).length : 0;
   const pendAcs = loggedIn ? requests.filter(r=>(r.actions||[]).some(a=>a.responsible===loggedIn.id&&!['concluida','cancelada'].includes(a.status))).length : 0;
-  const pendExt = isAdmin  ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
+  const pendExt = isAdmin ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
 
   const navItems=[
-    {id:'dashboard', label:'Inicio',       badge:0},
-    {id:'changes',   label:'Controles',    badge:0},
-    {id:'acoes',     label:'Tarefas',      badge:(pendEv+pendAcs)||0},
-    {id:'indicators',label:'Indicadores',  badge:0},
+    {id:"dashboard", label:"Inicio",       badge:0},
+    {id:"changes",   label:"Controles",    badge:0},
+    {id:"acoes",     label:"Tarefas",      badge:(pendEv+pendAcs)||0},
+    {id:"indicators",label:"Indicadores",  badge:0},
     ...(isAdmin?[
-      {id:'matrix',    label:'Matriz',       badge:0, adm:true},
-      {id:'crits',     label:'Criticidade',  badge:0, adm:true},
-      {id:'perguntas', label:'Perguntas',    badge:0, adm:true},
-      {id:'users',     label:'Usuarios',     badge:0, adm:true},
-      {id:'settings',  label:'Configuracoes',badge:pendExt||0, adm:true},
-      {id:'log',       label:'Auditoria',    badge:0, adm:true},
+      {id:"matrix",    label:"Matriz",       badge:0,adm:true},
+      {id:"crits",     label:"Criticidade",  badge:0,adm:true},
+      {id:"perguntas", label:"Perguntas",    badge:0,adm:true},
+      {id:"users",     label:"Usuarios",     badge:0,adm:true},
+      {id:"settings",  label:"Configuracoes",badge:pendExt||0,adm:true},
+      {id:"log",       label:"Auditoria",    badge:0,adm:true},
     ]:[]),
   ];
 
-  if(loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',background:'#0F1117',color:'#888',fontSize:14}}>Carregando...</div>;
-  if(!loggedIn) return <Login users={users} onLogin={async(email,pwd)=>await login(email,pwd)}/>;
+  // ---- Inline eval modal state ----
+  const [inEval, setInEval] = useState(null);
 
-  const Sidebar=()=>(
+  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#888'}}>Carregando...</div>;
+  if (!loggedIn) return <Login users={users} onLogin={async(email,pwd)=>{const err=await login(email,pwd);return err;}} />;
+
+  const Sidebar = () => (
     <div style={{width:168,background:'#13162B',borderRight:'1px solid #1E2333',display:'flex',flexDirection:'column',height:'100vh',position:'fixed',left:0,top:0,zIndex:10,overflowY:'auto'}}>
       <div style={{padding:'16px 14px 12px',borderBottom:'1px solid #1E2333'}}>
         <div style={{fontSize:11,fontWeight:800,color:C.accent,letterSpacing:1.5}}>CHANGE</div>
-        <div style={{fontSize:9,color:'#3D4A6B',marginTop:1,letterSpacing:.5}}>v{APP_VERSION} · {loggedIn.role.toUpperCase()}</div>
+        <div style={{fontSize:9,color:'#3D4A6B',marginTop:1,letterSpacing:.5}}>v10 · {loggedIn.role.toUpperCase()}</div>
       </div>
       <div style={{flex:1,padding:'8px 0'}}>
-        {navItems.map(n=>{const active=view===n.id;return(
-          <button key={n.id} onClick={()=>nav(n.id)} style={{width:'100%',padding:'8px 14px',background:active?C.accent+'18':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'2px solid '+(active?C.accent:'transparent')}}>
+        {navItems.map(n=>{
+          const active=view===n.id;
+          return <button key={n.id} onClick={()=>nav(n.id)} style={{width:'100%',padding:'8px 14px',background:active?C.accent+'18':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'2px solid '+(active?C.accent:'transparent')}}>
             <span style={{fontSize:12,color:active?C.accent:n.adm?'#6B7A9F':C.dim,fontWeight:active?700:400,textAlign:'left'}}>{n.label}</span>
             {n.badge>0&&<span style={{background:C.danger,color:'#fff',borderRadius:9,fontSize:9,fontWeight:700,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{n.badge}</span>}
-          </button>
-        );})}
+          </button>;
+        })}
       </div>
       <div style={{padding:'10px 14px',borderTop:'1px solid #1E2333'}}>
         <div style={{fontSize:11,color:'#4A5670',marginBottom:5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{loggedIn.name}</div>
@@ -3287,38 +3312,27 @@ function App() {
     </div>
   );
 
-  const openEval   = (r) => nav('detail', r.id);
-  const openAction = (r) => nav('detail', r.id);
-
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:168,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard'  && <Dashboard   requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav} onOpenEval={openEval} onOpenAction={openAction} onNew={()=>nav('new')}/>}
-      {view==='changes'    && <ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
-      {view==='acoes'      && <ActionsPage  requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
-      {view==='indicators' && <IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
-      {view==='new'        && <NewRequest   currentUser={loggedIn} onSave={createReq} onCancel={()=>nav('changes')}/>}
-      {view==='detail' && selId && selected && <RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ||DEPT_Q} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq}/>}
-      {view==='matrix'     && isAdmin && <MatrixEditor   matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
-      {view==='crits'      && isAdmin && <CritEditor     crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
-      {view==='perguntas'  && isAdmin && <QuestionsEditor deptQuestions={deptQ||DEPT_Q} currentUser={loggedIn} onSave={saveDeptQ}/>}
-      {view==='users'      && isAdmin && <UserManager    users={users} currentUser={loggedIn} onSave={saveUsers} addSysLog={addSL}/>}
-      {view==='settings'              && <Settings        currentUser={loggedIn} phaseDl={phaseDl} onChangePwd={changePwd} onSavePhaseDl={savePhaseDl} onLogout={logout} theme={theme} setTheme={setTheme}/>}
-      {view==='log'        && isAdmin && <AuditLog        requests={requests} sysLog={sysLog}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNewReq={()=>nav('new')}/>}
+      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
+      {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
+      {view==='indicators'&&<Indicators requests={requests} crits={crits}/>}
+      {view==='new'       &&<NewRequestForm currentUser={loggedIn} onSave={(r)=>{createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')} C={C}/>}
+      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq}/>}
+      {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||buildDefaultMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
+      {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
+      {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
+      {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
+      {view==='settings'  &&isAdmin&&<SettingsPage phaseDl={phaseDl} requests={requests} allUsers={users} currentUser={loggedIn} isAdmin={isAdmin} onSavePhaseDl={savePhaseDl} onUpdate={updateReq}/>}
+      {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
     </div>
   </div>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <ThemeProvider><App/></ThemeProvider>
-);
-```
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 
----
-
-Depois de colar, role até o **final do arquivo** e confirme que termina assim:
-```
-);
 </script>
 </body>
 </html>
