@@ -2346,7 +2346,7 @@ const saveEdit=async()=>{
       });
       const newList=lu.map(x=>x.id===u.id?{...u}:x);
       setLU(newList);
-      addSL(currentUser.name, "usuario_editado", "Editado: "+u.name, '');
+      save([u], "usuario_editado", "Editado: "+u.name);
       setEd(null);setPE("");
     } catch(err){ alert('Erro ao editar: '+err.message); }
   };
