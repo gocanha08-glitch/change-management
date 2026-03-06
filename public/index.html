@@ -478,7 +478,7 @@ function Login({users,onLogin}){
       </div>
       <div style={{marginBottom:18}}>
         <label style={Sg.lbl}>Senha</label>
-        <input type="password" style={Sg.input()} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="..."/>
+        <PwdInput" style={Sg.input()} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="..."/>
       </div>
       {err&&<div style={{fontSize:12,color:C.danger,textAlign:"center",marginBottom:13,padding:8,background:C.danger+"11",borderRadius:7}}>{err}</div>}
       <button style={{...Sg.btn("primary"),width:"100%",padding:11,fontSize:14,borderRadius:8}} onClick={go}>Entrar</button>
@@ -2265,6 +2265,16 @@ const PERFIS={
   geral:{label:"Geral",   color:"#2DD4BF", desc:"Colaborador — abre SAs, executa acoes, avalia se liberado"},
 };
 
+function PwdInput({value, onChange, placeholder, style, autoComplete}){
+  const [show, setShow] = React.useState(false);
+  return <div style={{position:"relative"}}>
+    <input type={show?"text":"password"} value={value} onChange={onChange} placeholder={placeholder||""} autoComplete={autoComplete||"new-password"} style={{...style, paddingRight:36}}/>
+    <button type="button" onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#6b7a9f",fontSize:14,padding:0}}>
+      {show?"🙈":"👁️"}
+    </button>
+  </div>;
+}
+  
   function UserForm({u,onChange,pwdLabel,pwdRequired,pwdErr,onPwdChange}){
   pwdLabel=pwdLabel||"Senha *";
   if(pwdRequired===undefined)pwdRequired=true;
@@ -2279,7 +2289,7 @@ const PERFIS={
         </select>
       </div>
       <div style={{gridColumn:"1/-1"}}><label>{pwdLabel}</label>
-<input type="password" autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>        {pwdErr&&<div style={{fontSize:11,color:"#f87171",marginTop:3}}>{pwdErr}</div>}
+<PwdInput autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>        {pwdErr&&<div style={{fontSize:11,color:"#f87171",marginTop:3}}>{pwdErr}</div>}
       </div>
     </div>
     <DeptChk user={u} onChange={onChange}/>
@@ -3078,9 +3088,9 @@ function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:9,letterSpacing:.7}}>ALTERAR SENHA</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
-          <div><label style={Sg.lbl}>Senha Atual</label><input type="password" style={Sg.input()} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/></div>
-          <div><label style={Sg.lbl}>Nova Senha</label><input type="password" style={Sg.input()} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
-          <div><label style={Sg.lbl}>Confirmar</label><input type="password" style={Sg.input()} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/></div>
+          <div><label style={Sg.lbl}>Senha Atual</label><PwdInput style={Sg.input()} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/></div>
+          <div><label style={Sg.lbl}>Nova Senha</label><PwdInput style={Sg.input()} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
+          <div><label style={Sg.lbl}>Confirmar</label><PwdInput style={Sg.input()} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/></div>
         </div>
         {msg&&<div style={{fontSize:12,color:msg.startsWith("ok")?C.success:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
         <button style={Sg.btn("primary")} onClick={go}>Alterar Senha</button>
