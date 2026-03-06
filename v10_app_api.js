@@ -55,7 +55,8 @@ function App() {
     loadAll();
   }, [loggedIn]);
 
-const [us, rs] = await Promise.all([
+const loadAll = async () => {
+    const [us, rs] = await Promise.all([
       apiGet('/api/users').catch(()=>null),
       apiGet('/api/requests').catch(()=>null),
     ]);
