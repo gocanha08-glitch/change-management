@@ -55,22 +55,16 @@ function App() {
     loadAll();
   }, [loggedIn]);
 
- const loadAll = async () => {
-    const safe = (p) => p.catch(() => null);
-    const [us, rs, mx, cr, ph, dq] = await Promise.all([
-      safe(apiGet('/api/users')),
-      safe(apiGet('/api/requests')),
-      safe(apiGet('/api/config/matrix')),
-      safe(apiGet('/api/config/crits')),
-      safe(apiGet('/api/config/phasedl')),
-      safe(apiGet('/api/config/deptq')),
+const [us, rs] = await Promise.all([
+      apiGet('/api/users').catch(()=>null),
+      apiGet('/api/requests').catch(()=>null),
     ]);
     if (us) setUR(us);
     if (rs) setRR(rs);
-    if (mx) setMR(mx);
-    if (cr) setCR(cr);
-    if (ph) setPH(ph);
-    if (dq) setDQ(dq);
+    try { const mx = await apiGet('/api/config/matrix'); if (mx) setMR(mx); } catch {}
+    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr); } catch {}
+    try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
+    try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
   };
 
   // ---- Auth ----
