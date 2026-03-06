@@ -3044,11 +3044,13 @@ function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,
 
   const savePh=()=>{onSavePhaseDl(localPh);setPhSaved(true);setTimeout(()=>setPhSaved(false),2200);};
 
-  const go=()=>{
-    if(cur!==currentUser.pwd){setMsg("err:Senha atual incorreta.");return;}
+const go=async()=>{
     const err=validatePwd(n1);if(err){setPwdErr(err);return;}
     if(n1!==n2){setMsg("err:Senhas nao coincidem.");return;}
-    onChangePwd(n1);setMsg("ok:Senha alterada com sucesso!");setCur("");setN1("");setN2("");setPwdErr("");
+    try{
+      await apiPut('/api/users',{id:currentUser.id,name:currentUser.name,email:currentUser.email,area:currentUser.area||'',role:currentUser.role,evalDepts:currentUser.evalDepts||[],active:true,_curPwd:cur,_np:n1});
+      setMsg("ok:Senha alterada com sucesso!");setCur("");setN1("");setN2("");setPwdErr("");
+    }catch(e){setMsg("err:"+e.message);}
   };
 
   const themeOpts=[{v:"dark",l:"Escuro"},{v:"light",l:"Claro"},{v:"bw",l:"P&B"}];
