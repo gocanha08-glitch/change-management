@@ -2335,13 +2335,15 @@ function UserManager({users,currentUser,onSave,addSysLog}){
     setNU({...blank});setPE("");setTab("lista");
   };
 
-  const saveEdit=()=>{
+const saveEdit=async()=>{
     if(editing._np){const err=validatePwd(editing._np);if(err){setPE(err);return;}}
-    const u={...editing};if(u._np){u.pwd=u._np;}delete u._np;
-    const newList=lu.map(x=>x.id===u.id?u:x);
-    setLU(newList);
-    save(newList,"usuario_editado","Editado: "+u.name);
-    setEd(null);setPE("");
+    const u={...editing};
+    try {
+      await onSave([u], currentUser.name, "usuario_editado", "Editado: "+u.name);
+      const newList=lu.map(x=>x.id===u.id?u:x);
+      setLU(newList);
+      setEd(null);setPE("");
+    } catch(err){ alert('Erro ao editar: '+err.message); }
   };
 
   const deactivate=(uid)=>{
