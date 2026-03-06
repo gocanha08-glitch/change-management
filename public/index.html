@@ -3173,23 +3173,17 @@ function App() {
     loadAll();
   }, [loggedIn]);
 
-  const loadAll = async () => {
-    try {
-      const [us, rs, mx, cr, ph, dq] = await Promise.all([
-        apiGet('/api/users'),
-        apiGet('/api/requests'),
-        apiGet('/api/config/matrix'),
-        apiGet('/api/config/crits'),
-        apiGet('/api/config/phasedl'),
-        apiGet('/api/config/deptq'),
-      ]);
-      if (us) setUR(us);
-      if (rs) setRR(rs);
-      if (mx) setMR(mx);
-      if (cr) setCR(cr);
-      if (ph) setPH(ph);
-      if (dq) setDQ(dq);
-    } catch (err) { console.error('loadAll error:', err); }
+const loadAll = async () => {
+    const [us, rs] = await Promise.all([
+      apiGet('/api/users').catch(()=>null),
+      apiGet('/api/requests').catch(()=>null),
+    ]);
+    if (us) setUR(us);
+    if (rs) setRR(rs);
+    try { const mx = await apiGet('/api/config/matrix'); if (mx) setMR(mx); } catch {}
+    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr); } catch {}
+    try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
+    try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
   };
 
   // ---- Auth ----
