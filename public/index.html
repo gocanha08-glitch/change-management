@@ -2339,9 +2339,14 @@ const saveEdit=async()=>{
     if(editing._np){const err=validatePwd(editing._np);if(err){setPE(err);return;}}
     const u={...editing};
     try {
-      await onSave([u], currentUser.name, "usuario_editado", "Editado: "+u.name);
-      const newList=lu.map(x=>x.id===u.id?u:x);
+      await apiPut('/api/users', {
+        id: u.id, name: u.name, email: u.email, area: u.area||'',
+        role: u.role, evalDepts: u.evalDepts||[], active: u.active!==false,
+        _np: u._np||undefined
+      });
+      const newList=lu.map(x=>x.id===u.id?{...u}:x);
       setLU(newList);
+      addSL(currentUser.name, "usuario_editado", "Editado: "+u.name, '');
       setEd(null);setPE("");
     } catch(err){ alert('Erro ao editar: '+err.message); }
   };
