@@ -1,7 +1,5 @@
 {
   "rewrites": [
-    { "source": "/reset", "destination": "/public/index.html" },
-    { "source": "/reset/:path*", "destination": "/public/index.html" },
     { "source": "/((?!api/).*)", "destination": "/public/index.html" }
   ]
 }
