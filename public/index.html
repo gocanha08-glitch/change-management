@@ -3039,6 +3039,9 @@ function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,
   const {C}=useTheme();const Sg=mkSg(C);
   const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
   const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
+  const [showCur,setShowCur]=useState(false);
+  const [showN1,setShowN1]=useState(false);
+  const [showN2,setShowN2]=useState(false);
   const [localPh,setLocalPh]=useState(()=>Object.fromEntries(Object.entries(DEFAULT_PHASE_DEADLINES).map(([k,v])=>[k,{...v,...(phaseDl&&phaseDl[k]?{days:phaseDl[k].days}:{})}])));
   const [phSaved,setPhSaved]=useState(false);
 
@@ -3082,9 +3085,9 @@ const go=async()=>{
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:9,letterSpacing:.7}}>ALTERAR SENHA</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
-          <div><label style={Sg.lbl}>Senha Atual</label><input type="password" style={Sg.input()} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/></div>
-          <div><label style={Sg.lbl}>Nova Senha</label><input type="password" style={Sg.input()} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
-          <div><label style={Sg.lbl}>Confirmar</label><input type="password" style={Sg.input()} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/></div>
+          <div><label style={Sg.lbl}>Senha Atual</label><div style={{position:"relative"}}><input type={showCur?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowCur(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showCur?"🙈":"👁️"}</button></div></div>
+          <div><label style={Sg.lbl}>Nova Senha</label><div style={{position:"relative"}}><input type={showN1?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/><button type="button" onClick={()=>setShowN1(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN1?"🙈":"👁️"}</button></div>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
+          <div><label style={Sg.lbl}>Confirmar</label><div style={{position:"relative"}}><input type={showN2?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowN2(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN2?"🙈":"👁️"}</button></div></div>
         </div>
         {msg&&<div style={{fontSize:12,color:msg.startsWith("ok")?C.success:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
         <button style={Sg.btn("primary")} onClick={go}>Alterar Senha</button>
