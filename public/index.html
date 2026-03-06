@@ -2279,8 +2279,10 @@ const PERFIS={
         </select>
       </div>
       <div style={{gridColumn:"1/-1"}}><label>{pwdLabel}</label>
-<input type="password" autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>        {pwdErr&&<div style={{fontSize:11,color:"#f87171",marginTop:3}}>{pwdErr}</div>}
-      </div>
+<div style={{position:"relative"}}>
+  <input type={u._showPwd?"text":"password"} autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",paddingRight:36,borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
+  <button type="button" onClick={()=>onChange({...u,_showPwd:!u._showPwd})} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{u._showPwd?"🙈":"👁️"}</button>
+</div>      </div>
     </div>
     <DeptChk user={u} onChange={onChange}/>
   </div>;
