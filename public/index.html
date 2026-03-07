@@ -1060,9 +1060,9 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 // ================================================================
 // REQUEST DETAIL v10 — with deadline extension requests
 // ================================================================
-function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate}){
+function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const [tab,setTab]=useState("overview");
+  const [tab,setTab]=useState(initialTab||"overview");
   const [evalOpen,setEO]=useState(null);
   const [showAddAc,setAddAc]=useState(false);
   const [editAc,setEditAc]=useState(null);
@@ -3175,6 +3175,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('dashboard');
   const [selId, setSel] = useState(null);
+  const [initialTab, setInitialTab] = useState(null);
 
   // Data state
   const [users,    setUR] = useState([]);
@@ -3299,7 +3300,7 @@ const loadAll = async () => {
   const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
   const selected = requests.find(r => r.id === selId);
 
-  const nav = (v, id) => { setView(v); if (id) setSel(id); };
+  const nav = (v, id, initialTab) => { setView(v); if (id) setSel(id); if (initialTab) setInitialTab(initialTab); };
 
   // ---- Nav items ----
   const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
@@ -3353,12 +3354,12 @@ const loadAll = async () => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:168,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id)} onOpenAction={(r,a)=>nav('detail',r.id)}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id,'avaliacao')} onOpenAction={(r,a)=>nav('detail',r.id,'acoes')}/>}
       {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
-      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq}/>}
+      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab}/>}
       {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
