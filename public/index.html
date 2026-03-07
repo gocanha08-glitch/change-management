@@ -889,6 +889,14 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   // Read-only
   if(existing&&request.status!=="aberta"){
     const t=existing;const cr=crits.find(c=>c.v===t.criticality);
+    // isMandatory usando dados salvos (nao o estado local que está vazio no read-only)
+    const isMandSaved=dept=>{
+      const cell=(matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][t.criticality])||"";
+      if(cell==="mandatory")return true;
+      if(t.flagReg&&dept==="Assuntos Regulatorios")return true;
+      if(t.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
+      return false;
+    };
     return <div>
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:9}}>
         <div style={{padding:"6px 11px",borderRadius:7,background:(cr&&cr.color||C.muted)+"22",border:"2px solid "+(cr&&cr.color||C.muted),textAlign:"center",flexShrink:0}}>
@@ -910,8 +918,12 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
         const dl=t.deadlines&&t.deadlines[d];
         const orig=t.originalDeadlines&&t.originalDeadlines[d];
         const extended=orig&&dl&&dl!==orig;
+        const mand=isMandSaved(d);
         return <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 9px",background:C.surface,borderRadius:6,marginBottom:3,fontSize:11}}>
-          {isMandatory(d)&&<span style={{fontSize:8,fontWeight:700,color:C.warning,background:C.warning+"22",padding:"1px 4px",borderRadius:3,flexShrink:0}}>OBR</span>}
+          <span style={{fontSize:8,fontWeight:700,padding:"1px 4px",borderRadius:3,flexShrink:0,
+            color:mand?C.warning:C.accent,background:mand?C.warning+"22":C.accent+"22"}}>
+            {mand?"OBR":"OPC"}
+          </span>
           <span style={{flex:1,color:C.text}}>{d}</span>
           {u&&<><Av user={u} size={17}/><span style={{color:C.dim}}>{u.name}</span></>}
           <span style={{color:isOD(dl,done?"concluida":"")?"#EF4444":C.muted}}>{fmtD(dl)}{extended&&<span style={{fontSize:9,color:C.warning,marginLeft:3}}>ext.</span>}</span>
@@ -1064,11 +1076,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const {C}=useTheme();const Sg=mkSg(C);
   // Accordion open sections state — computed from status + initialTab
   const getDefaultOpen=()=>{
-    const STATUS_SECTION={aberta:"triagem",avaliacao:"avaliacoes",revisao:"avaliacoes",plano:"acoes",execucao:"acoes",concluida:"dados"};
-    const open={dados:false,status:false,triagem:false,avaliacoes:false,acoes:false,anexos:false};
-    if(initialTab==="avaliacao")open.avaliacoes=true;
-    else if(initialTab==="acoes")open.acoes=true;
-    else{const sec=STATUS_SECTION[request.status]||"dados";open[sec]=true;}
+    const STATUS_SECTION={aberta:"avaliacoes",avaliacao:"avaliacoes",revisao:"avaliacoes",plano:"acoes",execucao:"acoes",concluida:"dados"};
+    const open={dados:true,avaliacoes:false,acoes:false,anexos:false,log:false};
+    if(initialTab==="avaliacao"){open.avaliacoes=true;}
+    else if(initialTab==="acoes"){open.acoes=true;}
+    else{const sec=STATUS_SECTION[request.status]||"dados";if(sec!=="dados")open[sec]=true;}
     return open;
   };
   const [open,setOpen]=useState(getDefaultOpen);
@@ -1237,10 +1249,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const statusOrder=["aberta","avaliacao","revisao","plano","execucao","concluida"];
   const statusIdx=statusOrder.indexOf(request.status);
   const sectionLocked={
-    triagem:false, // always accessible
-    avaliacoes:statusIdx<1, // locked before avaliacao
-    acoes:statusIdx<3, // locked before plano
-    anexos:false, // always accessible
+    avaliacoes:false, // sempre acessivel (triagem fica aqui quando aberta)
+    acoes:statusIdx<3, // locked antes de plano
+    anexos:false,
   };
 
   return <div style={{padding:"20px 22px",maxWidth:960,margin:"0 auto"}}>
@@ -1294,7 +1305,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {request.status==="aberta"&&isAdmin&&
       <div style={{padding:"9px 13px",borderRadius:7,background:C.warning+"0D",border:"1px solid "+C.warning+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{fontSize:13,fontWeight:600,color:C.warning}}>⚠ Triagem necessaria</div>
-        <button style={Sg.btn("warning")} onClick={()=>{setOpen(o=>({...o,triagem:true}));setTimeout(()=>document.getElementById("sec-triagem")&&document.getElementById("sec-triagem").scrollIntoView({behavior:"smooth"}),100);}}>Fazer Triagem</button>
+        <button style={Sg.btn("warning")} onClick={()=>setOpen(o=>({...o,avaliacoes:true}))}>Fazer Triagem</button>
       </div>}
     {request.status==="revisao"&&isAdmin&&
       <div style={{padding:"10px 13px",borderRadius:7,background:C.purple+"0D",border:"1px solid "+C.purple+"44",marginBottom:10}}>
@@ -1350,84 +1361,88 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
     {/* 1. DADOS DA SOLICITACAO */}
     <AccSection id="dados" title="Dados da Solicitacao" statusIcon={request.status!=="aberta"?"✓":null}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+      {/* Solicitante em destaque */}
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:C.surface,borderRadius:8,marginBottom:14,border:"1px solid "+C.border}}>
+        {allUsers.find(u=>u.id===request.createdBy)&&<Av user={allUsers.find(u=>u.id===request.createdBy)} size={38}/>}
+        <div style={{flex:1}}>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:.5,marginBottom:1}}>SOLICITANTE</div>
+          <div style={{fontSize:15,fontWeight:700,color:C.text}}>{request.createdByName}</div>
+          <div style={{fontSize:11,color:C.muted}}>Aberta em {fmt(request.createdAt)}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:.5,marginBottom:2}}>TIPO DE MUDANCA</div>
+          <div style={{fontSize:12,fontWeight:600,color:C.dim,maxWidth:200,textAlign:"right",lineHeight:1.3}}>{request.type}</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Tipo</div><div style={{fontSize:13,color:C.text,marginBottom:9}}>{request.type}</div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Descricao</div><div style={{fontSize:13,color:C.text,lineHeight:1.6,marginBottom:9}}>{request.description}</div>
-          {request.justification&&<><div style={{fontSize:11,color:C.muted,marginBottom:1}}>Justificativa</div><div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{request.justification}</div></>}
-          <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid "+C.border,fontSize:11,color:C.muted}}>
-            Criado por <strong style={{color:C.dim}}>{request.createdByName}</strong> em {fmtD(request.createdAt&&request.createdAt.slice(0,10))}
-          </div>
-          {(request.rejections||[]).length>0&&<div style={{marginTop:9,paddingTop:8,borderTop:"1px solid "+C.border}}>
-            <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:5,letterSpacing:.6}}>REJEICOES</div>
-            {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"5px 8px",background:C.danger+"0D",borderRadius:6,marginBottom:3,border:"1px solid "+C.danger+"22"}}>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:4,letterSpacing:.5}}>DESCRICAO DA MUDANCA</div>
+          <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:12,padding:"9px 11px",background:C.surface,borderRadius:7,border:"1px solid "+C.border+"44"}}>{request.description}</div>
+          {request.justification&&<>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:4,letterSpacing:.5}}>JUSTIFICATIVA</div>
+            <div style={{fontSize:13,color:C.text,lineHeight:1.7,padding:"9px 11px",background:C.surface,borderRadius:7,border:"1px solid "+C.border+"44"}}>{request.justification}</div>
+          </>}
+          {(request.rejections||[]).length>0&&<div style={{marginTop:12}}>
+            <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:5,letterSpacing:.5}}>REJEICOES ANTERIORES</div>
+            {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"6px 10px",background:C.danger+"0D",borderRadius:6,marginBottom:4,border:"1px solid "+C.danger+"22"}}>
               <div style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}</div>
-              {r.note&&<div style={{color:C.muted,marginTop:1}}>{r.note}</div>}
+              {r.note&&<div style={{color:C.muted,marginTop:2}}>{r.note}</div>}
             </div>)}
           </div>}
         </div>
         <div>
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:8,letterSpacing:.6}}>LINHA DO TEMPO</div>
-          {[{l:"Criada",n:request.createdByName,at:request.createdAt},{l:"Triagem",n:request.ap1ByName,at:request.ap1At},{l:"Avaliacao aprovada",n:request.ap2ByName,at:request.ap2At},{l:"Plano aprovado",n:request.ap3ByName,at:request.ap3At},{l:"Encerrada",n:"",at:request.closedAt}].filter(e=>e.at).map((e,i)=>(
-            <div key={i} style={{display:"flex",gap:8,marginBottom:6,fontSize:11,alignItems:"flex-start"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:C.accent,marginTop:4,flexShrink:0}}/>
-              <div><span style={{color:C.text,fontWeight:600}}>{e.l}</span>{e.n&&<span style={{color:C.dim}}> — {e.n}</span>}<br/><span style={{color:C.muted,fontSize:10}}>{fmt(e.at)}</span></div>
-            </div>
-          ))}
-          {![{at:request.createdAt},{at:request.ap1At},{at:request.ap2At},{at:request.ap3At},{at:request.closedAt}].some(e=>e.at)&&<div style={{color:C.muted,fontSize:12}}>Sem eventos registrados.</div>}
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:10,letterSpacing:.5}}>LINHA DO TEMPO</div>
+          <div style={{borderLeft:"2px solid "+C.border,paddingLeft:14}}>
+            {[
+              {l:"SA Criada",n:request.createdByName,at:request.createdAt,c:C.accent},
+              {l:"Triagem",n:request.ap1ByName,at:request.ap1At,c:C.warning},
+              {l:"Avaliacoes Aprovadas",n:request.ap2ByName,at:request.ap2At,c:C.purple},
+              {l:"Plano Aprovado",n:request.ap3ByName,at:request.ap3At,c:C.success},
+              {l:"Encerrada",n:"",at:request.closedAt,c:C.success}
+            ].filter(e=>e.at).map((e,i)=>(
+              <div key={i} style={{position:"relative",marginBottom:12}}>
+                <div style={{position:"absolute",left:-19,top:3,width:10,height:10,borderRadius:"50%",background:e.c,border:"2px solid "+C.bg}}/>
+                <div style={{fontSize:12,fontWeight:600,color:C.text}}>{e.l}</div>
+                {e.n&&<div style={{fontSize:11,color:C.dim}}>{e.n}</div>}
+                <div style={{fontSize:10,color:C.muted}}>{fmt(e.at)}</div>
+              </div>
+            ))}
+            {!request.ap1At&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic",paddingLeft:2}}>Aguardando triagem...</div>}
+          </div>
         </div>
       </div>
     </AccSection>
 
-    {/* 2. TRIAGEM */}
-    <div id="sec-triagem">
-    <AccSection id="triagem" title={"Triagem"+(request.triage?" — Concluida":"")} badge={request.triage?null:"Pendente"} badgeColor={request.triage?C.success:C.warning} statusIcon={request.triage?"✓":null}>
-      {request.triage&&request.ap1At?<div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:9,marginBottom:12}}>
-          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>REALIZADO POR</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap1ByName}</div></div>
-          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>DATA</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap1At)}</div></div>
-          {cr&&<div style={{...Sg.card({padding:"9px 12px",background:C.surface,borderLeft:"3px solid "+cr.color})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>CRITICIDADE</div><div style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v} — {cr.label}</div></div>}
-          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>AREAS ATRIBUIDAS</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{(request.triage.assignedAreas||[]).length}</div></div>
-        </div>
-        {(request.triage.flagReg||request.triage.flagProd)&&<div style={{display:"flex",gap:8,marginBottom:10}}>
-          {request.triage.flagReg&&<Badge label="Impacto Regulatorio" color={C.warning}/>}
-          {request.triage.flagProd&&<Badge label="Impacto Producao/Produto" color={C.accent}/>}
-        </div>}
-        {request.triage.notes&&<div style={{fontSize:12,color:C.muted,padding:"8px 10px",background:C.surface,borderRadius:7,marginBottom:10}}><strong style={{color:C.dim}}>Obs:</strong> {request.triage.notes}</div>}
-        <div style={{...Sg.card({padding:0,overflow:"hidden",marginBottom:10})}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 80px",background:C.surface,padding:"5px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
-            {["Area","Avaliador","Prazo","Tipo"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
+    {/* 2. AVALIACOES */}
+    <AccSection id="avaliacoes" title={"Avaliacoes ("+doneEv+"/"+aa.length+")"} badge={!sectionLocked.avaliacoes&&doneEv<aa.length&&request.status==="avaliacao"?"Em andamento":null} badgeColor={C.accent} locked={sectionLocked.avaliacoes}>
+      {!request.triage?<div>
+        {isAdmin
+          ?<><div style={{fontSize:12,color:C.warning,fontWeight:600,marginBottom:12}}>Triagem nao realizada — preencha abaixo para iniciar as avaliacoes.</div>
+            <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/></>
+          :<div style={{textAlign:"center",color:C.muted,padding:24}}>Aguardando triagem pelo SGQ.</div>}
+      </div>:<>
+        {/* Resumo da triagem como cabeçalho */}
+        <div style={{display:"flex",gap:10,alignItems:"flex-start",padding:"11px 13px",background:C.surface,borderRadius:8,marginBottom:14,border:"1px solid "+C.border}}>
+          {cr&&<div style={{padding:"8px 12px",borderRadius:7,background:cr.color+"18",border:"2px solid "+cr.color,textAlign:"center",flexShrink:0}}>
+            <div style={{fontSize:18,fontWeight:800,color:cr.color}}>{cr.v}</div>
+            <div style={{fontSize:9,color:cr.color,fontWeight:600}}>{cr.label}</div>
+          </div>}
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:3}}>JUSTIFICATIVA DA TRIAGEM</div>
+            <div style={{fontSize:12,color:C.text,lineHeight:1.5}}>{request.triage.justification||request.triage.notes||<span style={{fontStyle:"italic",color:C.muted}}>Nao informado</span>}</div>
+            <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap",alignItems:"center"}}>
+              <span style={{fontSize:10,color:C.muted}}>por {request.ap1ByName} · {fmt(request.ap1At)}</span>
+              {request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
+              {request.triage.flagProd&&<Badge label="Impacto Produto" color={C.accent}/>}
+            </div>
           </div>
-          {(request.triage.assignedAreas||[]).map((dept,i)=>{
-            const u=getU(request.triage.assignments&&request.triage.assignments[dept]);
-            const dl=request.triage.deadlines&&request.triage.deadlines[dept];
-            const mand=(request.triage.mandatory||{})[dept];
-            const ev=request.evaluations&&request.evaluations[dept];const done=!!(ev&&ev.at);
-            return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 80px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>{done?<span style={{color:C.success,fontSize:11}}>✓</span>:<span style={{color:C.muted,fontSize:11}}>○</span>}<span style={{fontSize:12,color:C.text}}>{dept}</span></div>
-              <div style={{display:"flex",alignItems:"center",gap:5}}>{u&&<Av user={u} size={16}/>}<span style={{fontSize:11,color:C.dim}}>{u&&u.name||"—"}</span></div>
-              <span style={{fontSize:11,color:C.muted}}>{fmtD(dl)}</span>
-              <span style={{fontSize:10,fontWeight:700,color:mand?C.warning:C.accent}}>{mand?"Obrig.":"Opcional"}</span>
-            </div>;
-          })}
+          {isAdmin&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px",flexShrink:0}} onClick={()=>setOpen(o=>({...o,_triagem_edit:!o._triagem_edit}))}>
+            {open._triagem_edit?"Fechar":"Editar triagem"}
+          </button>}
         </div>
-        {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={()=>setOpen(o=>({...o,_triagem_edit:!o._triagem_edit}))}>
-          {open._triagem_edit?"Fechar edicao":"Editar Triagem"}
-        </button>}
-        {open._triagem_edit&&isAdmin&&<div style={{marginTop:12}}>
+        {open._triagem_edit&&isAdmin&&<div style={{marginBottom:14,padding:"12px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border}}>
           <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t);setOpen(o=>({...o,_triagem_edit:false}));}} C={C}/>
         </div>}
-      </div>:<div>
-        {isAdmin
-          ?<TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/>
-          :<div style={{textAlign:"center",color:C.muted,padding:24}}>Aguardando triagem pelo SGQ.</div>}
-      </div>}
-    </AccSection>
-    </div>
-
-    {/* 3. AVALIACOES */}
-    <AccSection id="avaliacoes" title={"Avaliacoes ("+doneEv+"/"+aa.length+")"} badge={!sectionLocked.avaliacoes&&doneEv<aa.length&&request.status==="avaliacao"?"Em andamento":null} badgeColor={C.accent} locked={sectionLocked.avaliacoes}>
-      {!request.triage?<div style={{textAlign:"center",color:C.muted,padding:20}}>Aguardando triagem.</div>:<>
         {request.ap2At&&<div style={{...Sg.card({marginBottom:12,padding:"10px 13px",borderLeft:"3px solid "+C.success})}}>
           <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:6}}>APROVADO (SGQ 2)</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
