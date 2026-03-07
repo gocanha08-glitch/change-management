@@ -540,22 +540,88 @@ function Login({users,onLogin}){
   </div>;
 }
 
-// ================================================================
-// ATTACHMENTS PANEL — upload real com base64, limite 5MB total
-// ================================================================
-const LS_ATT_STORAGE = "cm_att_v9";
+function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C,refId,refType}){
+  const Sg=mkSg(C);
+  const [name,setName]=useState("");
+  const [ref,setRef]=useState("");
+  const [uploading,setUploading]=useState(false);
+  const [err,setErr]=useState("");
+  const [pendingFile,setPendingFile]=useState(null);
+  const fileRef=React.useRef();
 
-function getAttStorage(){
-  try{ return JSON.parse(localStorage.getItem(LS_ATT_STORAGE))||{}; }catch(e){ return {}; }
-}
-function setAttStorage(obj){
-  try{ localStorage.setItem(LS_ATT_STORAGE,JSON.stringify(obj)); }catch(e){ return false; }
-  return true;
-}
-function getStorageUsedKB(){
-  let total=0;
-  for(let k in localStorage){ try{ total+=localStorage[k].length*2; }catch(e){} }
-  return Math.round(total/1024);
+  const onFileChange=e=>{
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    setErr("");
+    setName(file.name);
+    setPendingFile(file);
+    e.target.value="";
+  };
+
+  const add=async()=>{
+    if(!name.trim())return;
+    if(pendingFile){
+      setUploading(true);
+      try{
+        const r=await apiPost('/api/uploads',{filename:pendingFile.name,contentType:pendingFile.type,refId:refId||'misc',refType:refType||'misc'});
+        await fetch(r.uploadUrl,{method:'PUT',body:pendingFile,headers:{'Content-Type':pendingFile.type}});
+        onAdd({id:'att_'+Date.now(),name:name.trim(),ref:ref.trim(),stage,addedBy:currentUser.name,addedAt:new Date().toISOString(),hasFile:true,mimeType:pendingFile.type,sizeKB:Math.round(pendingFile.size/1024),r2key:r.key});
+        setName("");setRef("");setPendingFile(null);setErr("");
+      }catch(e){setErr("Erro ao fazer upload: "+e.message);}
+      setUploading(false);
+    } else {
+      onAdd({id:'att_'+Date.now(),name:name.trim(),ref:ref.trim(),stage,addedBy:currentUser.name,addedAt:new Date().toISOString(),hasFile:false});
+      setName("");setRef("");setErr("");
+    }
+  };
+
+  const download=async att=>{
+    if(!att.hasFile)return;
+    if(!att.r2key){alert("Arquivo salvo localmente nao disponivel.");return;}
+    try{
+      const r=await apiGet('/api/uploads?key='+encodeURIComponent(att.r2key));
+      window.open(r.downloadUrl,'_blank');
+    }catch(e){alert("Erro ao baixar: "+e.message);}
+  };
+
+  const all=attachments||[];
+  return <div style={{marginTop:10}}>
+    <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:7}}>ANEXOS ({all.length})</div>
+    {!readOnly&&<div style={{marginBottom:9}}>
+      <div style={{display:"flex",gap:7,marginBottom:5,flexWrap:"wrap"}}>
+        <button style={{...Sg.btn(),fontSize:11,padding:"5px 11px"}} onClick={()=>fileRef.current&&fileRef.current.click()}>
+          {pendingFile?"Trocar arquivo":"Escolher arquivo"}
+        </button>
+        {pendingFile&&<span style={{fontSize:11,color:C.success,alignSelf:"center",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pendingFile.name} ({Math.round(pendingFile.size/1024)}KB)</span>}
+        <input ref={fileRef} type="file" style={{display:"none"}} onChange={onFileChange}/>
+      </div>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+        <input style={{...Sg.input(),flex:2,minWidth:130}} value={name} onChange={e=>setName(e.target.value)} placeholder="Nome / descricao do documento..."/>
+        <input style={{...Sg.input(),flex:1,minWidth:100}} value={ref} onChange={e=>setRef(e.target.value)} placeholder="Ref (numero, codigo...)"/>
+        <button style={{...Sg.btn("primary"),fontSize:11,padding:"6px 12px",opacity:name.trim()&&!uploading?1:.4}} disabled={!name.trim()||uploading} onClick={add}>
+          {uploading?"Enviando...":"Adicionar"}
+        </button>
+      </div>
+      {err&&<div style={{fontSize:11,color:C.danger,marginTop:4}}>{err}</div>}
+    </div>}
+    {all.length===0&&<div style={{fontSize:11,color:C.muted,padding:"6px 0"}}>Nenhum anexo registrado.</div>}
+    {all.map((a,i)=>(
+      <div key={a.id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:C.surface,borderRadius:7,marginBottom:4}}>
+        <div style={{fontSize:13,flexShrink:0}}>{a.hasFile?"📎":"🔗"}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:600,color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
+          <div style={{fontSize:10,color:C.muted,display:"flex",gap:8,flexWrap:"wrap"}}>
+            {a.ref&&<span>Ref: {a.ref}</span>}
+            {a.sizeKB&&<span>{a.sizeKB}KB</span>}
+            <span style={{color:C.accent}}>{a.stage}</span>
+            <span>{a.addedBy}</span>
+            <span>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</span>
+          </div>
+        </div>
+        {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px",flexShrink:0}} onClick={()=>download(a)}>Download</button>}
+      </div>
+    ))}
+  </div>;
 }
 
 function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C}){
