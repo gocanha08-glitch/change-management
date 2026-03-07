@@ -1735,8 +1735,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   // Acoes — prazo específico da ação
   const acoes=[];
   requests.forEach(r=>{
-    if(r.status!=="execucao")return;
-    (r.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente").forEach(a=>{
+       (r.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente").forEach(a=>{
       acoes.push({r,a,dl:a.deadline,urg:urgCls(a.deadline,a.status)});
     });
   });
