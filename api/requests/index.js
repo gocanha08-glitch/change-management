@@ -18,16 +18,7 @@ module.exports = async (req, res) => {
   // GET — list all requests (or filtered by user for geral role)
   if (req.method === 'GET') {
     try {
-      let rows;
-      if (user.role === 'geral') {
-        rows = await sql`
-          SELECT data FROM requests
-          WHERE (data->>'createdBy')::int = ${user.id}
-          ORDER BY created_at DESC
-        `;
-      } else {
-        rows = await sql`SELECT data FROM requests ORDER BY created_at DESC`;
-      }
+      const rows = await sql`SELECT data FROM requests ORDER BY created_at DESC`;
       return res.json(rows.map(r => r.data));
     } catch (err) {
       console.error('GET requests error:', err);
