@@ -1062,17 +1062,30 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 // ================================================================
 function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const [tab,setTab]=useState(initialTab||"overview");
+  // Accordion open sections state — computed from status + initialTab
+  const getDefaultOpen=()=>{
+    const STATUS_SECTION={aberta:"triagem",avaliacao:"avaliacoes",revisao:"avaliacoes",plano:"acoes",execucao:"acoes",concluida:"dados"};
+    const open={dados:false,status:false,triagem:false,avaliacoes:false,acoes:false,anexos:false};
+    if(initialTab==="avaliacao")open.avaliacoes=true;
+    else if(initialTab==="acoes")open.acoes=true;
+    else{const sec=STATUS_SECTION[request.status]||"dados";open[sec]=true;}
+    return open;
+  };
+  const [open,setOpen]=useState(getDefaultOpen);
+  const toggle=(sec)=>setOpen(o=>({...o,[sec]:!o[sec]}));
+
   const [evalOpen,setEO]=useState(null);
   const [showAddAc,setAddAc]=useState(false);
   const [editAc,setEditAc]=useState(null);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
+  const [showConcluir,setShowConcluir]=useState(null); // {acId, desc}
+  const [concNote,setConcNote]=useState("");const [concAtt,setConcAtt]=useState(null);
   // Extension request state
   const [extTarget,setExtTarget]=useState(null); // {type:"eval"|"action", key, label, currentDate}
 
-  const isAdmin=currentUser.role==="admin";
+  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
   const cr=crits.find(c=>c.v===(request.triage&&request.triage.criticality));
   const st=REQ_ST[request.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
@@ -1081,8 +1094,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const doneEv=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length;
   const myAreas=aa.filter(d=>request.triage&&request.triage.assignments&&request.triage.assignments[d]===currentUser.id);
   const otherAreas=aa.filter(d=>request.triage&&request.triage.assignments&&request.triage.assignments[d]!==currentUser.id);
-  const myPend=(request.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente");
-  const canPlan=currentUser.role==="admin"||(request.planResponsible===currentUser.id);
+  const myPend=(request.actions||[]).filter(a=>a.responsible===currentUser.id&&!["concluida","cancelada"].includes(a.status));
+  const canPlan=isAdmin||(request.planResponsible===currentUser.id);
   const pendExt=(request.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
 
   const upd=(patch,type,ev,detail)=>{let r={...request,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);onUpdate(r);};
@@ -1205,27 +1218,35 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
   const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
 
-  const tabs=[
-    {id:"overview",l:"Visao Geral"},
-    {id:"triagem",l:request.triage?"Triagem ✓":"Triagem"},
-    {id:"avaliacoes",l:"Avaliacoes ("+doneEv+"/"+aa.length+")"},
-    {id:"plano",l:"Plano ("+(request.actions&&request.actions.length||0)+")"},
-    {id:"anexos",l:"Anexos ("+(request.attachments&&request.attachments.length||0)+")"},
-    {id:"extensoes",l:"Prazos"+(pendExt>0?" ("+pendExt+")":"")},
-    {id:"log",l:"Historico"},
-  ];
+  // Accordion section helper
+  const AccSection=({id,title,badge,badgeColor,statusIcon,locked,children})=>{
+    const isOpen=open[id]&&!locked;
+    const hoverBg=locked?"transparent":C.surface;
+    return <div style={{borderRadius:8,border:"1px solid "+(locked?C.border+"44":open[id]?C.accent+"44":C.border),marginBottom:8,overflow:"hidden",opacity:locked?.55:1}}>
+      <button onClick={()=>!locked&&toggle(id)} style={{width:"100%",display:"flex",alignItems:"center",gap:9,padding:"10px 14px",background:isOpen?C.accent+"0F":C.surface+"88",border:"none",cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left"}}>
+        <span style={{fontSize:13,fontWeight:700,color:locked?C.muted:isOpen?C.accent:C.text,flex:1}}>{title}</span>
+        {badge!=null&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:(badgeColor||C.accent)+"22",color:badgeColor||C.accent,border:"1px solid "+(badgeColor||C.accent)+"44"}}>{badge}</span>}
+        {statusIcon&&<span style={{fontSize:11}}>{statusIcon}</span>}
+        <span style={{fontSize:12,color:locked?C.muted:C.dim,transition:"transform .15s",display:"inline-block",transform:isOpen?"rotate(180deg)":"rotate(0deg)"}}>{locked?"🔒":"▾"}</span>
+      </button>
+      {isOpen&&<div style={{padding:"12px 14px",borderTop:"1px solid "+C.border+"33"}}>{children}</div>}
+    </div>;
+  };
 
-  const ExtRequestModal=({target,onClose,onSubmit})=>target?<Modal open={!!target} onClose={onClose} title="Solicitar Extensao de Prazo" width={420}>
-    <div style={{padding:"8px 11px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:7,marginBottom:12,fontSize:12,color:C.warning}}>
-      <div style={{fontWeight:700}}>{target.label}</div>
-      <div>Prazo atual: {fmtD(target.currentDate)}</div>
-    </div>
-    <ExtReqForm onClose={onClose} onSubmit={onSubmit} currentDeadline={target.currentDate} C={C} Sg={Sg}/>
-  </Modal>:null;
+  // Status locks for sections
+  const statusOrder=["aberta","avaliacao","revisao","plano","execucao","concluida"];
+  const statusIdx=statusOrder.indexOf(request.status);
+  const sectionLocked={
+    triagem:false, // always accessible
+    avaliacoes:statusIdx<1, // locked before avaliacao
+    acoes:statusIdx<3, // locked before plano
+    anexos:false, // always accessible
+  };
 
-  return <div style={{padding:"20px 22px",maxWidth:980,margin:"0 auto"}}>
+  return <div style={{padding:"20px 22px",maxWidth:960,margin:"0 auto"}}>
+    {/* Header */}
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>Voltar</button>
+      <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
       <span style={{fontSize:11,fontWeight:700,color:C.accent,flexShrink:0}}>{request.id}</span>
       <h1 style={{margin:0,fontSize:15,color:C.text,flex:1,minWidth:140,fontWeight:700}}>{request.title}</h1>
       {cr&&<Badge label={cr.v+" "+cr.label} color={cr.color}/>}
@@ -1237,7 +1258,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
         <button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 9px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
     </div>
-    {/* Simple stepper — circles only */}
+
+    {/* Stepper */}
     <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:14,overflowX:"auto"}}>
       {[
         {key:"aberta",   label:"Triagem",   gate:"SGQ 1", done:!!request.ap1At, active:request.status==="aberta",  waiting:false},
@@ -1268,21 +1290,18 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       })}
     </div>
 
-    {/* Stage deadlines strip */}
-
-
-    {/* Approval banners */}
+    {/* Action banners */}
     {request.status==="aberta"&&isAdmin&&
       <div style={{padding:"9px 13px",borderRadius:7,background:C.warning+"0D",border:"1px solid "+C.warning+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:13,fontWeight:600,color:C.warning}}>Triagem necessaria</div>
-        <button style={Sg.btn("warning")} onClick={()=>setTab("triagem")}>Fazer Triagem</button>
+        <div style={{fontSize:13,fontWeight:600,color:C.warning}}>⚠ Triagem necessaria</div>
+        <button style={Sg.btn("warning")} onClick={()=>{setOpen(o=>({...o,triagem:true}));setTimeout(()=>document.getElementById("sec-triagem")&&document.getElementById("sec-triagem").scrollIntoView({behavior:"smooth"}),100);}}>Fazer Triagem</button>
       </div>}
     {request.status==="revisao"&&isAdmin&&
       <div style={{padding:"10px 13px",borderRadius:7,background:C.purple+"0D",border:"1px solid "+C.purple+"44",marginBottom:10}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:ap2Date?8:0}}>
           <div style={{fontSize:13,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar Avaliacoes</div>
           <div style={{display:"flex",gap:7,alignItems:"center"}}>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setTab("avaliacoes")}>Ver</button>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setOpen(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
             <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar → Plano</button>
           </div>
         </div>
@@ -1308,15 +1327,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           <button style={{...Sg.btn("success"),fontSize:12,padding:"5px 13px"}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
         </div>}
       </div>}
-
-    {/* Pending extensions banner for admin */}
     {isAdmin&&pendExt>0&&
       <div style={{padding:"9px 13px",borderRadius:7,background:C.orange+"0D",border:"1px solid "+C.orange+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
         <div style={{fontSize:13,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} de prazo aguardando aprovacao</div>
-        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setTab("extensoes")}>Revisar</button>
+        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setOpen(o=>({...o,anexos:true}))}>Revisar</button>
       </div>}
-
-    {/* My pending actions */}
     {myPend.length>0&&
       <div style={{padding:"9px 12px",borderRadius:7,background:C.accent+"0D",border:"1px solid "+C.accent+"33",marginBottom:10}}>
         <div style={{fontSize:12,fontWeight:600,color:C.accent,marginBottom:5}}>{myPend.length} acao{myPend.length!==1?"oes":""} pendente{myPend.length!==1?"s":""} com voce</div>
@@ -1324,127 +1339,100 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           const ov=isOD(a.deadline,a.status);
           return <div key={a.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderTop:"1px solid "+C.border+"22",flexWrap:"wrap"}}>
             <span style={{flex:1,fontSize:12,color:C.text}}>{a.desc}</span>
-            <span style={{fontSize:11,color:ov?C.danger:C.muted}}>{fmtD(a.deadline)}{ov&&" Atrasado"}</span>
-            <button style={{...Sg.btn("success"),fontSize:11,padding:"3px 9px"}} onClick={()=>updAc(a.id,{status:"concluida",doneAt:new Date().toISOString()},"Acao concluida","Desc: "+a.desc)}>Concluir</button>
+            <span style={{fontSize:11,color:ov?C.danger:C.muted}}>{fmtD(a.deadline)}{ov?" — Atrasado":""}</span>
+            <button style={{...Sg.btn("success"),fontSize:11,padding:"3px 9px"}} onClick={()=>setShowConcluir({acId:a.id,desc:a.desc})}>Concluir</button>
             <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setExtTarget({type:"action",key:a.id,label:a.desc,currentDate:a.deadline})}>Pedir Extensao</button>
           </div>;
         })}
       </div>}
 
-    {/* Tabs */}
-    <div style={{display:"flex",gap:0,marginBottom:13,borderBottom:"1px solid "+C.border,overflowX:"auto"}}>
-      {tabs.map(t=>(
-        <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"7px 11px",fontSize:12,fontWeight:tab===t.id?700:400,color:tab===t.id?C.accent:C.muted,borderBottom:"2px solid "+(tab===t.id?C.accent:"transparent"),whiteSpace:"nowrap",fontFamily:"inherit"}}>
-          {t.l}
-        </button>
-      ))}
-    </div>
+    {/* ===== ACCORDION SECTIONS ===== */}
 
-    {/* OVERVIEW */}
-    {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
-      <div style={Sg.card()}>
-        <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:9,letterSpacing:.6}}>SOLICITACAO</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Tipo</div><div style={{fontSize:13,color:C.text,marginBottom:8}}>{request.type}</div>
-        <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Descricao</div><div style={{fontSize:13,color:C.text,lineHeight:1.5,marginBottom:8}}>{request.description}</div>
-        {request.justification&&<><div style={{fontSize:11,color:C.muted,marginBottom:1}}>Justificativa</div><div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{request.justification}</div></>}
-        <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid "+C.border,fontSize:11,color:C.muted}}>
-          Criado por <strong style={{color:C.dim}}>{request.createdByName}</strong> em {fmtD(request.createdAt&&request.createdAt.slice(0,10))}
+    {/* 1. DADOS DA SOLICITACAO */}
+    <AccSection id="dados" title="Dados da Solicitacao" statusIcon={request.status!=="aberta"?"✓":null}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:11}}>
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Tipo</div><div style={{fontSize:13,color:C.text,marginBottom:9}}>{request.type}</div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:1}}>Descricao</div><div style={{fontSize:13,color:C.text,lineHeight:1.6,marginBottom:9}}>{request.description}</div>
+          {request.justification&&<><div style={{fontSize:11,color:C.muted,marginBottom:1}}>Justificativa</div><div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{request.justification}</div></>}
+          <div style={{marginTop:10,paddingTop:9,borderTop:"1px solid "+C.border,fontSize:11,color:C.muted}}>
+            Criado por <strong style={{color:C.dim}}>{request.createdByName}</strong> em {fmtD(request.createdAt&&request.createdAt.slice(0,10))}
+          </div>
+          {(request.rejections||[]).length>0&&<div style={{marginTop:9,paddingTop:8,borderTop:"1px solid "+C.border}}>
+            <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:5,letterSpacing:.6}}>REJEICOES</div>
+            {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"5px 8px",background:C.danger+"0D",borderRadius:6,marginBottom:3,border:"1px solid "+C.danger+"22"}}>
+              <div style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}</div>
+              {r.note&&<div style={{color:C.muted,marginTop:1}}>{r.note}</div>}
+            </div>)}
+          </div>}
         </div>
-        {(request.rejections||[]).length>0&&<div style={{marginTop:9,paddingTop:8,borderTop:"1px solid "+C.border}}>
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:5,letterSpacing:.6}}>REJEICOES</div>
-          {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"4px 8px",background:C.danger+"0D",borderRadius:6,marginBottom:3}}>
-            <div style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}</div>
-            {r.note&&<div style={{color:C.muted,marginTop:1}}>{r.note}</div>}
-          </div>)}
-        </div>}
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {request.triage&&<div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/></div>}
-        {!request.triage&&isAdmin&&<div style={{...Sg.card({border:"1px solid "+C.warning+"44",background:C.warning+"08",textAlign:"center",padding:22,cursor:"pointer"}),}} onClick={()=>setTab("triagem")}>
-          <div style={{fontSize:13,fontWeight:600,color:C.warning}}>Aguarda Triagem</div></div>}
-        <div style={Sg.card()}>
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:7,letterSpacing:.6}}>LINHA DO TEMPO</div>
+        <div>
+          <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:8,letterSpacing:.6}}>LINHA DO TEMPO</div>
           {[{l:"Criada",n:request.createdByName,at:request.createdAt},{l:"Triagem",n:request.ap1ByName,at:request.ap1At},{l:"Avaliacao aprovada",n:request.ap2ByName,at:request.ap2At},{l:"Plano aprovado",n:request.ap3ByName,at:request.ap3At},{l:"Encerrada",n:"",at:request.closedAt}].filter(e=>e.at).map((e,i)=>(
-            <div key={i} style={{display:"flex",gap:7,marginBottom:4,fontSize:11}}>
-              <div style={{width:5,height:5,borderRadius:"50%",background:C.accent,marginTop:4,flexShrink:0}}/>
-              <div><span style={{color:C.text}}>{e.l}{e.n?" — "+e.n:""}</span><br/><span style={{color:C.muted,fontSize:10}}>{fmt(e.at)}</span></div>
+            <div key={i} style={{display:"flex",gap:8,marginBottom:6,fontSize:11,alignItems:"flex-start"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:C.accent,marginTop:4,flexShrink:0}}/>
+              <div><span style={{color:C.text,fontWeight:600}}>{e.l}</span>{e.n&&<span style={{color:C.dim}}> — {e.n}</span>}<br/><span style={{color:C.muted,fontSize:10}}>{fmt(e.at)}</span></div>
             </div>
           ))}
+          {![{at:request.createdAt},{at:request.ap1At},{at:request.ap2At},{at:request.ap3At},{at:request.closedAt}].some(e=>e.at)&&<div style={{color:C.muted,fontSize:12}}>Sem eventos registrados.</div>}
         </div>
       </div>
-    </div>}
+    </AccSection>
 
-    {/* TRIAGEM */}
-    {tab==="triagem"&&<div>
-      {/* Triagem done: show what was decided */}
+    {/* 2. TRIAGEM */}
+    <div id="sec-triagem">
+    <AccSection id="triagem" title={"Triagem"+(request.triage?" — Concluida":"")} badge={request.triage?null:"Pendente"} badgeColor={request.triage?C.success:C.warning} statusIcon={request.triage?"✓":null}>
       {request.triage&&request.ap1At?<div>
-        <div style={{...Sg.card({marginBottom:10,padding:"13px 15px",borderLeft:"3px solid "+C.success})}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:10}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6}}>TRIAGEM CONCLUIDA</div>
-            {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={()=>setTab("_triagem_edit")}>Editar Triagem</button>}
-          </div>
-          {/* Key decisions */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10,marginBottom:12}}>
-            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>REALIZADO POR</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap1ByName}</div></div>
-            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>DATA</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap1At)}</div></div>
-            {cr&&<div style={{...Sg.card({padding:"9px 12px",background:C.surface,borderLeft:"3px solid "+cr.color})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>CRITICIDADE</div><div style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v} — {cr.label}</div></div>}
-            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>PRAZO AVALIACAO</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmtD(request.stageDeadlines&&request.stageDeadlines.avaliacao)}</div></div>
-            <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>AREAS ATRIBUIDAS</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{(request.triage.assignedAreas||[]).length} areas</div></div>
-          </div>
-          {/* Flags */}
-          {(request.triage.flagReg||request.triage.flagProd)&&<div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-            {request.triage.flagReg&&<Badge label="Impacto Regulatorio" color={C.warning}/>}
-            {request.triage.flagProd&&<Badge label="Impacto Producao/Produto" color={C.accent}/>}
-          </div>}
-          {request.triage.notes&&<div style={{fontSize:12,color:C.muted,padding:"8px 10px",background:C.surface,borderRadius:7}}><strong style={{color:C.dim}}>Obs da triagem:</strong> {request.triage.notes}</div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(155px,1fr))",gap:9,marginBottom:12}}>
+          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>REALIZADO POR</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap1ByName}</div></div>
+          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>DATA</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap1At)}</div></div>
+          {cr&&<div style={{...Sg.card({padding:"9px 12px",background:C.surface,borderLeft:"3px solid "+cr.color})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>CRITICIDADE</div><div style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v} — {cr.label}</div></div>}
+          <div style={{...Sg.card({padding:"9px 12px",background:C.surface})}}><div style={{fontSize:9,color:C.muted,letterSpacing:.5,marginBottom:3}}>AREAS ATRIBUIDAS</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{(request.triage.assignedAreas||[]).length}</div></div>
         </div>
-        {/* Areas table */}
-        <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:6}}>AREAS ATRIBUIDAS ({(request.triage.assignedAreas||[]).length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 90px",background:C.surface,padding:"5px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
+        {(request.triage.flagReg||request.triage.flagProd)&&<div style={{display:"flex",gap:8,marginBottom:10}}>
+          {request.triage.flagReg&&<Badge label="Impacto Regulatorio" color={C.warning}/>}
+          {request.triage.flagProd&&<Badge label="Impacto Producao/Produto" color={C.accent}/>}
+        </div>}
+        {request.triage.notes&&<div style={{fontSize:12,color:C.muted,padding:"8px 10px",background:C.surface,borderRadius:7,marginBottom:10}}><strong style={{color:C.dim}}>Obs:</strong> {request.triage.notes}</div>}
+        <div style={{...Sg.card({padding:0,overflow:"hidden",marginBottom:10})}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 80px",background:C.surface,padding:"5px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
             {["Area","Avaliador","Prazo","Tipo"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
           </div>
           {(request.triage.assignedAreas||[]).map((dept,i)=>{
             const u=getU(request.triage.assignments&&request.triage.assignments[dept]);
             const dl=request.triage.deadlines&&request.triage.deadlines[dept];
             const mand=(request.triage.mandatory||{})[dept];
-            const ev=request.evaluations&&request.evaluations[dept];
-            const done=!!(ev&&ev.at);
-            return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 90px",padding:"7px 13px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
-              <div style={{display:"flex",alignItems:"center",gap:7}}>
-                {done?<span style={{color:C.success,fontSize:11}}>✓</span>:<span style={{color:C.muted,fontSize:11}}>○</span>}
-                <span style={{fontSize:12,color:C.text}}>{dept}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:5}}>{u&&<Av user={u} size={18}/>}<span style={{fontSize:11,color:C.dim}}>{u&&u.name||"—"}</span></div>
+            const ev=request.evaluations&&request.evaluations[dept];const done=!!(ev&&ev.at);
+            return <div key={dept} style={{display:"grid",gridTemplateColumns:"1fr 1fr 110px 80px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>{done?<span style={{color:C.success,fontSize:11}}>✓</span>:<span style={{color:C.muted,fontSize:11}}>○</span>}<span style={{fontSize:12,color:C.text}}>{dept}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>{u&&<Av user={u} size={16}/>}<span style={{fontSize:11,color:C.dim}}>{u&&u.name||"—"}</span></div>
               <span style={{fontSize:11,color:C.muted}}>{fmtD(dl)}</span>
               <span style={{fontSize:10,fontWeight:700,color:mand?C.warning:C.accent}}>{mand?"Obrig.":"Opcional"}</span>
             </div>;
           })}
         </div>
-      </div>
-      /* Pending or edit mode */
-      :<div>
+        {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={()=>setOpen(o=>({...o,_triagem_edit:!o._triagem_edit}))}>
+          {open._triagem_edit?"Fechar edicao":"Editar Triagem"}
+        </button>}
+        {open._triagem_edit&&isAdmin&&<div style={{marginTop:12}}>
+          <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t);setOpen(o=>({...o,_triagem_edit:false}));}} C={C}/>
+        </div>}
+      </div>:<div>
         {isAdmin
-          ?<div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/></div>
-          :<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:32}}>Aguardando triagem pelo SGQ.</div>}
+          ?<TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/>
+          :<div style={{textAlign:"center",color:C.muted,padding:24}}>Aguardando triagem pelo SGQ.</div>}
       </div>}
-    </div>}
-    {/* Triagem edit mode */}
-    {tab==="_triagem_edit"&&isAdmin&&<div>
-      <button style={{...Sg.btn(),fontSize:11,padding:"4px 10px",marginBottom:10}} onClick={()=>setTab("triagem")}>← Voltar</button>
-      <div style={Sg.card()}><TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t);setTab("triagem");}} C={C}/></div>
-    </div>}
+    </AccSection>
+    </div>
 
-    {/* AVALIACOES */}
-    {tab==="avaliacoes"&&<div>
-      {!request.triage&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:28}}>Aguardando triagem.</div>}
-      {request.triage&&<>
-        {/* Summary header */}
-        {request.ap2At&&<div style={{...Sg.card({marginBottom:12,padding:"11px 14px",borderLeft:"3px solid "+C.success})}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:7}}>AVALIACAO APROVADA (SGQ 2)</div>
+    {/* 3. AVALIACOES */}
+    <AccSection id="avaliacoes" title={"Avaliacoes ("+doneEv+"/"+aa.length+")"} badge={!sectionLocked.avaliacoes&&doneEv<aa.length&&request.status==="avaliacao"?"Em andamento":null} badgeColor={C.accent} locked={sectionLocked.avaliacoes}>
+      {!request.triage?<div style={{textAlign:"center",color:C.muted,padding:20}}>Aguardando triagem.</div>:<>
+        {request.ap2At&&<div style={{...Sg.card({marginBottom:12,padding:"10px 13px",borderLeft:"3px solid "+C.success})}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:6}}>APROVADO (SGQ 2)</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9}}>
             <div><div style={{fontSize:10,color:C.muted}}>Aprovado por</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{request.ap2ByName}</div></div>
-            <div><div style={{fontSize:10,color:C.muted}}>Data de aprovacao</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap2At)}</div></div>
+            <div><div style={{fontSize:10,color:C.muted}}>Data</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{fmt(request.ap2At)}</div></div>
             <div><div style={{fontSize:10,color:C.muted}}>Areas concluidas</div><div style={{fontSize:12,fontWeight:700,color:C.text}}>{doneEv}/{aa.length}</div></div>
           </div>
         </div>}
@@ -1480,7 +1468,6 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </div>;
           })}
         </div>
-
         {/* Completed evaluations — collapsible per area */}
         {aa.filter(d=>{const ev=request.evaluations&&request.evaluations[d];return ev&&ev.at;}).map(dept=>{
           const ev=request.evaluations[dept];
@@ -1488,12 +1475,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           return <EvalDetail key={dept} dept={dept} ev={ev} u={u} isAdmin={isAdmin} onEdit={()=>setEO({dept,readOnly:false})} C={C} Sg={Sg}/>;
         })}
       </>}
-    </div>}
+    </AccSection>
 
-    {/* PLANO */}
-    {tab==="plano"&&<div>
-      {["aberta","avaliacao","revisao"].includes(request.status)&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:26}}>Disponivel apos Aprovacao 2.</div>}
-      {["plano","execucao","concluida"].includes(request.status)&&<>
+    {/* 4. ACOES (Plano + Execucao) */}
+    <AccSection id="acoes" title={"Acoes ("+(request.actions&&request.actions.length||0)+")"} badge={sectionLocked.acoes?null:myPend.length>0?myPend.length+" com voce":null} badgeColor={C.accent} locked={sectionLocked.acoes}>
+      {sectionLocked.acoes?<div style={{textAlign:"center",color:C.muted,padding:20}}>Disponivel apos Aprovacao 2.</div>:<>
         <div style={{...Sg.card({marginBottom:10,padding:"9px 13px"})}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
             <div style={{fontSize:12}}>
@@ -1526,12 +1512,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                   <span style={{color:ov?C.danger:C.muted}}>Prazo: {fmtD(ac.deadline)}</span>
                   {ac.obs&&<span>Obs: {ac.obs}</span>}
                   {ac.doneAt&&<span style={{color:C.success}}>Concluida: {fmtD(ac.doneAt.slice(0,10))}</span>}
+                  {ac.doneNote&&<span style={{color:C.dim}}>Evidencia: {ac.doneNote}</span>}
                 </div>
               </div>
             </div>
             {(canAct||canEdit)&&!["concluida","cancelada"].includes(ac.status)&&
               <div style={{display:"flex",gap:5,marginTop:7,paddingTop:7,borderTop:"1px solid "+C.border+"22",flexWrap:"wrap"}}>
-                {canAct&&<button style={{...Sg.btn("success"),fontSize:11,padding:"4px 9px"}} onClick={()=>updAc(ac.id,{status:"concluida",doneAt:new Date().toISOString()},"Acao concluida","Desc: "+ac.desc)}>Concluir</button>}
+                {canAct&&<button style={{...Sg.btn("success"),fontSize:11,padding:"4px 9px"}} onClick={()=>{setConcNote("");setConcAtt(null);setShowConcluir({acId:ac.id,desc:ac.desc});}}>Concluir</button>}
                 {isMine&&request.status==="execucao"&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Ext.</button>}
                 {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
                 {canEdit&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 9px"}} onClick={()=>setEditAc(ac)}>Editar</button>}
@@ -1541,18 +1528,20 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         })}
         {!(request.actions||[]).length&&<div style={{...Sg.card(),textAlign:"center",color:C.muted,padding:20}}>{canPlan&&request.status==="plano"?"Adicione acoes acima.":"Nenhuma acao."}</div>}
       </>}
-    </div>}
+    </AccSection>
 
-    {/* ANEXOS */}
-    {tab==="anexos"&&<div style={Sg.card()}>
+    {/* 5. ANEXOS */}
+    <AccSection id="anexos" title={"Anexos ("+(request.attachments&&request.attachments.length||0)+")"} badge={pendExt>0?pendExt+" prazo pend.":null} badgeColor={C.orange}>
       <AttachmentsPanel attachments={request.attachments||[]} onAdd={att=>addAttachment(att)} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
-    </div>}
+      {/* Extensions section embedded */}
+      {(request.deadlineExtensions||[]).length>0&&<div style={{marginTop:16,paddingTop:14,borderTop:"1px solid "+C.border+"33"}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.6,marginBottom:8}}>EXTENSOES DE PRAZO</div>
+        <ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg}/>
+      </div>}
+    </AccSection>
 
-    {/* EXTENSOES DE PRAZO */}
-    {tab==="extensoes"&&<ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg}/>}
-
-    {/* LOG */}
-    {tab==="log"&&<div style={Sg.card()}>
+    {/* 6. HISTORICO */}
+    <AccSection id="log" title="Historico">
       <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:9,letterSpacing:.6}}>HISTORICO — {request.id}</div>
       {(request.log||[]).slice().reverse().map((e,i)=>{
         const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success}[e.type]||C.muted;
@@ -1567,7 +1556,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         </div>;
       })}
       {!(request.log||[]).length&&<div style={{color:C.muted,textAlign:"center",padding:18}}>Nenhum evento.</div>}
-    </div>}
+    </AccSection>
 
     {/* MODALS */}
     <Modal open={!!evalOpen} onClose={()=>setEO(null)} title={"Analise — "+(evalOpen&&evalOpen.dept||"")} width={740}>
@@ -1601,6 +1590,29 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
           <button style={Sg.btn()} onClick={()=>setEditAc(null)}>Cancelar</button>
           <button style={Sg.btn("primary")} onClick={()=>{updAc(editAc.id,editAc,"Acao editada","Desc: "+editAc.desc);setEditAc(null);}}>Salvar</button>
+        </div>
+      </div>}
+    </Modal>
+    {/* Concluir Acao modal — obrigatorio com evidencia */}
+    <Modal open={!!showConcluir} onClose={()=>setShowConcluir(null)} title="Concluir Acao" width={460}>
+      {showConcluir&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{fontSize:13,color:C.text,padding:"7px 10px",background:C.surface,borderRadius:7}}>{showConcluir.desc}</div>
+        <div>
+          <label style={Sg.lbl}>Descricao da conclusao / evidencia *</label>
+          <textarea style={{...Sg.input(),minHeight:70,resize:"vertical"}} value={concNote} onChange={e=>setConcNote(e.target.value)} placeholder="Descreva o que foi realizado e a evidencia da conclusao..."/>
+        </div>
+        <div>
+          <label style={Sg.lbl}>Anexo de evidencia (opcional)</label>
+          <AttachmentsPanel attachments={concAtt?[concAtt]:[]} onAdd={a=>setConcAtt(a)} readOnly={false} stage={request.status} currentUser={currentUser} C={C} compact/>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>setShowConcluir(null)}>Cancelar</button>
+          <button style={{...Sg.btn("success"),opacity:concNote.trim()?1:.4}} disabled={!concNote.trim()} onClick={()=>{
+            const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:concNote};
+            if(concAtt){const newAtts=[...(request.attachments||[]),{...concAtt,stage:"conclusao-"+showConcluir.acId}];updAc(showConcluir.acId,patch,"Acao concluida","Desc: "+showConcluir.desc+" | Evidencia: "+concNote);onUpdate({...request,attachments:newAtts});}
+            else updAc(showConcluir.acId,patch,"Acao concluida","Desc: "+showConcluir.desc+" | Evidencia: "+concNote);
+            setShowConcluir(null);setConcNote("");setConcAtt(null);
+          }}>Confirmar Conclusao</button>
         </div>
       </div>}
     </Modal>
