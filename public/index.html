@@ -882,7 +882,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     });
   };
 
-  const evFor=dept=>allUsers.filter(u=>u.active&&u.role==="evaluator"&&(u.evalDepts||[]).includes(dept));
+  const evFor=dept=>allUsers.filter(u=>u.active&&(u.role==="sgq"||u.role==="admin")&&(u.evalDepts||[]).includes(dept));
   const allSet=areas.length>0&&areas.every(a=>assigns[a]&&dls[a]);
   const canSave=crit&&just.trim()&&areas.length>0&&allSet;
 
