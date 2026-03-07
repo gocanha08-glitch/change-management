@@ -1882,7 +1882,7 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
   const {C}=useTheme();const Sg=mkSg(C);
   const [q,setQ]=useState("");const [sf,setSF]=useState("");const [st2,setST2]=useState("");
 
-  const pool=currentUser.role==="geral"?requests.filter(r=>r.createdBy===currentUser.id):requests;
+  const pool=requests;
   const vis=pool.filter(r=>(
     (!q||(r.id+r.title+r.type+(r.description||"")).toLowerCase().includes(q.toLowerCase()))&&
     (!sf||r.status===sf)&&(!st2||r.type===st2)
@@ -1976,7 +1976,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
   const [vq,setVQ]=useState("");const [vst,setVST]=useState("pendente"); // pendente | feita | todas
   const [vcr,setVCR]=useState("");const [vResp,setVResp]=useState("");const [vSA,setVSA]=useState("");
 
-  const pool=currentUser.role==="geral"?requests.filter(r=>r.createdBy===currentUser.id):requests;
+  const pool=requests;
 
   // ---- ACOES ----
   const allActions=pool.flatMap(r=>(r.actions||[]).map(a=>{
