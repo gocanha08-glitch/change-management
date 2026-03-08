@@ -1284,10 +1284,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
   };
 
-  const ap3=customDate=>{
-    const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
-    const execDl=customDate||addDays(todayStr(),pd.execucao.days);
-    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,execucao:execDl}},"aprovacao","Aprovacao 3: Plano aprovado — Execucao iniciada","Aprovado por: "+currentUser.name+" | Prazo de execucao: "+fmtD(execDl));
+  const ap3=()=>{
+    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString()},"aprovacao","Plano aprovado — Execucao iniciada","Liberado por: "+currentUser.name+" | "+((request.actions||[]).length)+" acoes");
   };
 
   const _scrollRef=React.useRef(0);
@@ -2055,13 +2053,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     </Modal>}
 
     {/* Liberar para execucao */}
-    {showAp3&&<Modal open={showAp3} onClose={()=>setShowAp3(false)} title="Liberar para Execucao" width={420}>
-      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>O plano tem {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""}. Confirme o prazo de execucao.</div>
-      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo de Execucao *</label>
-      <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap3DateVal||addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30)} min={todayStr()} onChange={e=>setAp3DateVal(e.target.value)}/>
+    {showAp3&&<Modal open={showAp3} onClose={()=>setShowAp3(false)} title="Liberar para Execucao" width={400}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:18}}>O plano tem <strong style={{color:C.text}}>{(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""}</strong>. Ao confirmar, as acoes serao liberadas para execucao pelos responsaveis.</div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp3(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{ap3(ap3DateVal||addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30));setShowAp3(false);}}>Confirmar</button>
+        <button style={Sg.btn("success")} onClick={()=>{ap3(null);setShowAp3(false);}}>Confirmar</button>
       </div>
     </Modal>}
 
