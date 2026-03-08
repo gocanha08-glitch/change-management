@@ -2289,17 +2289,27 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
 
           {/* Acoes admin/canPlan */}
-          {(isAdmin||canPlan)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {isAdmin&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao (SGQ)</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {request.status==="plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
+                setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
+                setDrawerEditing(true);
+              }}>✏ Editar</button>}
+              <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>
+              <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>
+              {request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
+              {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
+            </div>
+          </div>}
+          {canPlan&&request.status==="plano"&&!["concluida","cancelada"].includes(ac.status)&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
                 setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
                 setDrawerEditing(true);
               }}>✏ Editar</button>
-              {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>}
-              {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>}
-              {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
-              {isAdmin&&request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
+              <button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>
             </div>
           </div>}
 
