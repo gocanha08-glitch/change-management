@@ -1089,27 +1089,29 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 }
 
 // ================================================================
-// AcConcForm — stable component to avoid focus loss on re-render
+// AcConcForm — owns internal state to avoid focus loss on parent re-render
 // ================================================================
-function AcConcForm({acId,conc,onNote,onAtt,onConfirm,request,currentUser,C,Sg}){
+function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
+  const [note,setNote]=useState("");
+  const [att,setAtt]=useState(null);
   return <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
     <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
     <textarea
       style={{...Sg.input(),minHeight:72,resize:"vertical",marginBottom:10}}
-      value={conc.note||""}
-      onChange={e=>onNote(e.target.value)}
+      value={note}
+      onChange={e=>setNote(e.target.value)}
       placeholder="Descreva o que foi executado..."/>
     <AttachmentsPanel
-      attachments={conc.att?[conc.att]:[]}
-      onAdd={onAtt}
+      attachments={att?[att]:[]}
+      onAdd={a=>setAtt(a)}
       readOnly={false}
       stage={request.status}
       currentUser={currentUser}
       C={C}/>
     <button
-      style={{...Sg.btn("success"),marginTop:10,opacity:conc.note&&conc.note.trim()?1:.4}}
-      disabled={!conc.note||!conc.note.trim()}
-      onClick={onConfirm}>
+      style={{...Sg.btn("success"),marginTop:10,opacity:note.trim()?1:.4}}
+      disabled={!note.trim()}
+      onClick={()=>onConfirm(note,att)}>
       Confirmar Conclusao
     </button>
   </div>;
@@ -1144,7 +1146,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
     },300);
   },[]);
-  const [acConc,setAcConc]=useState({});
+
   const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
   const [evalOpen,setEvalOpen]=useState(()=>focusDept?{[focusDept]:true}:{});
   const togEval=(dept)=>{
@@ -1230,17 +1232,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     let r={...request,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
   };
 
-  const concludeAction=acId=>{
-    const c=acConc[acId]||{};if(!c.note||!c.note.trim())return;
-    const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:c.note};
+  const concludeAction=(acId,note,att)=>{
+    if(!note||!note.trim())return;
+    const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:note};
     let newAtts=request.attachments||[];
-    if(c.att)newAtts=[...newAtts,{...c.att,stage:"conclusao-"+acId}];
+    if(att)newAtts=[...newAtts,{...att,stage:"conclusao-"+acId}];
     const actions=(request.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
     const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
     let r={...request,actions,attachments:newAtts};
     r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId);
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguarda verificacao");
-    onUpdate(r);setAcConc(p=>({...p,[acId]:{}}));setExpandedAc(p=>({...p,[acId]:false}));
+    onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));
   };
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
@@ -1606,7 +1608,6 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const isMine=ac.responsible===currentUser.id;
                     const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
                     const isExp=expandedAc[ac.id];
-                    const conc=acConc[ac.id]||{};
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
                       <tr id={"ac-row-"+ac.id} style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
@@ -1622,7 +1623,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                       </tr>
                       {isExp&&<tr>
                         <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
-                          {canAct&&<AcConcForm acId={ac.id} conc={conc} onNote={note=>setAcConc(p=>({...p,[ac.id]:{...conc,note}}))} onAtt={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} onConfirm={()=>concludeAction(ac.id)} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
+                          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>concludeAction(ac.id,note,att)} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
                           {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:canAct?12:0,flexWrap:"wrap"}}>
                             {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
                             {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
