@@ -1160,9 +1160,40 @@ function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
 }
 
 // ================================================================
+// TaskDrawer — slide-in panel for eval/action tasks over RequestDetail
+// ================================================================
+function TaskDrawer({open,onClose,title,subtitle,children,C}){
+  React.useEffect(()=>{
+    if(open){document.body.style.overflow="hidden";}
+    else{document.body.style.overflow="";}
+    return()=>{document.body.style.overflow="";};
+  },[open]);
+  if(!open)return null;
+  return <>
+    {/* Backdrop */}
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000a",zIndex:300,backdropFilter:"blur(2px)"}}/>
+    {/* Drawer */}
+    <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(600px,100vw)",background:"var(--app-bg,#0F1117)",borderLeft:"1px solid var(--border,#2A3050)",zIndex:301,display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px #0008"}}>
+      {/* Header */}
+      <div style={{padding:"18px 24px",borderBottom:"1px solid var(--border,#2A3050)",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{title}</div>
+          {subtitle&&<div style={{fontSize:12,color:C.muted,marginTop:2}}>{subtitle}</div>}
+        </div>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>✕</button>
+      </div>
+      {/* Scrollable content */}
+      <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+        {children}
+      </div>
+    </div>
+  </>;
+}
+
+// ================================================================
 // REQUEST DETAIL v10 — with deadline extension requests
 // ================================================================
-function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab,focusDept,focusAcId}){
+function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab,focusDept,focusAcId,autoOpenDrawer}){
   const {C}=useTheme();const Sg=mkSg(C);
 
   // ── State ────────────────────────────────────────────────────────
@@ -1192,19 +1223,25 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [editAc,setEditAc]=useState(null);
   const [expandedAc,setExpandedAc]=useState(()=>focusAcId?{[focusAcId]:true}:{});
 
-  // Auto-scroll to focused item when coming from dashboard task click
+  // Auto-open drawer when coming from dashboard task click
   React.useEffect(()=>{
-    if(!focusDept&&!focusAcId)return;
-    const id=focusDept?"eval-row-"+focusDept.replace(/[\s\/()&]/g,"-"):focusAcId?"ac-row-"+focusAcId:null;
-    if(!id)return;
-    setTimeout(()=>{
-      const el=document.getElementById(id);
-      if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
-    },300);
+    if(!autoOpenDrawer)return;
+    if(focusDept){
+      setTimeout(()=>openEvalDrawer(focusDept),100);
+    } else if(focusAcId){
+      const ac=(request.actions||[]).find(a=>a.id===focusAcId);
+      if(ac)setTimeout(()=>openAcDrawer(ac),100);
+    }
   },[]);
 
 
   const [evalOpen,setEvalOpen]=useState(()=>focusDept?{[focusDept]:true}:{});
+
+  // ── Task Drawer state ──
+  const [drawer,setDrawer]=useState(null); // {type:'eval'|'action', dept?, ac?}
+  const openEvalDrawer=(dept)=>setDrawer({type:"eval",dept});
+  const openAcDrawer=(ac)=>setDrawer({type:"action",ac});
+  const closeDrawer=()=>setDrawer(null);
   const togEval=(dept)=>{
     const y=window.scrollY;
     setEvalOpen(p=>({...p,[dept]:!p[dept]}));
@@ -1821,28 +1858,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
                       {(done||canAct)
-                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>togEval(dept)}>
-                          {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
+                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>openEvalDrawer(dept)}>
+                          {done?"Ver respostas":draft?"Continuar":"Avaliar"}
                         </button>
                         :<span style={{fontSize:12,color:C.muted}}>—</span>}
                     </Td>
                   </tr>
-                  {isExp&&<tr>
-                    <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
-                      {done&&!isMe&&!isAdmin
-                        ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
-                        :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
-                          allUsers={allUsers} deptQuestions={deptQuestions}
-                          assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]} isAdmin={isAdmin}
-                          onChangeOwner={(d,id)=>{
-                            const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[d]));
-                            const newU=allUsers.find(u=>u.id===id);
-                            const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};
-                            onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
-                          }}
-                          onClose={()=>togEval(dept)} onSaveDraft={saveDraftEval} onSave={saveEval} C={C}/>}
-                    </td>
-                  </tr>}
+
                 </React.Fragment>;
               })}
             </tbody>
@@ -1899,7 +1921,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const isExp=expandedAc[ac.id];
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
-                      <tr id={"ac-row-"+ac.id} style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
+                      <tr id={"ac-row-"+ac.id} style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&openAcDrawer(ac)}>
                         <Td><span style={{fontWeight:700,color:C.accent}}>{ac.id}</span></Td>
                         <Td>{ac.desc}</Td>
                         <Td muted>{resp?resp.name:"—"}</Td>
@@ -1910,24 +1932,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                         <Td muted>{ac.doneAt?fmtD(ac.doneAt.slice(0,10)):"—"}</Td>
                         <Td muted>{ac.doneAtt?ac.doneAtt.name:"—"}</Td>
                       </tr>
-                      {isExp&&<tr>
-                        <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
-                          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>concludeAction(ac.id,note,att)} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
-                          {isAdmin&&<div style={{display:"flex",gap:8,marginTop:canAct?12:0,flexWrap:"wrap"}}>
-                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
-                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
-                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>}
-                            {ac.status==="concluida"&&<button style={{...Sg.btn("warning"),fontSize:12}} onClick={()=>setReopenAc(ac)}>Reabrir</button>}
-                            {!["concluida","cancelada"].includes(ac.status)&&canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>setConfirmRemoveAc(ac)}>Excluir</button>}
-                          </div>}
-                          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:4}}>
-                            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>
-                          </div>}
-                          {isAdmin&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:4}}>
-                            <button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>setRemoveAcExec(ac)}>Remover do plano</button>
-                          </div>}
-                        </td>
-                      </tr>}
+
                     </React.Fragment>;
                   })}
                 </tbody>
@@ -2109,6 +2114,83 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         </div>
       </div>
     </Modal>}
+
+    {/* ══ TASK DRAWER ══ */}
+    {drawer&&(()=>{
+      if(drawer.type==="eval"){
+        const dept=drawer.dept;
+        const ev=request.evaluations&&request.evaluations[dept];
+        const done=!!(ev&&ev.at);
+        const u=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[dept]));
+        const isMe=u&&u.id===currentUser.id;
+        const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(request.status);
+        return <TaskDrawer open={true} onClose={closeDrawer} title={dept} subtitle={(done?"Concluida por "+ev.byName+" em "+fmt(ev.at):"Avaliacao pendente")+(u?" · Responsavel: "+u.name:"")} C={C}>
+          {done&&!isMe&&!isAdmin
+            ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
+            :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
+              allUsers={allUsers} deptQuestions={deptQuestions}
+              assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]}
+              isAdmin={isAdmin}
+              onChangeOwner={(d,id)=>{
+                const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[d]));
+                const newU=allUsers.find(u=>u.id===id);
+                const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};
+                onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
+              }}
+              onClose={closeDrawer}
+              onSaveDraft={(dept,answers,obs,atts)=>{saveDraftEval(dept,answers,obs,atts);closeDrawer();}}
+              onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);closeDrawer();}}
+              C={C}/>}
+        </TaskDrawer>;
+      }
+      if(drawer.type==="action"){
+        const ac=drawer.ac;
+        const resp=allUsers.find(u=>u.id===ac.responsible);
+        const isMine=ac.responsible===currentUser.id;
+        const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+        const ov=isOD(ac.deadline,ac.status);
+        const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
+        return <TaskDrawer open={true} onClose={closeDrawer} title={ac.id+" — "+ac.desc} subtitle={(resp?"Responsavel: "+resp.name+" · ":"")+"Prazo: "+fmtD(ac.deadline)} C={C}>
+          {/* Status + obs */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
+              <span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>{ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}</span>
+            </div>
+            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Prazo</div>
+              <div style={{fontSize:13,fontWeight:600,color:ov&&ac.status!=="concluida"?C.danger:C.text}}>{fmtD(ac.deadline)}</div>
+            </div>
+          </div>
+          {ac.obs&&<div style={{padding:"10px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border,fontSize:13,color:C.muted,marginBottom:16}}>
+            <strong style={{color:C.dim}}>Observacao:</strong> {ac.obs}
+          </div>}
+          {/* Conclusao anterior */}
+          {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Concluida em {fmtD(ac.doneAt&&ac.doneAt.slice(0,10))}</div>
+            <div style={{fontSize:14,color:C.text,lineHeight:1.5}}>{ac.doneNote||"—"}</div>
+            {ac.doneAtt&&<div style={{fontSize:12,color:C.muted,marginTop:6}}>📎 {ac.doneAtt.name}</div>}
+          </div>}
+          {/* Formulario de conclusao */}
+          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
+          {/* Botoes admin */}
+          {isAdmin&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>Alterar prazo</button>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setEditAc(ac);}}>Editar</button>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>
+            {request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>Excluir</button>}
+            {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>Remover do plano</button>}
+          </div>}
+          {isAdmin&&ac.status==="concluida"&&<div style={{marginTop:16}}>
+            <button style={{...Sg.btn("warning"),fontSize:12}} onClick={()=>{closeDrawer();setReopenAc(ac);}}>Reabrir acao</button>
+          </div>}
+          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:isAdmin?8:16}}>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>Pedir extensao de prazo</button>
+          </div>}
+        </TaskDrawer>;
+      }
+      return null;
+    })()}
 
     {/* Reabrir fase */}
     <MotiveModal open={!!reopenPhase} onClose={()=>setReopenPhase(null)}
@@ -3948,7 +4030,7 @@ const loadAll = async () => {
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
-      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId}/>}
+      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
       {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
