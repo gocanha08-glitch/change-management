@@ -1243,10 +1243,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   // ── Task Drawer state ──
   const [drawer,setDrawer]=useState(null); // {type:'eval'|'action'|'plan', dept?, ac?}
+  const [drawerEditing,setDrawerEditing]=useState(false);
+  const [drawerEditVals,setDrawerEditVals]=useState({});
   const openEvalDrawer=(dept)=>setDrawer({type:"eval",dept});
-  const openAcDrawer=(ac)=>setDrawer({type:"action",ac});
+  const openAcDrawer=(ac)=>{setDrawer({type:"action",ac});setDrawerEditing(false);setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});};
   const openPlanDrawer=()=>setDrawer({type:"plan"});
-  const closeDrawer=()=>setDrawer(null);
+  const closeDrawer=()=>{setDrawer(null);setDrawerEditing(false);};
   const togEval=(dept)=>{
     const y=window.scrollY;
     setEvalOpen(p=>({...p,[dept]:!p[dept]}));
@@ -2234,23 +2236,21 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
         const ov=isOD(ac.deadline,ac.status);
         const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
-        const [editing,setEditing]=React.useState(false);
-        const [editVals,setEditVals]=React.useState({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
-        if(editing) return <TaskDrawer open={true} onClose={()=>setEditing(false)} title={"Editar: "+ac.id} C={C}>
+        if(drawerEditing) return <TaskDrawer open={true} onClose={()=>setDrawerEditing(false)} title={"Editar: "+ac.id} C={C}>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <div><label style={Sg.lbl}>Descricao</label><textarea style={{...Sg.input(),minHeight:52,resize:"vertical"}} value={editVals.desc} onChange={e=>setEditVals(v=>({...v,desc:e.target.value}))}/></div>
+            <div><label style={Sg.lbl}>Descricao</label><textarea style={{...Sg.input(),minHeight:52,resize:"vertical"}} value={drawerEditVals.desc||""} onChange={e=>setDrawerEditVals(v=>({...v,desc:e.target.value}))}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div><label style={Sg.lbl}>Responsavel</label><Sel value={editVals.responsible} onChange={v=>setEditVals(ev=>({...ev,responsible:v}))} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} C={C}/></div>
-              <div><label style={Sg.lbl}>Prazo</label><input type="date" style={Sg.input()} value={editVals.deadline} onChange={e=>setEditVals(v=>({...v,deadline:e.target.value}))}/></div>
+              <div><label style={Sg.lbl}>Responsavel</label><Sel value={drawerEditVals.responsible||""} onChange={v=>setDrawerEditVals(ev=>({...ev,responsible:v}))} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} C={C}/></div>
+              <div><label style={Sg.lbl}>Prazo</label><input type="date" style={Sg.input()} value={drawerEditVals.deadline||""} onChange={e=>setDrawerEditVals(v=>({...v,deadline:e.target.value}))}/></div>
             </div>
-            <div><label style={Sg.lbl}>Observacao</label><input style={Sg.input()} value={editVals.obs} onChange={e=>setEditVals(v=>({...v,obs:e.target.value}))}/></div>
+            <div><label style={Sg.lbl}>Observacao</label><input style={Sg.input()} value={drawerEditVals.obs||""} onChange={e=>setDrawerEditVals(v=>({...v,obs:e.target.value}))}/></div>
             <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
-              <button style={Sg.btn()} onClick={()=>setEditing(false)}>Cancelar</button>
-              <button style={{...Sg.btn("primary"),opacity:editVals.desc.trim()?1:.4}} disabled={!editVals.desc.trim()} onClick={()=>{
-                const updated={...ac,...editVals,responsible:parseInt(editVals.responsible)};
-                updAc(ac.id,updated,"Acao editada",ac.id+" | "+editVals.desc);
+              <button style={Sg.btn()} onClick={()=>setDrawerEditing(false)}>Cancelar</button>
+              <button style={{...Sg.btn("primary"),opacity:(drawerEditVals.desc||"").trim()?1:.4}} disabled={!(drawerEditVals.desc||"").trim()} onClick={()=>{
+                const updated={...ac,...drawerEditVals,responsible:parseInt(drawerEditVals.responsible)};
+                updAc(ac.id,updated,"Acao editada",ac.id+" | "+drawerEditVals.desc);
                 setDrawer(d=>({...d,ac:updated}));
-                setEditing(false);
+                setDrawerEditing(false);
               }}>Salvar</button>
             </div>
           </div>
@@ -2281,7 +2281,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           {/* Botoes admin */}
           {isAdmin&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>Alterar prazo</button>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditing(true)}>Editar</button>}
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setDrawerEditing(true)}>Editar</button>
             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>
             {request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>Excluir</button>}
             {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>Remover do plano</button>}
