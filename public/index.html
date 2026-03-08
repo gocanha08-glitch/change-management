@@ -1173,7 +1173,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showAp3,setShowAp3]=useState(false);
   const [ap2DateVal,setAp2DateVal]=useState("");
   const [ap3DateVal,setAp3DateVal]=useState("");
-  const [reopenPhase,setReopenPhase]=useState(null); // {key, label}
+  const [reopenPhase,setReopenPhase]=useState(null);
+  const [confirmRemoveAc,setConfirmRemoveAc]=useState(null);  // ac during plano
+  const [removeAcExec,setRemoveAcExec]=useState(null);        // ac during execucao (SGQ with motive)
+  const [addAcExec,setAddAcExec]=useState(false);             // add action during execucao
+  const [nAcExec,setNAcExec]=useState({desc:"",responsible:"",deadline:"",obs:"",motive:""}); // {key, label}
   const [reopenEval,setReopenEval]=useState(null);   // dept string
   const [reassignEval,setReassignEval]=useState(null); // {dept, currentUserId}
   const [reassignEvalUser,setReassignEvalUser]=useState("");
@@ -1322,6 +1326,31 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
+
+  // ── Excluir acao durante plano ──
+  const doRemoveAcPlano=(ac)=>{
+    const actions=(request.actions||[]).filter(a=>a.id!==ac.id);
+    const r=mkLog({...request,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
+    onUpdate(r);setConfirmRemoveAc(null);
+  };
+
+  // ── Remover acao durante execucao (SGQ, com motivo) ──
+  const doRemoveAcExec=(ac,motive)=>{
+    const actions=(request.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
+    const r=mkLog({...request,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
+    onUpdate(r);setRemoveAcExec(null);
+  };
+
+  // ── Acrescentar acao durante execucao (SGQ, com motivo) ──
+  const doAddAcExec=()=>{
+    const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
+    const respU=allUsers.find(u=>u.id===parseInt(nAcExec.responsible));
+    const newAc={...nAcExec,id,status:"pendente",responsible:parseInt(nAcExec.responsible),createdBy:currentUser.id};
+    delete newAc.motive;
+    const actions=[...(request.actions||[]),newAc];
+    const r=mkLog({...request,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
+    onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
+  };
 
   // ── Reabrir fase ──
   const doReopenPhase=(toPhase,motive)=>{
@@ -1526,7 +1555,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               <span>✓</span> Aprovar avaliacoes — iniciar plano
             </button>
             <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {request.status==="plano"&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
+            {request.status==="plano"&&(isAdmin||request.planResponsible===currentUser.id)&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
             <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.success,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
               onMouseEnter={e=>e.currentTarget.style.background=C.surface}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}
@@ -1841,6 +1870,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
             </div>
             {(isAdmin||request.planResponsible===currentUser.id)&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+            {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
           </div>
           {(request.actions||[]).length===0
             ?<div style={{fontSize:14,color:C.muted}}>Nenhuma acao cadastrada ainda.</div>
@@ -1888,10 +1918,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                             {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
                             {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>}
                             {ac.status==="concluida"&&<button style={{...Sg.btn("warning"),fontSize:12}} onClick={()=>setReopenAc(ac)}>Reabrir</button>}
-                            {!["concluida","cancelada"].includes(ac.status)&&canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao cancelada","ID: "+ac.id+" | "+ac.desc)}>Cancelar</button>}
+                            {!["concluida","cancelada"].includes(ac.status)&&canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>setConfirmRemoveAc(ac)}>Excluir</button>}
                           </div>}
                           {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:4}}>
                             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>
+                          </div>}
+                          {isAdmin&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:4}}>
+                            <button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>setRemoveAcExec(ac)}>Remover do plano</button>
                           </div>}
                         </td>
                       </tr>}
@@ -2031,6 +2064,50 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <div style={{color:C.muted}}>Prazo atual: {fmtD(adminDlTarget.currentDate)}</div>
       </div>
       <ExtReqForm onClose={()=>setAdminDlTarget(null)} onSubmit={applyAdminDl} currentDeadline={adminDlTarget.currentDate} C={C} Sg={Sg} isAdmin/>
+    </Modal>}
+
+    {/* Confirmar exclusao de acao durante plano */}
+    {confirmRemoveAc&&<Modal open={!!confirmRemoveAc} onClose={()=>setConfirmRemoveAc(null)} title="Excluir Acao" width={400}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:6}}>A acao sera excluida permanentemente do plano.</div>
+      <div style={{padding:"10px 14px",background:C.danger+"0D",border:"1px solid "+C.danger+"33",borderRadius:8,marginBottom:16,fontSize:13}}>
+        <strong style={{color:C.text}}>{confirmRemoveAc.id}</strong> — {confirmRemoveAc.desc}
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>setConfirmRemoveAc(null)}>Cancelar</button>
+        <button style={Sg.btn("danger")} onClick={()=>doRemoveAcPlano(confirmRemoveAc)}>Excluir</button>
+      </div>
+    </Modal>}
+
+    {/* Remover acao durante execucao — SGQ com motivo */}
+    <MotiveModal open={!!removeAcExec} onClose={()=>setRemoveAcExec(null)}
+      onConfirm={motive=>doRemoveAcExec(removeAcExec,motive)}
+      title={"Remover Acao — "+(removeAcExec&&removeAcExec.id||"")}
+      confirmLabel="Remover" confirmStyle="danger"
+      description={removeAcExec?"Acao: "+removeAcExec.desc+". A acao sera marcada como cancelada e o motivo ficara registrado no historico.":null}
+      C={C} Sg={Sg}/>
+
+    {/* Acrescentar acao durante execucao */}
+    {addAcExec&&<Modal open={addAcExec} onClose={()=>setAddAcExec(false)} title="Acrescentar Acao ao Plano" width={480}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Descricao *</label>
+          <textarea style={{...Sg.input(),minHeight:52,resize:"vertical"}} value={nAcExec.desc} onChange={e=>setNAcExec(n=>({...n,desc:e.target.value}))}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Responsavel *</label>
+            <Sel value={nAcExec.responsible} onChange={v=>setNAcExec(n=>({...n,responsible:v}))} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Selecione..." C={C}/></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo *</label>
+            <input type="date" style={Sg.input()} value={nAcExec.deadline} min={todayStr()} onChange={e=>setNAcExec(n=>({...n,deadline:e.target.value}))}/></div>
+        </div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Observacao</label>
+          <input style={Sg.input()} value={nAcExec.obs} onChange={e=>setNAcExec(n=>({...n,obs:e.target.value}))}/></div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.warning,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo do Acrescimo *</label>
+          <textarea style={{...Sg.input(),minHeight:52,resize:"vertical",borderColor:C.warning+"66"}} value={nAcExec.motive} onChange={e=>setNAcExec(n=>({...n,motive:e.target.value}))} placeholder="Justifique o acrescimo desta acao ao plano em andamento..."/></div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>setAddAcExec(false)}>Cancelar</button>
+          <button style={{...Sg.btn("primary"),opacity:nAcExec.desc&&nAcExec.responsible&&nAcExec.deadline&&nAcExec.motive.trim()?1:.4}}
+            disabled={!nAcExec.desc||!nAcExec.responsible||!nAcExec.deadline||!nAcExec.motive.trim()}
+            onClick={doAddAcExec}>Acrescentar</button>
+        </div>
+      </div>
     </Modal>}
 
     {/* Reabrir fase */}
