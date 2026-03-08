@@ -1334,131 +1334,117 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   return <div style={{padding:"16px 20px",maxWidth:880,margin:"0 auto"}}>
 
-    {/* ── TOP HEADER — compact like reference ── */}
-    <div style={{marginBottom:12,padding:"14px 16px",background:C.card,borderRadius:8,border:"1px solid "+C.border}}>
-      {/* Back + title row */}
-      <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8}}>
-        <button style={{...Sg.btn(),padding:"3px 9px",fontSize:11,flexShrink:0,marginTop:2}} onClick={onBack}>← Voltar</button>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:3}}>
-            <span style={{fontSize:13,fontWeight:700,color:C.text}}>{request.id}</span>
-            <Badge label={st.label} color={st.color||C.muted}/>
-            {cr&&<Badge label={cr.v+" · "+cr.label} color={cr.color}/>}
-            {request.triage&&request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
-            {request.triage&&request.triage.flagProd&&<Badge label="Impacto Produto" color={C.accent}/>}
-          </div>
-          <div style={{fontSize:11,color:C.muted}}>Abertura: {fmtD(request.createdAt&&request.createdAt.slice(0,10))} · {request.createdByName} · {request.type}</div>
-        </div>
-        <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
+    {/* ══ 1. IDENTIFICAÇÃO (sempre visível, não accordion) ══ */}
+    <div style={{marginBottom:10,padding:"12px 16px",background:C.card,borderRadius:8,border:"1px solid "+C.border}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <button style={{...Sg.btn(),padding:"3px 9px",fontSize:11,flexShrink:0}} onClick={onBack}>← Voltar</button>
+        <span style={{fontSize:14,fontWeight:700,color:C.text,flex:1}}>{request.id}</span>
+        <Badge label={st.label} color={st.color||C.muted}/>
+        {cr&&<Badge label={cr.v+" · "+cr.label} color={cr.color}/>}
+        {request.triage&&request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
+        {request.triage&&request.triage.flagProd&&<Badge label="Impacto Prod." color={C.accent}/>}
+        <div style={{display:"flex",gap:5,flexShrink:0}}>
           {isAdmin&&prevSt&&!["concluida","cancelada","aberta"].includes(request.status)&&
             <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
           {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
             <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
         </div>
       </div>
+      <div style={{fontSize:11,color:C.muted,marginTop:5,paddingLeft:2}}>
+        Abertura: {fmtD(request.createdAt&&request.createdAt.slice(0,10))} · {request.createdByName} · {request.type}
+      </div>
+    </div>
 
-      {/* ── STEPPER ── */}
-      <div style={{display:"flex",alignItems:"center",padding:"10px 0 2px",overflowX:"auto"}}>
+    {/* ══ 2. STEPPER ══ */}
+    <div style={{marginBottom:10,padding:"12px 20px",background:C.card,borderRadius:8,border:"1px solid "+C.border,overflowX:"auto"}}>
+      <div style={{display:"flex",alignItems:"center",minWidth:480}}>
         {[
-          {key:"aberta",l:"Solicitacao\nAberta",done:!!request.ap1At,active:request.status==="aberta"},
-          {key:"avaliacao",l:"Avaliacao\nInicial",done:!!request.ap2At,active:["avaliacao","revisao"].includes(request.status),waiting:request.status==="revisao"},
-          {key:"avaliacoes",l:"Avaliacoes\nde Impacto",done:!!request.ap2At&&doneEv===aa.length,active:["avaliacao","revisao"].includes(request.status)},
-          {key:"plano",l:"Plano de\nAcao",done:!!request.ap3At&&allActsDone,active:request.status==="plano"||request.status==="execucao"},
-          {key:"concluida",l:"Execucao",done:request.status==="concluida",active:request.status==="execucao"},
+          {key:"aberta",   l:"Solicitacao Aberta",   done:!!request.ap1At, active:request.status==="aberta"},
+          {key:"avaliacao",l:"Avaliacao Inicial",    done:!!request.ap2At, active:["avaliacao","revisao"].includes(request.status), waiting:request.status==="revisao"},
+          {key:"avaliacoes",l:"Avaliacoes de Impacto",done:!!request.ap2At&&doneEv===aa.length&&aa.length>0, active:["avaliacao","revisao"].includes(request.status), pend:aa.length>0&&doneEv<aa.length?aa.length-doneEv:0},
+          {key:"plano",    l:"Plano de Acao",        done:!!request.ap3At&&allActsDone, active:["plano","execucao"].includes(request.status)},
+          {key:"concluida",l:"Execucao",              done:request.status==="concluida", active:request.status==="execucao"},
         ].map((s,i,arr)=>{
           const col=s.done?C.success:s.waiting?C.warning:s.active?(REQ_ST[request.status]&&REQ_ST[request.status].color||C.accent):C.border;
           return <React.Fragment key={s.key}>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:70,flex:1}}>
-              <div style={{width:28,height:28,borderRadius:"50%",background:s.done?col:s.active||s.waiting?col+"33":"transparent",border:"2px solid "+col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:s.done?"#fff":col,transition:"all .2s"}}>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,flex:1,minWidth:60}}>
+              <div style={{width:30,height:30,borderRadius:"50%",background:s.done?col:s.active||s.waiting?col+"28":"transparent",border:"2px solid "+col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:s.done?"#fff":col}}>
                 {s.done?"✓":i+1}
               </div>
-              <span style={{fontSize:9,color:s.done?C.success:s.active||s.waiting?col:C.muted,fontWeight:s.active||s.done?700:400,textAlign:"center",lineHeight:1.3,whiteSpace:"pre-line"}}>{s.l}</span>
-              {s.active&&!s.done&&doneEv<aa.length&&i===2&&<span style={{fontSize:9,color:C.warning,background:C.warning+"22",borderRadius:9,padding:"1px 7px",marginTop:1}}>{aa.length-doneEv} pendente{aa.length-doneEv!==1?"s":""}</span>}
+              <span style={{fontSize:9,color:s.done?C.success:s.active||s.waiting?col:C.muted,fontWeight:s.active||s.done?700:400,textAlign:"center",lineHeight:1.35}}>{s.l}</span>
+              {s.pend>0&&<span style={{fontSize:8,color:C.warning,background:C.warning+"22",borderRadius:8,padding:"1px 5px"}}>{s.pend} pend.</span>}
             </div>
-            {i<arr.length-1&&<div style={{flex:1,height:2,background:s.done?C.success:C.border,marginBottom:16,minWidth:12,maxWidth:60}}/>}
+            {i<arr.length-1&&<div style={{flex:1,height:2,background:s.done?C.success:C.border,marginBottom:18,minWidth:10}}/>}
           </React.Fragment>;
         })}
       </div>
     </div>
 
-    {/* ── ACTION BANNERS ── */}
-    {request.status==="revisao"&&isAdmin&&<div style={{padding:"10px 14px",borderRadius:8,background:C.purple+"0D",border:"1px solid "+C.purple+"44",marginBottom:10}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:ap2Date?8:0}}>
-        <div style={{fontSize:13,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar e aprovar avaliacoes</div>
-        <div style={{display:"flex",gap:7}}>
-          <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setOpen(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
-          <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar → Plano</button>
-        </div>
+    {/* ══ 3. ATIVIDADE PENDENTE (banner contextual) ══ */}
+    {request.status==="revisao"&&isAdmin&&<div style={{marginBottom:10,padding:"10px 16px",borderRadius:8,background:C.purple+"0D",border:"1px solid "+C.purple+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:13,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar e aprovar avaliacoes</span>
+      <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center"}}>
+        <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setOpen(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
+        <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar → Plano</button>
       </div>
-      {ap2Date&&<div style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderTop:"1px solid "+C.purple+"33",flexWrap:"wrap"}}>
+      {ap2Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:8,borderTop:"1px solid "+C.purple+"22",flexWrap:"wrap"}}>
         <span style={{fontSize:12,color:C.muted}}>Prazo para o plano:</span>
         <input type="date" style={{...Sg.input(),width:145,fontSize:12}} value={ap2Date} min={todayStr()} onChange={e=>setAp2Date(e.target.value)}/>
         <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setAp2Date(null)}>Cancelar</button>
         <button style={{...Sg.btn("purple"),fontSize:12}} onClick={()=>{ap2(ap2Date);setAp2Date(null);}}>Confirmar</button>
       </div>}
     </div>}
-    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&<div style={{padding:"10px 14px",borderRadius:8,background:C.success+"0D",border:"1px solid "+C.success+"44",marginBottom:10}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:ap3Date?8:0}}>
-        <div style={{fontSize:13,fontWeight:600,color:C.success}}>Aprovacao 3 — Plano com {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""}</div>
-        <button style={Sg.btn("success")} onClick={()=>setAp3Date(addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30))}>Iniciar Execucao</button>
-      </div>
-      {ap3Date&&<div style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderTop:"1px solid "+C.success+"33",flexWrap:"wrap"}}>
+    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&<div style={{marginBottom:10,padding:"10px 16px",borderRadius:8,background:C.success+"0D",border:"1px solid "+C.success+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:13,fontWeight:600,color:C.success}}>Aprovacao 3 — Plano com {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} pronto</span>
+      <button style={Sg.btn("success")} onClick={()=>setAp3Date(addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30))}>Iniciar Execucao</button>
+      {ap3Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:8,borderTop:"1px solid "+C.success+"22",flexWrap:"wrap"}}>
         <span style={{fontSize:12,color:C.muted}}>Prazo de execucao:</span>
         <input type="date" style={{...Sg.input(),width:145,fontSize:12}} value={ap3Date} min={todayStr()} onChange={e=>setAp3Date(e.target.value)}/>
         <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setAp3Date(null)}>Cancelar</button>
         <button style={{...Sg.btn("success"),fontSize:12}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
       </div>}
     </div>}
-    {isAdmin&&pendExt>0&&<div style={{padding:"9px 13px",borderRadius:8,background:C.orange+"0D",border:"1px solid "+C.orange+"44",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+    {isAdmin&&pendExt>0&&<div style={{marginBottom:10,padding:"9px 16px",borderRadius:8,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:13,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} de prazo pendente{pendExt!==1?"s":""}</span>
       <ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
     </div>}
 
-    {/* ════════════════════════════════════════════════════════════════
-        1. SOLICITAÇÃO
-    ════════════════════════════════════════════════════════════════ */}
+    {/* ══ 4. DADOS DA SOLICITAÇÃO (accordion, aberto por padrão) ══ */}
     <SecHeader id="solicitacao" label="Solicitacao da Mudanca" sub={request.type+" · "+request.createdByName}/>
     <SecBody id="solicitacao">
-      <div style={{padding:"14px 16px"}}>
-        {/* Row: ID · Data · Solicitante */}
-        <div style={{display:"flex",gap:16,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{padding:"10px 16px 14px"}}>
+        <div style={{display:"flex",gap:14,alignItems:"center",marginBottom:8,paddingBottom:8,borderBottom:"1px solid "+C.border+"44"}}>
           <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{request.id}</span>
-          <span style={{fontSize:12,color:C.muted}}>Abertura: {fmtD(request.createdAt&&request.createdAt.slice(0,10))}</span>
-          <span style={{fontSize:12,color:C.dim}}>Solicitante: <strong style={{color:C.text}}>{request.createdByName}</strong></span>
+          <span style={{fontSize:11,color:C.muted}}>Abertura: {fmtD(request.createdAt&&request.createdAt.slice(0,10))}</span>
+          <span style={{fontSize:11,color:C.muted}}>Solicitante: <strong style={{color:C.dim}}>{request.createdByName}</strong></span>
         </div>
-        {/* Inline fields */}
-        <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"baseline"}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.dim,minWidth:90,flexShrink:0}}>Titulo:</span>
-            <span style={{fontSize:12,color:C.text}}>{request.title}</span>
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"baseline"}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.dim,minWidth:90,flexShrink:0}}>Tipo:</span>
-            <span style={{fontSize:12,color:C.text}}>{request.type}</span>
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"baseline"}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.dim,minWidth:90,flexShrink:0}}>Descricao:</span>
-            <span style={{fontSize:12,color:C.text,flex:1}}>{request.description}</span>
-          </div>
-          {request.justification&&<div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"baseline"}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.dim,minWidth:90,flexShrink:0}}>Justificativa:</span>
-            <span style={{fontSize:12,color:C.text,flex:1}}>{request.justification}</span>
-          </div>}
-        </div>
-        {/* Attachments */}
-        {(request.attachments||[]).length>0&&<div style={{marginTop:10,borderTop:"1px solid "+C.border,paddingTop:8}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <tbody>
+            {[
+              {l:"Titulo",v:request.title},
+              {l:"Tipo",v:request.type},
+              {l:"Descricao",v:request.description},
+              request.justification&&{l:"Justificativa",v:request.justification},
+            ].filter(Boolean).map((row,i)=>(
+              <tr key={i}>
+                <td style={{fontSize:12,fontWeight:600,color:C.dim,paddingRight:12,paddingBottom:5,whiteSpace:"nowrap",verticalAlign:"top",width:100}}>{row.l}:</td>
+                <td style={{fontSize:12,color:C.text,paddingBottom:5,lineHeight:1.5}}>{row.v}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(request.attachments||[]).length>0&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid "+C.border+"44"}}>
           <AttachmentsPanel attachments={request.attachments||[]} onAdd={att=>addAttachment(att)} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
         </div>}
-        {/* Previous rejections */}
-        {(request.rejections||[]).length>0&&<div style={{marginTop:10,borderTop:"1px solid "+C.border,paddingTop:8}}>
-          <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:5}}>REJEICOES ANTERIORES</div>
-          {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"5px 9px",background:C.danger+"08",borderRadius:5,marginBottom:3,border:"1px solid "+C.danger+"22"}}>
-            <span style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}: </span>
-            <span style={{color:C.muted}}>{r.note}</span>
+        {(request.rejections||[]).length>0&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid "+C.border+"44"}}>
+          <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:4}}>REJEICOES ANTERIORES</div>
+          {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"4px 8px",background:C.danger+"08",borderRadius:4,marginBottom:3,borderLeft:"2px solid "+C.danger+"44"}}>
+            <span style={{color:C.danger,fontWeight:600}}>{r.byName} — {fmt(r.at)}:</span> <span style={{color:C.muted}}>{r.note}</span>
           </div>)}
         </div>}
       </div>
     </SecBody>
+
 
     {/* ════════════════════════════════════════════════════════════════
         2. TRIAGEM / AVALIAÇÃO INICIAL
@@ -1475,41 +1461,29 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             {editTriagem&&<button style={{...Sg.btn(),marginTop:8,fontSize:11}} onClick={()=>setEditTriagem(false)}>Cancelar</button>}</>
             :<div style={{textAlign:"center",color:C.muted,padding:28}}>Aguardando triagem pelo SGQ.</div>}
         </div>
-        :<div>
-          {/* Criticidade + justificativa */}
-          <div style={{display:"flex",gap:12,alignItems:"flex-start",padding:"12px 14px",background:C.surface,borderRadius:8,marginBottom:12,border:"1px solid "+C.border}}>
-            {cr&&<div style={{padding:"10px 14px",borderRadius:8,background:cr.color+"18",border:"2px solid "+cr.color,textAlign:"center",flexShrink:0,minWidth:72}}>
-              <div style={{fontSize:22,fontWeight:800,color:cr.color}}>{cr.v}</div>
-              <div style={{fontSize:10,color:cr.color,fontWeight:600}}>{cr.label}</div>
-            </div>}
-            <div style={{flex:1}}>
-              <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:4}}>JUSTIFICATIVA DA CLASSIFICACAO</div>
-              <div style={{fontSize:13,color:C.text,lineHeight:1.6}}>{request.triage.justification||<span style={{color:C.muted,fontStyle:"italic"}}>Nao informado</span>}</div>
-              <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
-                <span style={{fontSize:10,color:C.muted}}>por {request.ap1ByName} · {fmt(request.ap1At)}</span>
-                {request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
-                {request.triage.flagProd&&<Badge label="Impacto Produto" color={C.accent}/>}
-              </div>
-            </div>
-            {isAdmin&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px",flexShrink:0}} onClick={()=>setEditTriagem(true)}>Editar</button>}
-          </div>
-          {/* Areas */}
-          <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:.5,marginBottom:6}}>{aa.length} AREAS ATRIBUIDAS</div>
-          <div style={{display:"flex",flexDirection:"column",gap:3}}>
-            {aa.map(d=>{
-              const u=getU(request.triage.assignments&&request.triage.assignments[d]);
-              const dl=request.triage.deadlines&&request.triage.deadlines[d];
-              const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
-              const mand=isMandSaved(d);
-              return <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:C.surface,borderRadius:6,border:"1px solid "+C.border+"44",fontSize:11}}>
-                <span style={{fontSize:8,fontWeight:700,padding:"1px 5px",borderRadius:3,color:mand?C.warning:C.accent,background:mand?C.warning+"22":C.accent+"22"}}>{mand?"OBR":"OPC"}</span>
-                <span style={{flex:1,color:C.text,fontWeight:500}}>{d}</span>
-                {u&&<><Av user={u} size={16}/><span style={{color:C.dim,fontSize:11}}>{u.name}</span></>}
-                <span style={{color:C.muted,fontSize:10}}>{fmtD(dl)}</span>
-                {done?<Badge label="Feito" color={C.success}/>:<Badge label="Pend." color={C.muted}/>}
-              </div>;
-            })}
-          </div>
+        :<div style={{padding:"10px 16px 14px"}}>
+          {/* Criticidade + justificativa — sem card, estilo tabela */}
+          <table style={{width:"100%",borderCollapse:"collapse",marginBottom:8}}>
+            <tbody>
+              <tr>
+                <td style={{fontSize:12,fontWeight:600,color:C.dim,paddingRight:12,paddingBottom:6,whiteSpace:"nowrap",verticalAlign:"top",width:110}}>Criticidade:</td>
+                <td style={{paddingBottom:6}}>
+                  {cr&&<span style={{fontSize:12,fontWeight:700,color:cr.color,padding:"1px 8px",borderRadius:4,background:cr.color+"18"}}>{cr.v} — {cr.label}</span>}
+                  {request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning} style={{marginLeft:6}}/>}
+                  {request.triage.flagProd&&<Badge label="Impacto Produto" color={C.accent} style={{marginLeft:6}}/>}
+                </td>
+              </tr>
+              <tr>
+                <td style={{fontSize:12,fontWeight:600,color:C.dim,paddingRight:12,paddingBottom:6,verticalAlign:"top"}}>Justificativa:</td>
+                <td style={{fontSize:12,color:C.text,lineHeight:1.6,paddingBottom:6}}>{request.triage.justification||<span style={{color:C.muted,fontStyle:"italic"}}>Nao informado</span>}</td>
+              </tr>
+              <tr>
+                <td style={{fontSize:12,fontWeight:600,color:C.dim,paddingRight:12,paddingBottom:6,verticalAlign:"top"}}>Avaliado por:</td>
+                <td style={{fontSize:12,color:C.muted,paddingBottom:6}}>{request.ap1ByName} · {fmt(request.ap1At)}</td>
+              </tr>
+            </tbody>
+          </table>
+          {isAdmin&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>setEditTriagem(true)}>Editar Triagem</button>}
         </div>}
     </SecBody>
 
@@ -1520,8 +1494,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       {request.ap2At&&<span style={{fontSize:10,color:C.success,fontWeight:700,marginRight:8}}>✓ Aprovado</span>}
     </SecHeader>
     <SecBody id="avaliacoes">
-      {!request.triage?<div style={{textAlign:"center",color:C.muted,padding:20}}>Aguardando triagem.</div>:<>
-        {aa.map(dept=>{
+      {!request.triage?<div style={{textAlign:"center",color:C.muted,padding:20,fontSize:12}}>Aguardando triagem.</div>:<div style={{paddingTop:4,paddingBottom:8}}>
+        {aa.map((dept,di)=>{
           const ev=request.evaluations&&request.evaluations[dept];
           const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
           const u=getU(request.triage&&request.triage.assignments&&request.triage.assignments[dept]);
@@ -1530,19 +1504,24 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(request.status);
           const isExpanded=evalOpen===dept;
           const stColor=done?C.success:draft?C.accent:C.muted;
-          return <div key={dept} style={{borderRadius:8,border:"1px solid "+(isExpanded?C.accent+"55":C.border),marginBottom:6,overflow:"hidden"}}>
-            {/* Area header */}
-            <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 13px",background:isExpanded?C.accent+"06":C.surface}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:stColor,flexShrink:0}}/>
-              <span style={{flex:1,fontSize:13,fontWeight:600,color:C.text}}>{dept}</span>
-              {u&&<><Av user={u} size={18}/><span style={{fontSize:11,color:C.dim}}>{u.name}</span></>}
-              <span style={{fontSize:11,color:C.muted}}>{fmtD(dl)}</span>
+          const mand=isMandSaved(dept);
+          return <div key={dept}>
+            {di>0&&<div style={{height:1,background:C.border+"44",margin:"0 16px"}}/>}
+            {/* Area row — no card border, just a line between rows */}
+            <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 16px",background:isExpanded?C.accent+"06":"transparent",cursor:"pointer"}} onClick={()=>(done||canAct)&&setEvalOpen(isExpanded?null:dept)}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:stColor,flexShrink:0}}/>
+              <span style={{fontSize:12,fontWeight:600,color:C.text,flex:1}}>{dept}</span>
+              <span style={{fontSize:9,color:mand?C.warning:C.dim,background:mand?C.warning+"15":C.border+"44",padding:"1px 5px",borderRadius:3,flexShrink:0}}>{mand?"Obrig.":"Opcion."}</span>
+              {u&&<span style={{fontSize:11,color:C.dim,flexShrink:0}}>{u.name}</span>}
+              <span style={{fontSize:11,color:C.muted,flexShrink:0}}>{fmtD(dl)}</span>
               <Badge label={done?"Concluida":draft?"Rascunho":"Pendente"} color={stColor}/>
-              {done&&<button style={{...Sg.btn(),fontSize:10,padding:"2px 8px"}} onClick={()=>setEvalOpen(isExpanded?null:dept)}>{isExpanded?"Fechar":"Ver"}</button>}
-              {canAct&&!done&&<button style={{...Sg.btn("primary"),fontSize:10,padding:"2px 8px"}} onClick={()=>setEvalOpen(isExpanded?null:dept)}>{isExpanded?"Fechar":draft?"Continuar":"Avaliar"}</button>}
+              {canAct&&!done&&<button style={{...Sg.btn("primary"),fontSize:10,padding:"2px 8px"}} onClick={e=>{e.stopPropagation();setEvalOpen(isExpanded?null:dept);}}>
+                {isExpanded?"Fechar":draft?"Continuar":"Avaliar"}
+              </button>}
+              {done&&<span style={{fontSize:10,color:C.muted,flexShrink:0}}>{isExpanded?"▲":"▼"}</span>}
             </div>
-            {/* Expanded: show results or eval form */}
-            {isExpanded&&<div style={{borderTop:"1px solid "+C.border+"44",padding:"12px 14px"}}>
+            {/* Expanded eval form/results */}
+            {isExpanded&&<div style={{padding:"12px 16px",borderTop:"1px solid "+C.border+"33",background:C.surface+"88"}}>
               {done&&!isMe&&!isAdmin
                 ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
                 :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
@@ -1553,7 +1532,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </div>}
           </div>;
         })}
-      </>}
+      </div>}
     </SecBody>
 
     {/* ════════════════════════════════════════════════════════════════
@@ -3505,7 +3484,7 @@ const loadAll = async () => {
 
 const isReset = window.location.pathname === '/reset';
 ReactDOM.createRoot(document.getElementById('root')).render(
-  isReset ? <ThemeProvider><ResetPassword/></ThemeProvider> : <App/>
+  isReset ? <ThemeProvider><ResetPassword/></ThemeProvider> : <ThemeProvider><App/></ThemeProvider>
 );
   
 </script>
