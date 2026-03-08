@@ -1225,6 +1225,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   // Auto-open drawer when coming from dashboard task click
   React.useEffect(()=>{
+    if(initialTab==="plano"){
+      setTimeout(()=>openPlanDrawer(),100);
+      return;
+    }
     if(!autoOpenDrawer)return;
     if(focusDept){
       setTimeout(()=>openEvalDrawer(focusDept),100);
@@ -1238,9 +1242,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [evalOpen,setEvalOpen]=useState(()=>focusDept?{[focusDept]:true}:{});
 
   // ── Task Drawer state ──
-  const [drawer,setDrawer]=useState(null); // {type:'eval'|'action', dept?, ac?}
+  const [drawer,setDrawer]=useState(null); // {type:'eval'|'action'|'plan', dept?, ac?}
   const openEvalDrawer=(dept)=>setDrawer({type:"eval",dept});
   const openAcDrawer=(ac)=>setDrawer({type:"action",ac});
+  const openPlanDrawer=()=>setDrawer({type:"plan"});
   const closeDrawer=()=>setDrawer(null);
   const togEval=(dept)=>{
     const y=window.scrollY;
@@ -1884,20 +1889,31 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         if(inPlano&&!canSeePlano)
           return <div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>O plano esta sendo montado. Voce tera acesso apos a liberacao para execucao.</div>;
         return <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
-            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-              <div>
-                <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
-                <div style={{fontSize:13,fontWeight:600,color:request.planResponsibleName?C.text:C.muted}}>{request.planResponsibleName||"Nao definido — somente SGQ pode adicionar acoes"}</div>
+          <div style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:canPlan&&request.status==="plano"?12:0}}>
+              <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
+                  <div style={{fontSize:13,fontWeight:600,color:request.planResponsibleName?C.text:C.muted}}>{request.planResponsibleName||"Nao definido"}</div>
+                </div>
+                {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
+                  const u=allUsers.find(x=>x.id===parseInt(v));
+                  const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
+                  onUpdate(r);
+                }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
               </div>
-              {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
-                const u=allUsers.find(x=>x.id===parseInt(v));
-                const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
-                onUpdate(r);
-              }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
+              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+                {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
+              </div>
             </div>
-            {(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
-            {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
+            {canPlan&&request.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>{(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} adicionada{(request.actions||[]).length!==1?"s":""}. Quando o plano estiver pronto, libere para execucao.</div>
+              </div>
+              <button style={{...Sg.btn("success"),fontSize:13,padding:"8px 18px"}} onClick={()=>setShowAp3(true)}>▶ Liberar para Execucao</button>
+            </div>}
           </div>
           {(request.actions||[]).length===0
             ?<div style={{fontSize:14,color:C.muted}}>Nenhuma acao cadastrada ainda.</div>
@@ -2149,6 +2165,68 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               C={C}/>}
         </TaskDrawer>;
       }
+      if(drawer.type==="plan"){
+        const acts=request.actions||[];
+        const actsVisible=request.status==="execucao"?acts:acts; // all during plano
+        return <TaskDrawer open={true} onClose={closeDrawer}
+          title="Plano de Acao"
+          subtitle={(acts.length+" acao"+(acts.length!==1?"es":""))+" · "+(request.status==="plano"?"Em montagem":"Em execucao")}
+          C={C}>
+          {/* Banner liberar */}
+          {canPlan&&request.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:2}}>{acts.length} acao{acts.length!==1?"es":""} adicionada{acts.length!==1?"s":""}.</div>
+            </div>
+            <button style={{...Sg.btn("success"),fontSize:13}} onClick={()=>{closeDrawer();setShowAp3(true);}}>▶ Liberar para Execucao</button>
+          </div>}
+          {/* Responsavel + add */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
+            <div style={{fontSize:13,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong></div>
+            <div style={{display:"flex",gap:8}}>
+              {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
+                const u=allUsers.find(x=>x.id===parseInt(v));
+                const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
+                onUpdate(r);
+              }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
+              {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+              {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
+            </div>
+          </div>
+          {/* Lista de acoes */}
+          {acts.length===0
+            ?<div style={{fontSize:14,color:C.muted,padding:"20px 0",textAlign:"center"}}>Nenhuma acao adicionada ainda.</div>
+            :<div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {acts.map(ac=>{
+                const resp=allUsers.find(u=>u.id===parseInt(ac.responsible));
+                const ov=isOD(ac.deadline,ac.status);
+                const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
+                return <div key={ac.id} style={{border:"1px solid "+C.border,borderRadius:10,padding:"12px 16px",background:C.card,cursor:"pointer"}}
+                  onClick={()=>setDrawer({type:"action",ac})}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{ac.id}</span>
+                      <span style={{fontSize:13,color:C.text,fontWeight:500}}>{ac.desc}</span>
+                    </div>
+                    <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:999,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44",flexShrink:0}}>
+                      {ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}
+                    </span>
+                  </div>
+                  <div style={{display:"flex",gap:16,fontSize:12,color:C.muted}}>
+                    <span>👤 {resp?resp.name:"—"}</span>
+                    <span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted}}>📅 {fmtD(ac.deadline)}</span>
+                    {ac.obs&&<span>📝 {ac.obs.slice(0,40)}{ac.obs.length>40?"...":""}</span>}
+                  </div>
+                  {canPlan&&request.status==="plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
+                    <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setEditAc(ac)}>Editar</button>
+                    <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>setConfirmRemoveAc(ac)}>Excluir</button>
+                  </div>}
+                </div>;
+              })}
+            </div>}
+        </TaskDrawer>;
+      }
+
       if(drawer.type==="action"){
         const ac=drawer.ac;
         const resp=allUsers.find(u=>u.id===ac.responsible);
