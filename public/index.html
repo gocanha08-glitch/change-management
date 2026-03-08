@@ -1036,53 +1036,55 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
   const naoCount=(ev.answers||[]).filter(a=>a.a==="N").length;
   const naCount=(ev.answers||[]).filter(a=>a.a==="N/A").length;
   return <div>
-    {/* Header cards: area, responsavel, data conclusao */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
-      <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Area</div>
-        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{dept}</div>
-      </div>
+    {/* 4 FieldCards: responsavel planejado, concluido por, data conclusao, resumo */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
       <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Responsavel</div>
-        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{u?u.name:ev.byName||"—"}</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{u?u.name:"—"}</div>
+      </div>
+      <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Concluido por</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{ev.byName||"—"}</div>
       </div>
       <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
         <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Data de Conclusao</div>
         <div style={{fontSize:13,fontWeight:600,color:C.text}}>{fmt(ev.at)}</div>
       </div>
+      <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Respostas</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {simCount>0&&<span style={{fontSize:12,fontWeight:700,color:C.warning}}>{simCount} Sim</span>}
+          {naoCount>0&&<span style={{fontSize:12,fontWeight:700,color:C.danger}}>{naoCount} Nao</span>}
+          {naCount>0&&<span style={{fontSize:12,fontWeight:700,color:C.muted}}>{naCount} N/A</span>}
+        </div>
+      </div>
     </div>
-    {/* Resumo de respostas */}
-    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      {simCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.warning+"18",color:C.warning,border:"1px solid "+C.warning+"33"}}>{simCount} Sim</span>}
-      {naoCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.danger+"18",color:C.danger,border:"1px solid "+C.danger+"33"}}>{naoCount} Nao</span>}
-      {naCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.muted+"18",color:C.muted,border:"1px solid "+C.muted+"33"}}>{naCount} N/A</span>}
-    </div>
-    {/* Tabela de perguntas: Pergunta / Resposta / Observacao */}
+    {/* Tabela: Pergunta / Sim/Nao/NA / Observacao */}
     <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden",marginBottom:ev.obs||isAdmin?12:0}}>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
         <thead>
           <tr>
             <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",letterSpacing:.4}}>Pergunta</th>
-            <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",width:90,letterSpacing:.4}}>Resposta</th>
+            <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",width:80,letterSpacing:.4,whiteSpace:"nowrap"}}>Sim / Nao / NA</th>
             <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",letterSpacing:.4}}>Observacao / Justificativa</th>
           </tr>
         </thead>
         <tbody>
           {(ev.answers||[]).map((a,ai)=>{
-            const obs=(a.just&&a.just.trim()?a.just:"")+(a.obs&&a.obs.trim()?(a.just?" — ":"")+a.obs:"");
+            const obs=[a.just&&a.just.trim()?a.just:"",a.obs&&a.obs.trim()?a.obs:""].filter(Boolean).join(" — ");
             return <tr key={ai} style={{background:ai%2!==0?C.surface+"55":"transparent"}}>
-              <td style={{padding:"10px 14px",fontSize:13,color:C.text,lineHeight:1.5,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top"}}>{a.q}</td>
-              <td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:a.a==="S"?C.warning:a.a==="N"?C.danger:C.muted,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top",whiteSpace:"nowrap"}}>
+              <td style={{padding:"10px 14px",fontSize:13,color:C.text,lineHeight:1.5,borderBottom:"1px solid "+C.border+"33",verticalAlign:"top"}}>{a.q}</td>
+              <td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:a.a==="S"?C.warning:a.a==="N"?C.danger:C.muted,borderBottom:"1px solid "+C.border+"33",verticalAlign:"top",whiteSpace:"nowrap"}}>
                 {a.a==="S"?"Sim":a.a==="N"?"Nao":"N/A"}
               </td>
-              <td style={{padding:"10px 14px",fontSize:13,color:C.muted,lineHeight:1.5,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top"}}>{obs||"—"}</td>
+              <td style={{padding:"10px 14px",fontSize:13,color:C.muted,lineHeight:1.5,borderBottom:"1px solid "+C.border+"33",verticalAlign:"top"}}>{obs||"—"}</td>
             </tr>;
           })}
         </tbody>
       </table>
     </div>
     {ev.obs&&<div style={{padding:"10px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border,fontSize:13,color:C.muted,marginBottom:isAdmin?10:0}}>
-      <strong style={{color:C.dim}}>Observacoes gerais:</strong> {ev.obs}
+      <strong style={{color:C.dim}}>Obs gerais:</strong> {ev.obs}
     </div>}
     {isAdmin&&<div style={{marginTop:8}}>
       <button style={{...Sg.btn(),fontSize:12,padding:"4px 12px"}} onClick={onEdit}>Editar avaliacao</button>
@@ -1304,11 +1306,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ HEADER BAR ══ */}
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
       <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
-      <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>{request.id}</span>
-      <Badge label={st.label} color={st.color||C.muted}/>
-      {cr&&<Badge label={cr.v+" · "+cr.label} color={cr.color}/>}
-      {request.triage&&request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
-      {request.triage&&request.triage.flagProd&&<Badge label="Impacto Prod." color={C.accent}/>}
+      <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>Change Management</span>
       {isAdmin&&prevSt&&!["concluida","cancelada","aberta"].includes(request.status)&&
         <button style={{...Sg.btn(),fontSize:12,padding:"4px 10px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
       {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
@@ -1337,13 +1335,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </div>;
         })}
       </div>
-      {/* Summary badges */}
-      {(doneEv>0||aa.length-doneEv>0||(request.actions||[]).some(a=>isOD(a.deadline,a.status)))&&
-        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:18,justifyContent:"center"}}>
-          {aa.length-doneEv>0&&<Pill label={(aa.length-doneEv)+" avaliacao"+(aa.length-doneEv!==1?"es":"")+" pendente"+(aa.length-doneEv!==1?"s":"")} color={C.warning}/>}
-          {doneEv>0&&<Pill label={doneEv+" avaliacao"+(doneEv!==1?"es":"")+" concluida"+(doneEv!==1?"s":"")} color={C.success}/>}
-          {(request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length>0&&<Pill label={(request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length+" acao"+(((request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length)!==1?"es":"")+" em atraso"} color={C.danger}/>}
-        </div>}
+
     </div>
 
     {/* ══ BANNERS CONTEXTUAIS ══ */}
@@ -1587,8 +1579,22 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                       {isExp&&<tr>
                         <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
                           {/* Detalhes sempre visíveis */}
-                          {/* Anexos da acao — unico conteudo extra nao visivel na tabela */}
-                          <AttachmentsPanel attachments={(request.attachments||[]).filter(a=>a.stage&&a.stage.includes(ac.id))} onAdd={att=>upd({attachments:[...(request.attachments||[]),{...att,stage:"acao-"+ac.id}]},"anexo","Anexo da acao","ID: "+ac.id)} readOnly={!canAct&&!isAdmin} stage={request.status} currentUser={currentUser} C={C}/>
+                          {/* Se pendente e pode agir: formulario de conclusao */}
+                          {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
+                            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
+                            <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado..."/>
+                            <AttachmentsPanel attachments={conc.att?[conc.att]:[]} onAdd={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+                            <button style={{...Sg.btn("success"),marginTop:10,opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
+                          </div>}
+                          {/* Acoes admin/responsavel */}
+                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:canAct?10:0,flexWrap:"wrap"}}>
+                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
+                            {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
+                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
+                            {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
+                          </div>}
+                          {/* Se nao tem nada para mostrar */}
+                          {!canAct&&!((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status))&&<div style={{fontSize:13,color:C.muted}}>Nenhuma acao disponivel.</div>}
                           {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px",marginBottom:10}}>
                             <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
                             <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado e a evidencia..."/>
@@ -1597,12 +1603,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                             </div>
                             <button style={{...Sg.btn("success"),opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
                           </div>}
-                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
-                            {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
-                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
-                            {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
-                          </div>}
+
                         </td>
                       </tr>}
                     </React.Fragment>;
