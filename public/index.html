@@ -1091,18 +1091,7 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab}){
   const {C}=useTheme();const Sg=mkSg(C);
 
-  const getDefaultOpen=()=>{
-    const o={solicitacao:true,triagem:false,avaliacoes:false,plano:false,conclusao:false,documentos:false,historico:false};
-    if(initialTab==="avaliacao")o.avaliacoes=true;
-    else if(initialTab==="acoes")o.plano=true;
-    else if(request.status==="aberta")o.triagem=true;
-    else if(["avaliacao","revisao"].includes(request.status))o.avaliacoes=true;
-    else if(["plano","execucao"].includes(request.status))o.plano=true;
-    else if(request.status==="concluida")o.conclusao=true;
-    return o;
-  };
-  const [open,setOpen]=useState(getDefaultOpen);
-  const tog=(id)=>setOpen(o=>({...o,[id]:!o[id]}));
+  // ── State ────────────────────────────────────────────────────────
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
   const [extTarget,setExtTarget]=useState(null);
@@ -1114,11 +1103,18 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
   const [editAc,setEditAc]=useState(null);
   const [expandedAc,setExpandedAc]=useState({});
-  const toggleAc=(id)=>setExpandedAc(p=>({...p,[id]:!p[id]}));
   const [acConc,setAcConc]=useState({});
-  const [verifyNote,setVerifyNote]=useState((request.verifyNote)||"");
+  const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
   const [evalOpen,setEvalOpen]=useState(null);
+  const [openSec,setOpenSec]=useState(()=>{
+    const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
+    if(initialTab==="avaliacao")o.avaliacoes=true;
+    else if(initialTab==="acoes")o.plano=true;
+    return o;
+  });
+  const togSec=id=>setOpenSec(o=>({...o,[id]:!o[id]}));
 
+  // ── Derived ──────────────────────────────────────────────────────
   const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
   const cr=crits.find(c=>c.v===(request.triage&&request.triage.criticality));
   const st=REQ_ST[request.status]||{};
@@ -1129,6 +1125,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const pendExt=(request.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
   const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
   const allActsDone=(request.actions||[]).length>0&&(request.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
+  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[request.status]||0;
+
   const isMandSaved=dept=>{
     const cell=(matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][request.triage&&request.triage.criticality])||"";
     if(cell==="mandatory")return true;
@@ -1137,14 +1135,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     return false;
   };
 
+  // ── Actions ──────────────────────────────────────────────────────
   const upd=(patch,type,ev,detail)=>{let r={...request,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);onUpdate(r);};
+
   const saveTriage=triage=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const newSD={...(request.stageDeadlines||{}),avaliacao:addDays(todayStr(),pd.avaliacao.days)};
     let r={...request,triage,status:"avaliacao",evaluations:{},ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
     r=mkLog(r,currentUser.name,"triagem","Triagem aprovada","Criticidade: "+triage.criticality+" | "+triage.assignedAreas.length+" areas");
-    onUpdate(r);setEditTriagem(false);setOpen(o=>({...o,avaliacoes:true,triagem:false}));
+    onUpdate(r);setEditTriagem(false);
   };
+
   const saveEval=(dept,answers,obs,atts)=>{
     const evs={...request.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
     const allDone=aa.every(d=>evs[d]&&evs[d].at);
@@ -1153,54 +1154,64 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2");
     onUpdate(r);setEvalOpen(null);
   };
+
   const saveDraftEval=(dept,answers,obs,atts)=>{
     const evs={...(request.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
     onUpdate(mkLog({...request,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
     setEvalOpen(null);
   };
-  const ap2=(customDate)=>{
+
+  const ap2=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const planDl=customDate||addDays(todayStr(),pd.plano.days);
     upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,plano:planDl}},"aprovacao","Avaliacoes aprovadas — Plano iniciado","Prazo: "+fmtD(planDl));
   };
-  const ap3=(customDate)=>{
+
+  const ap3=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const execDl=customDate||addDays(todayStr(),pd.execucao.days);
     upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,execucao:execDl}},"aprovacao","Plano aprovado — Execucao iniciada","Prazo: "+fmtD(execDl));
   };
+
   const addAction=()=>{
     const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
     upd({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao adicionada","Desc: "+nAc.desc);
     setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
   };
+
   const updAc=(aid,ch,ev,detail)=>{
     const actions=(request.actions||[]).map(a=>a.id===aid?{...a,...ch}:a);
     let r={...request,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
   };
-  const concludeAction=(acId)=>{
+
+  const concludeAction=acId=>{
     const c=acConc[acId]||{};if(!c.note||!c.note.trim())return;
     const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:c.note};
     let newAtts=request.attachments||[];
     if(c.att)newAtts=[...newAtts,{...c.att,stage:"conclusao-"+acId}];
     const actions=(request.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
-    const allDone=actions.length>0&&actions.every(a=>["concluida","cancelada"].includes(a.status));
+    const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
     let r={...request,actions,attachments:newAtts};
-    r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+c.note);
+    r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId);
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguarda verificacao");
     onUpdate(r);setAcConc(p=>({...p,[acId]:{}}));setExpandedAc(p=>({...p,[acId]:false}));
   };
+
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
+
   const concludeSA=()=>{
     if(!verifyNote.trim())return;
     let r={...request,status:"concluida",closedAt:new Date().toISOString(),verifyNote,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
     r=mkLog(r,currentUser.name,"conclusao","SA concluida e verificada",verifyNote);onUpdate(r);
   };
+
   const rejeitar=()=>{
     let r={...request,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
       rejections:[...(request.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:request.status}]};
     r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada","Motivo: "+rejectNote);
     onUpdate(r);setReject(false);setRN("");onBack();
   };
+
   const regredir=()=>{
     const prev={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
     if(!prev)return;
@@ -1208,6 +1219,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     r=mkLog(r,currentUser.name,"retorno","Retorno a fase anterior","De: "+st.label+" Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" Motivo: "+regressNote);
     onUpdate(r);setRegress(false);setGN("");
   };
+
   const requestExtension=(newDate,reason)=>{
     if(!extTarget)return;
     const ext={id:"EXT-"+Date.now(),targetType:extTarget.type,targetKey:extTarget.key,targetLabel:extTarget.label,currentDate:extTarget.currentDate,newDate,reason,status:"pending",requestedBy:currentUser.id,requestedByName:currentUser.name,requestedAt:new Date().toISOString()};
@@ -1215,7 +1227,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     r=mkLog(r,currentUser.name,"extensao","Extensao solicitada",extTarget.label+" | Novo: "+fmtD(newDate));
     onUpdate(r);setExtTarget(null);
   };
-  const applyAdminDl=(newDate,reason)=>{
+
+  const applyAdminDl=(newDate)=>{
     if(!adminDlTarget)return;
     let r={...request};
     if(adminDlTarget.type==="eval"){const dl={...request.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
@@ -1223,6 +1236,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" -> "+fmtD(newDate));
     onUpdate(r);setAdminDlTarget(null);
   };
+
   const decideExt=(ext,approved,note)=>{
     const exts=(request.deadlineExtensions||[]).map(e=>{
       if(e.id!==ext.id)return e;
@@ -1238,27 +1252,35 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
 
   // ── Style atoms ──────────────────────────────────────────────────
-  const Pill=({label,color})=><span style={{display:"inline-flex",alignItems:"center",padding:"2px 9px",borderRadius:999,fontSize:11,fontWeight:700,background:color+"18",color,border:"1px solid "+color+"33",whiteSpace:"nowrap"}}>{label}</span>;
 
-  const Sec=({id,icon,title,sub,children})=>{
-    const isOpen=open[id];
-    return <div style={{marginBottom:10,borderRadius:9,border:"1px solid "+C.border,overflow:"hidden"}}>
-      <div onClick={()=>tog(id)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",background:C.card,cursor:"pointer",userSelect:"none"}}>
-        <span style={{fontSize:13}}>{icon}</span>
-        <span style={{fontSize:13,fontWeight:700,color:C.text,flex:1}}>{title}</span>
-        {sub&&<span style={{fontSize:11,color:C.muted}}>{sub}</span>}
-        <span style={{fontSize:11,color:C.muted,transition:"transform .15s",display:"inline-block",transform:isOpen?"rotate(180deg)":"none"}}>▾</span>
+  // Field card: like reference HTML .field
+  const FieldCard=({label,value,wide,children})=><div style={{
+    border:"1px solid "+C.border,borderRadius:12,padding:"12px 16px",
+    background:C.card,minHeight:wide?undefined:72
+  }}>
+    <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6,marginBottom:6}}>{label}</div>
+    {value!==undefined&&<div style={{fontSize:15,fontWeight:600,color:C.text,lineHeight:1.35}}>{value}</div>}
+    {children}
+  </div>;
+
+  // Section card: like reference HTML .card.section
+  const SecCard=({id,title,children})=>{
+    const isOpen=openSec[id];
+    return <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,marginBottom:18,overflow:"hidden",boxShadow:"0 2px 12px "+C.border+"66"}}>
+      <div onClick={()=>togSec(id)} style={{padding:"18px 24px",borderBottom:isOpen?"1px solid "+C.border:"none",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",userSelect:"none"}}>
+        <span style={{fontSize:17,fontWeight:700,color:C.text}}>{title}</span>
+        <span style={{color:C.muted,fontSize:13,transition:"transform .15s",display:"inline-block",transform:isOpen?"rotate(180deg)":"none"}}>▾</span>
       </div>
-      {isOpen&&<div style={{borderTop:"1px solid "+C.border,background:C.surface}}>{children}</div>}
+      {isOpen&&<div style={{padding:"20px 24px"}}>{children}</div>}
     </div>;
   };
 
-  const Th=({children,w})=><th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",whiteSpace:"nowrap",width:w,letterSpacing:.4}}>{children}</th>;
-  const Td=({children,colSpan,muted,nopad,style:sx})=><td colSpan={colSpan} style={{padding:nopad?"0":"9px 14px",borderBottom:"1px solid "+C.border+"55",fontSize:12,color:muted?C.muted:C.text,verticalAlign:"top",lineHeight:1.5,...sx}}>{children}</td>;
-  const InfoRow=({label,value,w=110})=><div style={{display:"flex",gap:10,marginBottom:4,alignItems:"baseline"}}>
-    <span style={{fontSize:11,fontWeight:700,color:C.muted,minWidth:w,flexShrink:0,letterSpacing:.3}}>{label}</span>
-    <span style={{fontSize:12,color:C.text,lineHeight:1.5}}>{value}</span>
-  </div>;
+  // Pill badge
+  const Pill=({label,color})=><span style={{display:"inline-flex",padding:"5px 12px",borderRadius:999,fontSize:12,fontWeight:700,background:color+"1A",color,border:"1px solid "+color+"44",whiteSpace:"nowrap"}}>{label}</span>;
+
+  // Table th/td
+  const Th=({children,w})=><th style={{padding:"12px 16px",background:C.surface,borderBottom:"1px solid "+C.border,fontSize:12,fontWeight:700,color:C.muted,textAlign:"left",whiteSpace:"nowrap",width:w}}>{children}</th>;
+  const Td=({children,colSpan,muted,style:sx})=><td colSpan={colSpan} style={{padding:"12px 16px",borderBottom:"1px solid "+C.border+"55",fontSize:13,color:muted?C.muted:C.text,verticalAlign:"top",lineHeight:1.5,...sx}}>{children}</td>;
 
   const allAtts=[
     ...(request.attachments||[]).map(a=>({...a,_src:"Solicitacao",_by:request.createdByName})),
@@ -1266,31 +1288,27 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     ...(request.actions||[]).filter(a=>a.doneAtt).map(a=>({...a.doneAtt,_src:"Acao "+a.id,_by:a.responsible})),
   ];
 
-  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[request.status]||0;
+  return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
 
-  return <div style={{padding:"16px 20px",maxWidth:920,margin:"0 auto"}}>
-
-    {/* ══ HEADER ══ */}
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-      <button style={{...Sg.btn(),padding:"3px 9px",fontSize:11}} onClick={onBack}>← Voltar</button>
-      <span style={{fontSize:14,fontWeight:700,color:C.text}}>{request.id}</span>
+    {/* ══ HEADER BAR ══ */}
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
+      <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>{request.id}</span>
       <Badge label={st.label} color={st.color||C.muted}/>
       {cr&&<Badge label={cr.v+" · "+cr.label} color={cr.color}/>}
       {request.triage&&request.triage.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
       {request.triage&&request.triage.flagProd&&<Badge label="Impacto Prod." color={C.accent}/>}
-      <span style={{fontSize:11,color:C.muted,flex:1,minWidth:100}}>
-        {fmtD(request.createdAt&&request.createdAt.slice(0,10))} · {request.createdByName} · {request.type}
-      </span>
       {isAdmin&&prevSt&&!["concluida","cancelada","aberta"].includes(request.status)&&
-        <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
+        <button style={{...Sg.btn(),fontSize:12,padding:"4px 10px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
       {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
-        <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
+        <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
     </div>
 
-    {/* ══ STEPPER ══ */}
-    <div style={{marginBottom:10,padding:"16px 28px 14px",background:C.card,borderRadius:9,border:"1px solid "+C.border,overflowX:"auto"}}>
-      <div style={{display:"flex",alignItems:"flex-start",minWidth:460,position:"relative"}}>
-        <div style={{position:"absolute",top:15,left:"4%",right:"4%",height:3,background:C.border,borderRadius:3,zIndex:0}}/>
+    {/* ══ STEPPER CARD ══ */}
+    <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:"24px 32px 20px",marginBottom:18,boxShadow:"0 2px 12px "+C.border+"66",overflowX:"auto"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,position:"relative",minWidth:440}}>
+        {/* background line */}
+        <div style={{position:"absolute",top:16,left:"10%",right:"10%",height:4,background:C.border,borderRadius:4,zIndex:0}}/>
         {[
           {l:"Solicitacao Aberta",   done:statusIdx>=1, active:statusIdx===0},
           {l:"Avaliacao Inicial",    done:statusIdx>=3, active:statusIdx===1||statusIdx===2, waiting:statusIdx===2},
@@ -1299,124 +1317,165 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           {l:"Conclusao",            done:statusIdx===5, active:statusIdx===4||allActsDone},
         ].map((s,i)=>{
           const col=s.done?C.success:s.waiting?C.warning:s.active?(REQ_ST[request.status]&&REQ_ST[request.status].color||C.accent):C.border;
-          return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5,position:"relative",zIndex:2}}>
-            <div style={{width:32,height:32,borderRadius:"50%",background:s.done?col:s.active||s.waiting?col+"22":C.surface,border:"3px solid "+col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:s.done?"#fff":col,boxShadow:"0 0 0 3px "+C.surface}}>
+          return <div key={i} style={{position:"relative",zIndex:1,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+            <div style={{width:36,height:36,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:s.done?col:s.active||s.waiting?C.surface:C.surface,border:"3px solid "+col,fontWeight:800,fontSize:13,color:s.done?"#fff":col,boxShadow:"0 0 0 4px "+C.card}}>
               {s.done?"✓":i+1}
             </div>
-            <span style={{fontSize:10,color:s.done?C.success:s.active||s.waiting?col:C.muted,fontWeight:s.active||s.done?700:400,textAlign:"center",lineHeight:1.3,maxWidth:80}}>{s.l}</span>
-            {s.pend>0&&<span style={{fontSize:9,color:C.warning,background:C.warning+"20",borderRadius:6,padding:"1px 5px"}}>{s.pend} pend.</span>}
+            <span style={{fontSize:12,color:s.done?C.success:s.active||s.waiting?col:C.muted,fontWeight:s.done||s.active?700:400,lineHeight:1.3}}>{s.l}</span>
+            {s.pend>0&&<Pill label={s.pend+" pendente"+(s.pend!==1?"s":"")} color={C.warning}/>}
           </div>;
         })}
       </div>
+      {/* Summary badges */}
+      {(doneEv>0||aa.length-doneEv>0||(request.actions||[]).some(a=>isOD(a.deadline,a.status)))&&
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:18,justifyContent:"center"}}>
+          {aa.length-doneEv>0&&<Pill label={(aa.length-doneEv)+" avaliacao"+(aa.length-doneEv!==1?"es":"")+" pendente"+(aa.length-doneEv!==1?"s":"")} color={C.warning}/>}
+          {doneEv>0&&<Pill label={doneEv+" avaliacao"+(doneEv!==1?"es":"")+" concluida"+(doneEv!==1?"s":"")} color={C.success}/>}
+          {(request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length>0&&<Pill label={(request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length+" acao"+(((request.actions||[]).filter(a=>isOD(a.deadline,a.status)).length)!==1?"es":"")+" em atraso"} color={C.danger}/>}
+        </div>}
     </div>
 
     {/* ══ BANNERS CONTEXTUAIS ══ */}
-    {request.status==="revisao"&&isAdmin&&<div style={{marginBottom:10,padding:"10px 16px",borderRadius:8,background:C.purple+"0D",border:"1px solid "+C.purple+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:13,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar e aprovar avaliacoes</span>
-      <div style={{display:"flex",gap:7}}>
-        <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setOpen(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
+    {request.status==="revisao"&&isAdmin&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.purple+"0D",border:"1px solid "+C.purple+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:14,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar e aprovar avaliacoes</span>
+      <div style={{display:"flex",gap:8}}>
+        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setOpenSec(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
         <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar Plano</button>
       </div>
-      {ap2Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:8,borderTop:"1px solid "+C.purple+"22",flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:C.muted}}>Prazo para o plano:</span>
-        <input type="date" style={{...Sg.input(),width:148,fontSize:12}} value={ap2Date} min={todayStr()} onChange={e=>setAp2Date(e.target.value)}/>
-        <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setAp2Date(null)}>Cancelar</button>
-        <button style={{...Sg.btn("purple"),fontSize:12}} onClick={()=>{ap2(ap2Date);setAp2Date(null);}}>Confirmar</button>
+      {ap2Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:10,borderTop:"1px solid "+C.purple+"22",flexWrap:"wrap"}}>
+        <span style={{fontSize:13,color:C.muted}}>Prazo para o plano:</span>
+        <input type="date" style={{...Sg.input(),width:150,fontSize:13}} value={ap2Date} min={todayStr()} onChange={e=>setAp2Date(e.target.value)}/>
+        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAp2Date(null)}>Cancelar</button>
+        <button style={{...Sg.btn("purple"),fontSize:13}} onClick={()=>{ap2(ap2Date);setAp2Date(null);}}>Confirmar</button>
       </div>}
     </div>}
-    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&<div style={{marginBottom:10,padding:"10px 16px",borderRadius:8,background:C.success+"0D",border:"1px solid "+C.success+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:13,fontWeight:600,color:C.success}}>Aprovacao 3 — {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} no plano</span>
+    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.success+"0D",border:"1px solid "+C.success+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:14,fontWeight:600,color:C.success}}>Aprovacao 3 — {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} no plano</span>
       <button style={Sg.btn("success")} onClick={()=>setAp3Date(addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30))}>Iniciar Execucao</button>
-      {ap3Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:8,borderTop:"1px solid "+C.success+"22",flexWrap:"wrap"}}>
-        <span style={{fontSize:12,color:C.muted}}>Prazo de execucao:</span>
-        <input type="date" style={{...Sg.input(),width:148,fontSize:12}} value={ap3Date} min={todayStr()} onChange={e=>setAp3Date(e.target.value)}/>
-        <button style={{...Sg.btn(),fontSize:11}} onClick={()=>setAp3Date(null)}>Cancelar</button>
-        <button style={{...Sg.btn("success"),fontSize:12}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
+      {ap3Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:10,borderTop:"1px solid "+C.success+"22",flexWrap:"wrap"}}>
+        <span style={{fontSize:13,color:C.muted}}>Prazo de execucao:</span>
+        <input type="date" style={{...Sg.input(),width:150,fontSize:13}} value={ap3Date} min={todayStr()} onChange={e=>setAp3Date(e.target.value)}/>
+        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAp3Date(null)}>Cancelar</button>
+        <button style={{...Sg.btn("success"),fontSize:13}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
       </div>}
     </div>}
-    {isAdmin&&pendExt>0&&<div style={{marginBottom:10,padding:"9px 16px",borderRadius:8,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:13,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} pendente{pendExt!==1?"s":""}</span>
+    {isAdmin&&pendExt>0&&<div style={{marginBottom:14,padding:"11px 18px",borderRadius:10,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:14,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} pendente{pendExt!==1?"s":""}</span>
       <ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
     </div>}
 
-    {/* ══ 1. DADOS DA SOLICITACAO ══ */}
-    <Sec id="solicitacao" icon="📋" title="Dados da Solicitacao" sub={request.type+" · "+request.createdByName}>
-      <div style={{padding:"16px 18px"}}>
-        <div style={{display:"flex",gap:24,marginBottom:14,paddingBottom:12,borderBottom:"1px solid "+C.border+"44",flexWrap:"wrap"}}>
-          <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>NUMERO</div><div style={{fontSize:13,fontWeight:700,color:C.accent}}>{request.id}</div></div>
-          <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>ABERTURA</div><div style={{fontSize:13,color:C.text}}>{fmtD(request.createdAt&&request.createdAt.slice(0,10))}</div></div>
-          <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>SOLICITANTE</div><div style={{fontSize:13,fontWeight:600,color:C.text}}>{request.createdByName}</div></div>
-          <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>STATUS</div><Badge label={st.label} color={st.color||C.muted}/></div>
-          {cr&&<div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>CRITICIDADE</div><Badge label={cr.v+" · "+cr.label} color={cr.color}/></div>}
-        </div>
-        <InfoRow label="Tipo de mudanca" value={request.type}/>
-        <InfoRow label="Titulo" value={request.title}/>
-        <InfoRow label="Descricao" value={request.description}/>
-        {request.justification&&<InfoRow label="Justificativa" value={request.justification}/>}
-        {(request.rejections||[]).length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border+"44"}}>
-          <div style={{fontSize:10,color:C.danger,fontWeight:700,marginBottom:5}}>REJEICOES ANTERIORES</div>
-          {request.rejections.map((r,i)=><div key={i} style={{fontSize:11,padding:"4px 10px",background:C.danger+"08",borderRadius:4,marginBottom:3,borderLeft:"2px solid "+C.danger+"44"}}>
+    {/* ══════════════════════════════════════════════════════════
+        1. DADOS DA SOLICITACAO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="solicitacao" title="Dados da Solicitacao">
+      {/* Grid 3 cols: numero, data, solicitante */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+        <FieldCard label="Numero do Controle" value={request.id}/>
+        <FieldCard label="Data de Abertura" value={fmtD(request.createdAt&&request.createdAt.slice(0,10))}/>
+        <FieldCard label="Solicitante" value={request.createdByName}/>
+      </div>
+      {/* Grid 3 cols: tipo, area solicitante, status */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+        <FieldCard label="Tipo de Mudanca" value={request.type}/>
+        <FieldCard label="Area Solicitante" value={request.area||"—"}/>
+        <FieldCard label="Status Atual"><Badge label={st.label} color={st.color||C.muted}/></FieldCard>
+      </div>
+      {/* Titulo wide */}
+      <div style={{marginBottom:14}}>
+        <FieldCard label="Titulo da Mudanca" value={request.title} wide/>
+      </div>
+      {/* Descricao */}
+      <div style={{marginBottom:14}}>
+        <FieldCard label="Descricao da Mudanca" wide>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.description}</div>
+        </FieldCard>
+      </div>
+      {/* Justificativa */}
+      {request.justification&&<div style={{marginBottom:14}}>
+        <FieldCard label="Justificativa / Motivo" wide>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.justification}</div>
+        </FieldCard>
+      </div>}
+      {/* Rejeicoes */}
+      {(request.rejections||[]).length>0&&<div style={{marginBottom:14}}>
+        <FieldCard label="Rejeicoes Anteriores" wide>
+          {request.rejections.map((r,i)=><div key={i} style={{fontSize:13,padding:"7px 12px",background:C.danger+"08",borderRadius:7,marginBottom:4,borderLeft:"3px solid "+C.danger+"55"}}>
             <strong style={{color:C.danger}}>{r.byName} — {fmt(r.at)}:</strong> <span style={{color:C.muted}}>{r.note}</span>
           </div>)}
-        </div>}
-        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid "+C.border+"44"}}>
-          <AttachmentsPanel attachments={request.attachments||[]} onAdd={addAttachment} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
-        </div>
-      </div>
-    </Sec>
+        </FieldCard>
+      </div>}
+      {/* Anexos */}
+      <FieldCard label="Anexos da Solicitacao" wide>
+        <AttachmentsPanel attachments={request.attachments||[]} onAdd={addAttachment} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+      </FieldCard>
+    </SecCard>
 
-    {/* ══ 2. AVALIACAO INICIAL ══ */}
-    <Sec id="triagem" icon="🔍" title="Avaliacao Inicial" sub={request.triage?("Criticidade "+request.triage.criticality+" · "+request.ap1ByName+" · "+fmt(request.ap1At)):"Pendente"}>
-      <div style={{padding:"16px 18px"}}>
-        {!request.triage||editTriagem
-          ?isAdmin
-            ?<div>
-              {editTriagem&&<div style={{fontSize:12,color:C.warning,marginBottom:10,padding:"6px 10px",background:C.warning+"0D",borderRadius:5,border:"1px solid "+C.warning+"33"}}>Editando — ao salvar as avaliacoes serao resetadas.</div>}
-              <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/>
-              {editTriagem&&<button style={{...Sg.btn(),marginTop:8,fontSize:11}} onClick={()=>setEditTriagem(false)}>Cancelar</button>}
-            </div>
-            :<div style={{fontSize:12,color:C.muted}}>Aguardando triagem pelo SGQ.</div>
-          :<div>
-            <div style={{display:"flex",gap:20,marginBottom:14,paddingBottom:12,borderBottom:"1px solid "+C.border+"44",flexWrap:"wrap",alignItems:"center"}}>
-              {cr&&<div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:38,height:38,borderRadius:"50%",background:cr.color+"1A",border:"2px solid "+cr.color,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:cr.color}}>{cr.v}</div>
-                <div><div style={{fontSize:13,fontWeight:700,color:cr.color}}>{cr.label}</div><div style={{fontSize:10,color:C.muted}}>criticidade</div></div>
-              </div>}
-              <div style={{flex:1}}>
-                <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:2}}>AVALIADO POR</div>
-                <div style={{fontSize:12,color:C.text}}>{request.ap1ByName} · {fmt(request.ap1At)}</div>
+    {/* ══════════════════════════════════════════════════════════
+        2. AVALIACAO INICIAL
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="triagem" title="Avaliacao Inicial da Mudanca">
+      {!request.triage||editTriagem
+        ?isAdmin
+          ?<div>
+            {editTriagem&&<div style={{fontSize:13,color:C.warning,marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33"}}>Editando — ao salvar as avaliacoes serao resetadas.</div>}
+            <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/>
+            {editTriagem&&<button style={{...Sg.btn(),marginTop:10,fontSize:12}} onClick={()=>setEditTriagem(false)}>Cancelar</button>}
+          </div>
+          :<div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>Aguardando triagem pelo SGQ.</div>
+        :<div>
+          {/* Grid 3: nivel, avaliado por, data */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+            <FieldCard label="Nivel Selecionado">
+              {cr&&<span style={{fontSize:15,fontWeight:700,color:cr.color}}>{cr.v} — {cr.label}</span>}
+            </FieldCard>
+            <FieldCard label="Avaliado por" value={request.ap1ByName}/>
+            <FieldCard label="Data da Avaliacao" value={fmt(request.ap1At)}/>
+          </div>
+          {/* Grid 2: justificativa + areas */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <FieldCard label="Motivo da Classificacao" wide>
+              <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.triage.justification||"—"}</div>
+              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                {request.triage.flagReg&&<Pill label="Risco Regulatorio" color={C.warning}/>}
+                {request.triage.flagProd&&<Pill label="Impacto Produto" color={C.accent}/>}
               </div>
-              {request.triage.flagReg&&<Pill label="Risco Reg." color={C.warning}/>}
-              {request.triage.flagProd&&<Pill label="Impacto Produto" color={C.accent}/>}
-              {isAdmin&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>setEditTriagem(true)}>Editar</button>}
-            </div>
-            <InfoRow label="Justificativa" value={request.triage.justification||"—"} w={90}/>
-            <div style={{marginTop:10}}>
-              <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:6}}>{aa.length} AREAS PARA AVALIACAO DE IMPACTO</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {isAdmin&&<button style={{...Sg.btn(),fontSize:11,marginTop:10,padding:"3px 10px"}} onClick={()=>setEditTriagem(true)}>Editar Triagem</button>}
+            </FieldCard>
+            <FieldCard label="Areas Definidas para Avaliacao de Impacto" wide>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
                 {aa.map(d=>{
                   const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
                   const mand=isMandSaved(d);
-                  return <span key={d} style={{fontSize:11,padding:"3px 10px",borderRadius:4,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":"transparent",color:done?C.success:C.dim,display:"inline-flex",alignItems:"center",gap:4}}>
-                    {done&&"✓ "}{d}
-                    <span style={{fontSize:9,opacity:.7,color:mand?C.warning:C.muted}}>{mand?"obr":"opc"}</span>
+                  return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
+                    {done&&<span style={{color:C.success}}>✓</span>}{d}
+                    {mand&&<span style={{fontSize:10,color:C.warning,opacity:.8}}>obr</span>}
                   </span>;
                 })}
               </div>
-            </div>
-          </div>}
-      </div>
-    </Sec>
+            </FieldCard>
+          </div>
+        </div>}
+    </SecCard>
 
-    {/* ══ 3. AVALIACOES DE IMPACTO ══ */}
-    <Sec id="avaliacoes" icon="📊" title="Avaliacoes de Impacto" sub={doneEv+"/"+aa.length+" concluidas"+(request.ap2At?" · Aprovado — "+request.ap2ByName:"")}>
+    {/* ══════════════════════════════════════════════════════════
+        3. AVALIACOES DE IMPACTO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="avaliacoes" title={"Avaliacoes de Impacto"+(aa.length>0?" ("+doneEv+"/"+aa.length+")":"")}>
       {!request.triage
-        ?<div style={{padding:"18px",color:C.muted,fontSize:12}}>Aguardando triagem.</div>
-        :<div>
+        ?<div style={{fontSize:14,color:C.muted}}>Aguardando triagem.</div>
+        :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
             <thead>
               <tr>
-                <Th>Area</Th><Th>Responsavel</Th><Th>Prazo</Th><Th>Tipo</Th><Th>Status</Th><Th>Acao</Th>
+                <Th>Area</Th>
+                <Th>Responsavel</Th>
+                <Th>Prazo</Th>
+                <Th>Obrigatoriedade</Th>
+                <Th>Status</Th>
+                <Th>Conclusao</Th>
+                <Th>Concluida por</Th>
+                <Th>Data conclusao</Th>
+                <Th>Detalhe</Th>
               </tr>
             </thead>
             <tbody>
@@ -1432,21 +1491,26 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 const stColor=done?C.success:draft?C.accent:ov?C.danger:C.muted;
                 const stLabel=done?"Concluida":draft?"Rascunho":ov?"Atrasada":"Pendente";
                 const mand=isMandSaved(dept);
+                const concObs=done&&ev&&(ev.obs||(ev.answers&&ev.answers.filter(a=>a.a==="S").length+" sim / "+ev.answers.filter(a=>a.a==="N").length+" nao"))||"—";
                 return <React.Fragment key={dept}>
-                  <tr style={{background:isExp?C.accent+"08":di%2!==0?C.surface+"55":"transparent"}}>
+                  <tr style={{background:isExp?C.accent+"08":di%2!==0?C.surface+"66":"transparent"}}>
                     <Td><span style={{fontWeight:600}}>{dept}</span></Td>
                     <Td muted>{u?u.name:"—"}</Td>
-                    <Td><span style={{fontSize:11,color:ov&&!done?C.danger:C.muted}}>{fmtD(dl)}</span></Td>
-                    <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.warning:C.accent}/></Td>
+                    <Td><span style={{color:ov&&!done?C.danger:C.muted,fontSize:13}}>{fmtD(dl)}</span></Td>
+                    <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.success:C.accent}/></Td>
                     <Td><Pill label={stLabel} color={stColor}/></Td>
+                    <Td muted>{done?concObs:"Pendente"}</Td>
+                    <Td muted>{done&&ev?ev.byName:"—"}</Td>
+                    <Td muted>{done&&ev?fmtD(ev.at&&ev.at.slice(0,10)):"—"}</Td>
                     <Td>
-                      {(done||canAct)&&<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:10,padding:"2px 8px"}} onClick={()=>setEvalOpen(isExp?null:dept)}>
-                        {isExp?"Fechar":done?"Ver":draft?"Continuar":"Avaliar"}
+                      {(done||canAct)&&<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"3px 10px"}} onClick={()=>setEvalOpen(isExp?null:dept)}>
+                        {isExp?"Fechar":done?"Ver perguntas":draft?"Continuar":"Avaliar"}
                       </button>}
                     </Td>
                   </tr>
                   {isExp&&<tr>
-                    <td colSpan={6} style={{padding:"14px 18px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
+                    <td colSpan={9} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>Perguntas / Respostas / Anexo</div>
                       {done&&!isMe&&!isAdmin
                         ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
                         :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
@@ -1461,147 +1525,165 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </tbody>
           </table>
         </div>}
-    </Sec>
+    </SecCard>
 
-    {/* ══ 4. PLANO DE ACAO ══ */}
-    <Sec id="plano" icon="📝" title="Plano de Acao" sub={(request.actions&&request.actions.length||0)+" acoes"+(request.ap3At?" · Execucao iniciada":"")+(allActsDone?" · Todas concluidas":"")}>
+    {/* ══════════════════════════════════════════════════════════
+        4. PLANO DE ACAO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
       {!request.ap2At
-        ?<div style={{padding:"18px",color:C.muted,fontSize:12}}>Disponivel apos aprovacao das avaliacoes.</div>
+        ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes de impacto.</div>
         :<div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 18px",borderBottom:"1px solid "+C.border+"44",gap:8,flexWrap:"wrap"}}>
-            <div style={{fontSize:12,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong>
-              {isAdmin&&<span style={{marginLeft:8}}>
-                <Sel value={request.planResponsible||""} onChange={v=>{const u=allUsers.find(x=>x.id===parseInt(v));upd({planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},"plano","Responsavel do plano alterado",u&&u.name||"");}} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Alterar..." C={C}/>
-              </span>}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+            <div style={{fontSize:14,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong>
+              {isAdmin&&<span style={{marginLeft:10}}><Sel value={request.planResponsible||""} onChange={v=>{const u=allUsers.find(x=>x.id===parseInt(v));upd({planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},"plano","Responsavel do plano alterado",u&&u.name||"");}} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Alterar..." C={C}/></span>}
             </div>
             {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
           </div>
           {(request.actions||[]).length===0
-            ?<div style={{padding:"18px",color:C.muted,fontSize:12}}>Nenhuma acao cadastrada.</div>
-            :<table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead>
-                <tr><Th w="70px">ID</Th><Th>Descricao</Th><Th>Responsavel</Th><Th>Prazo</Th><Th>Status</Th><Th>Observacao</Th><Th w="60px"></Th></tr>
-              </thead>
-              <tbody>
-                {(request.actions||[]).map((ac,ai)=>{
-                  const ov=isOD(ac.deadline,ac.status);
-                  const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.accent;
-                  const resp=getU(ac.responsible);
-                  const isMine=ac.responsible===currentUser.id;
-                  const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
-                  const isExp=expandedAc[ac.id];
-                  const conc=acConc[ac.id]||{};
-                  return <React.Fragment key={ac.id}>
-                    <tr style={{cursor:"pointer",background:isExp?C.accent+"06":ai%2!==0?C.surface+"55":"transparent"}} onClick={()=>toggleAc(ac.id)}>
-                      <Td><span style={{fontWeight:700,color:C.accent,fontSize:11}}>{ac.id}</span></Td>
-                      <Td>{ac.desc}</Td>
-                      <Td muted>{resp?resp.name:"—"}</Td>
-                      <Td><span style={{fontSize:11,color:ov&&ac.status!=="concluida"?C.danger:C.muted}}>{fmtD(ac.deadline)}</span></Td>
-                      <Td><Pill label={ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"} color={acColor}/></Td>
-                      <Td muted><span style={{fontSize:11}}>{ac.doneNote||ac.obs||"—"}</span></Td>
-                      <Td><span style={{fontSize:11,color:C.muted}}>{isExp?"▲":"▼"}</span></Td>
-                    </tr>
-                    {isExp&&<tr>
-                      <td colSpan={7} style={{padding:"14px 18px",background:C.surface,borderBottom:"1px solid "+C.border+"44"}}>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:canAct?12:0}}>
-                          <div>
-                            <InfoRow label="Responsavel" value={resp?resp.name:"—"} w={90}/>
-                            <InfoRow label="Prazo" value={fmtD(ac.deadline)} w={90}/>
-                            {ac.obs&&<InfoRow label="Observacao" value={ac.obs} w={90}/>}
-                          </div>
-                          {ac.status==="concluida"&&<div style={{padding:"10px 12px",background:C.success+"0D",borderRadius:7,border:"1px solid "+C.success+"33"}}>
-                            <div style={{fontSize:10,color:C.success,fontWeight:700,marginBottom:4}}>CONCLUSAO — {fmtD(ac.doneAt&&ac.doneAt.slice(0,10))}</div>
-                            <div style={{fontSize:12,color:C.text,lineHeight:1.5}}>{ac.doneNote||"—"}</div>
+            ?<div style={{fontSize:14,color:C.muted}}>Nenhuma acao cadastrada ainda.</div>
+            :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead>
+                  <tr>
+                    <Th w="70px">Acao</Th>
+                    <Th>Descricao</Th>
+                    <Th>Responsavel</Th>
+                    <Th>Prazo</Th>
+                    <Th>Status</Th>
+                    <Th>Conclusao / Observacao</Th>
+                    <Th>Concluida por</Th>
+                    <Th>Data conclusao</Th>
+                    <Th>Anexo</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(request.actions||[]).map((ac,ai)=>{
+                    const ov=isOD(ac.deadline,ac.status);
+                    const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
+                    const resp=getU(ac.responsible);
+                    const isMine=ac.responsible===currentUser.id;
+                    const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+                    const isExp=expandedAc[ac.id];
+                    const conc=acConc[ac.id]||{};
+                    return <React.Fragment key={ac.id}>
+                      <tr style={{cursor:"pointer",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
+                        <Td><span style={{fontWeight:700,color:C.accent}}>{ac.id}</span></Td>
+                        <Td>{ac.desc}</Td>
+                        <Td muted>{resp?resp.name:"—"}</Td>
+                        <Td><span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted,fontSize:13}}>{fmtD(ac.deadline)}</span></Td>
+                        <Td><Pill label={ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"} color={acColor}/></Td>
+                        <Td muted>{ac.doneNote||ac.obs||"—"}</Td>
+                        <Td muted>{ac.status==="concluida"&&resp?resp.name:"—"}</Td>
+                        <Td muted>{ac.doneAt?fmtD(ac.doneAt.slice(0,10)):"—"}</Td>
+                        <Td muted>{ac.doneAtt?ac.doneAtt.name:"—"}</Td>
+                      </tr>
+                      {isExp&&<tr>
+                        <td colSpan={9} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
+                          {ac.obs&&<div style={{fontSize:13,color:C.muted,marginBottom:10}}><strong>Obs:</strong> {ac.obs}</div>}
+                          {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
+                            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
+                            <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado e a evidencia..."/>
+                            <div style={{marginBottom:10}}>
+                              <AttachmentsPanel attachments={conc.att?[conc.att]:[]} onAdd={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+                            </div>
+                            <button style={{...Sg.btn("success"),opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
                           </div>}
-                        </div>
-                        {canAct&&<div style={{padding:"12px 14px",background:C.card,borderRadius:7,border:"1px solid "+C.border,marginBottom:8}}>
-                          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:8}}>Registrar conclusao *</div>
-                          <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",marginBottom:8}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado..."/>
-                          <AttachmentsPanel attachments={conc.att?[conc.att]:[]} onAdd={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
-                          <button style={{...Sg.btn("success"),marginTop:8,opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
-                        </div>}
-                        {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                          {isAdmin&&<button style={{...Sg.btn(),fontSize:11}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
-                          {isMine&&<button style={{...Sg.btn(),fontSize:11}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
-                          {isAdmin&&<button style={{...Sg.btn(),fontSize:11}} onClick={()=>setEditAc(ac)}>Editar</button>}
-                          {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:11}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
-                        </div>}
-                      </td>
-                    </tr>}
-                  </React.Fragment>;
-                })}
-              </tbody>
-            </table>}
+                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
+                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
+                            {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
+                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
+                            {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
+                          </div>}
+                        </td>
+                      </tr>}
+                    </React.Fragment>;
+                  })}
+                </tbody>
+              </table>
+            </div>}
         </div>}
-    </Sec>
+    </SecCard>
 
-    {/* ══ 5. VERIFICACAO E CONCLUSAO ══ */}
-    <Sec id="conclusao" icon="✅" title="Verificacao e Conclusao" sub={request.status==="concluida"?"Encerrado · "+request.verifiedByName:allActsDone?"Aguarda verificacao final":"Disponivel quando todas as acoes forem concluidas"}>
-      <div style={{padding:"16px 18px"}}>
-        {request.status==="concluida"
-          ?<div>
-            <div style={{display:"flex",gap:24,marginBottom:12,flexWrap:"wrap"}}>
-              <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>ENCERRADO POR</div><div style={{fontSize:12,fontWeight:600,color:C.text}}>{request.verifiedByName}</div></div>
-              <div><div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:3}}>DATA</div><div style={{fontSize:12,color:C.text}}>{fmt(request.closedAt)}</div></div>
-            </div>
-            <InfoRow label="Observacao final" value={request.verifyNote||"—"} w={120}/>
+    {/* ══════════════════════════════════════════════════════════
+        5. CONCLUSAO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="conclusao" title="Conclusao da Mudanca">
+      {request.status==="concluida"
+        ?<div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+            <FieldCard label="Responsavel pela Conclusao" value={request.verifiedByName}/>
+            <FieldCard label="Data da Conclusao" value={fmt(request.closedAt)}/>
+            <FieldCard label="Status Final"><Pill label="Mudanca encerrada" color={C.success}/></FieldCard>
           </div>
-          :isAdmin&&allActsDone
-            ?<div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Todas as acoes foram concluidas. Registre a verificacao para encerrar o controle.</div>
-              <label style={Sg.lbl}>Observacoes da verificacao *</label>
-              <textarea style={{...Sg.input(),minHeight:80,resize:"vertical",marginBottom:12}} value={verifyNote} onChange={e=>setVerifyNote(e.target.value)} placeholder="Descreva o que foi verificado e confirme a conclusao..."/>
-              <button style={{...Sg.btn("success"),opacity:verifyNote.trim()?1:.4,padding:"9px 20px",fontSize:13}} disabled={!verifyNote.trim()} onClick={concludeSA}>✓ Encerrar Controle de Mudancas</button>
-            </div>
-            :<div style={{color:C.muted,fontSize:12}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
-      </div>
-    </Sec>
+          <FieldCard label="Avaliacao Final" wide>
+            <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.verifyNote||"—"}</div>
+          </FieldCard>
+        </div>
+        :isAdmin&&allActsDone
+          ?<div>
+            <div style={{fontSize:14,color:C.muted,marginBottom:14}}>Todas as acoes foram concluidas. Registre a verificacao final para encerrar este controle.</div>
+            <FieldCard label="Observacoes da Verificacao Final *" wide>
+              <textarea style={{...Sg.input(),minHeight:80,resize:"vertical",marginTop:6,marginBottom:12}} value={verifyNote} onChange={e=>setVerifyNote(e.target.value)} placeholder="Descreva a verificacao realizada e confirme a conclusao..."/>
+              <button style={{...Sg.btn("success"),opacity:verifyNote.trim()?1:.4,padding:"10px 24px",fontSize:14}} disabled={!verifyNote.trim()} onClick={concludeSA}>✓ Encerrar Controle de Mudancas</button>
+            </FieldCard>
+          </div>
+          :<div style={{fontSize:14,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
+    </SecCard>
 
-    {/* ══ 6. DOCUMENTOS ══ */}
-    <Sec id="documentos" icon="📎" title="Documentos" sub={allAtts.length+" anexo"+(allAtts.length!==1?"s":"")}>
+    {/* ══════════════════════════════════════════════════════════
+        6. ANEXOS DO REGISTRO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="documentos" title={"Anexos do Registro"+(allAtts.length?" ("+allAtts.length+")":"")}>
       {allAtts.length===0
-        ?<div style={{padding:"18px",color:C.muted,fontSize:12}}>Nenhum documento anexado.</div>
-        :<table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead><tr><Th>Documento</Th><Th>Origem</Th><Th>Por</Th><Th>Data</Th><Th w="80px"></Th></tr></thead>
-          <tbody>
-            {allAtts.map((a,i)=>(
-              <tr key={a.id||i} style={{background:i%2!==0?C.surface+"55":"transparent"}}>
-                <Td><span style={{fontWeight:600}}>📎 {a.name}</span></Td>
-                <Td muted>{a._src||"—"}</Td>
-                <Td muted>{a._by||"—"}</Td>
-                <Td muted><span style={{fontSize:11}}>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</span></Td>
-                <Td>{a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:10,padding:"2px 8px"}} onClick={async()=>{if(!a.r2key){alert("Arquivo local nao disponivel.");return;}try{const r=await apiGet('/api/uploads?key='+encodeURIComponent(a.r2key));window.open(r.downloadUrl,'_blank');}catch(e){alert("Erro: "+e.message);}}}>Download</button>}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>}
-    </Sec>
+        ?<div style={{fontSize:14,color:C.muted}}>Nenhum documento anexado.</div>
+        :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr><Th>Documento</Th><Th>Origem</Th><Th>Incluido por</Th><Th>Data</Th><Th w="90px"></Th></tr></thead>
+            <tbody>
+              {allAtts.map((a,i)=>(
+                <tr key={a.id||i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
+                  <Td><span style={{fontWeight:600}}>📎 {a.name}</span></Td>
+                  <Td muted>{a._src||"—"}</Td>
+                  <Td muted>{a._by||"—"}</Td>
+                  <Td muted>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</Td>
+                  <Td>{a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"3px 10px"}} onClick={async()=>{if(!a.r2key){alert("Arquivo local nao disponivel.");return;}try{const r=await apiGet('/api/uploads?key='+encodeURIComponent(a.r2key));window.open(r.downloadUrl,'_blank');}catch(e){alert("Erro: "+e.message);}}}>Download</button>}</Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>}
+    </SecCard>
 
-    {/* ══ 7. HISTORICO ══ */}
-    <Sec id="historico" icon="🕐" title="Historico de Eventos" sub={(request.log||[]).length+" eventos"}>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
-        <thead><tr><Th w="150px">Data</Th><Th w="130px">Por</Th><Th w="90px">Tipo</Th><Th>Evento</Th><Th>Detalhe</Th></tr></thead>
-        <tbody>
-          {(request.log||[]).slice().reverse().map((e,i)=>{
-            const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
-            return <tr key={i} style={{background:i%2!==0?C.surface+"55":"transparent"}}>
-              <Td muted><span style={{fontSize:11}}>{fmt(e.at)}</span></Td>
-              <Td muted><span style={{fontSize:11}}>{e.by}</span></Td>
-              <Td><span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:3,background:tc+"18",color:tc}}>{e.type}</span></Td>
-              <Td><span style={{fontSize:12}}>{e.event}</span></Td>
-              <Td muted><span style={{fontSize:11}}>{e.detail||"—"}</span></Td>
-            </tr>;
-          })}
-          {!(request.log||[]).length&&<tr><td colSpan={5} style={{padding:"16px",color:C.muted,fontSize:12,textAlign:"center"}}>Nenhum evento registrado.</td></tr>}
-        </tbody>
-      </table>
-    </Sec>
+    {/* ══════════════════════════════════════════════════════════
+        7. HISTORICO
+    ══════════════════════════════════════════════════════════ */}
+    <SecCard id="historico" title={"Historico da Mudanca"}>
+      <div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr><Th w="160px">Data / Hora</Th><Th w="140px">Por</Th><Th w="100px">Tipo</Th><Th>Evento</Th><Th>Detalhe</Th></tr></thead>
+          <tbody>
+            {(request.log||[]).slice().reverse().map((e,i)=>{
+              const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
+              return <tr key={i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
+                <Td muted><span style={{fontSize:13}}>{fmt(e.at)}</span></Td>
+                <Td muted><span style={{fontSize:13}}>{e.by}</span></Td>
+                <Td><span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:4,background:tc+"18",color:tc}}>{e.type}</span></Td>
+                <Td><span style={{fontSize:13}}>{e.event}</span></Td>
+                <Td muted><span style={{fontSize:13}}>{e.detail||"—"}</span></Td>
+              </tr>;
+            })}
+            {!(request.log||[]).length&&<tr><td colSpan={5} style={{padding:"20px",color:C.muted,fontSize:14,textAlign:"center"}}>Nenhum evento registrado.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </SecCard>
 
     {/* ══ MODALS ══ */}
     <Modal open={showAddAc} onClose={()=>setAddAc(false)} title="Nova Acao" width={460}>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:50,resize:"vertical"}} value={nAc.desc} onChange={e=>setNAc(n=>({...n,desc:e.target.value}))}/></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:52,resize:"vertical"}} value={nAc.desc} onChange={e=>setNAc(n=>({...n,desc:e.target.value}))}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={Sg.lbl}>Responsavel *</label><Sel value={nAc.responsible} onChange={v=>setNAc(n=>({...n,responsible:v}))} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Selecione..." C={C}/></div>
           <div><label style={Sg.lbl}>Prazo *</label><input type="date" style={Sg.input()} value={nAc.deadline} min={todayStr()} onChange={e=>setNAc(n=>({...n,deadline:e.target.value}))}/></div>
         </div>
@@ -1613,9 +1695,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>
     </Modal>
     <Modal open={!!editAc} onClose={()=>setEditAc(null)} title="Editar Acao" width={420}>
-      {editAc&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {editAc&&<div style={{display:"flex",flexDirection:"column",gap:12}}>
         <div><label style={Sg.lbl}>Descricao</label><textarea style={{...Sg.input(),minHeight:46,resize:"vertical"}} defaultValue={editAc.desc} onChange={e=>setEditAc(a=>({...a,desc:e.target.value}))}/></div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><label style={Sg.lbl}>Prazo</label><input type="date" style={Sg.input()} defaultValue={editAc.deadline} onChange={e=>setEditAc(a=>({...a,deadline:e.target.value}))}/></div>
           <div><label style={Sg.lbl}>Status</label><Sel value={editAc.status} onChange={v=>setEditAc(a=>({...a,status:v}))} options={[{value:"pendente",label:"Pendente"},{value:"andamento",label:"Em andamento"},{value:"concluida",label:"Concluida"},{value:"cancelada",label:"Cancelada"}]} C={C}/></div>
         </div>
@@ -1627,32 +1709,32 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>}
     </Modal>
     <Modal open={showReject} onClose={()=>setReject(false)} title="Rejeitar SA" width={400}>
-      <div style={{padding:"7px 10px",background:C.danger+"0D",borderRadius:6,marginBottom:10,fontSize:12,color:C.danger}}>SA sera devolvida ao inicio. Triagem, avaliacoes e acoes serao resetadas.</div>
+      <div style={{padding:"8px 12px",background:C.danger+"0D",borderRadius:8,marginBottom:12,fontSize:13,color:C.danger}}>SA sera devolvida ao inicio. Triagem, avaliacoes e acoes serao resetadas.</div>
       <label style={Sg.lbl}>Motivo *</label>
-      <textarea style={{...Sg.input(),minHeight:56,resize:"vertical",marginBottom:12}} value={rejectNote} onChange={e=>setRN(e.target.value)}/>
+      <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",marginBottom:14}} value={rejectNote} onChange={e=>setRN(e.target.value)}/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setReject(false)}>Cancelar</button>
-        <button style={{...Sg.btn("danger"),opacity:rejectNote.trim()?1:.4}} disabled={!rejectNote.trim()} onClick={rejeitar}>Confirmar</button>
+        <button style={{...Sg.btn("danger"),opacity:rejectNote.trim()?1:.4}} disabled={!rejectNote.trim()} onClick={rejeitar}>Confirmar Rejeicao</button>
       </div>
     </Modal>
     <Modal open={showRegress} onClose={()=>setRegress(false)} title="Retornar a Fase Anterior" width={400}>
-      <div style={{fontSize:12,color:C.muted,marginBottom:8}}><Badge label={st.label} color={st.color||C.muted}/> <span style={{marginInline:4}}>→</span> <strong>{REQ_ST[prevSt]&&REQ_ST[prevSt].label||"--"}</strong></div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:10}}><Badge label={st.label} color={st.color||C.muted}/> <span style={{marginInline:6}}>→</span> <strong>{REQ_ST[prevSt]&&REQ_ST[prevSt].label||"--"}</strong></div>
       <label style={Sg.lbl}>Motivo *</label>
-      <textarea style={{...Sg.input(),minHeight:50,resize:"vertical",marginBottom:12}} value={regressNote} onChange={e=>setGN(e.target.value)}/>
+      <textarea style={{...Sg.input(),minHeight:52,resize:"vertical",marginBottom:14}} value={regressNote} onChange={e=>setGN(e.target.value)}/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setRegress(false)}>Cancelar</button>
         <button style={{...Sg.btn("warning"),opacity:regressNote.trim()?1:.4}} disabled={!regressNote.trim()} onClick={regredir}>Confirmar</button>
       </div>
     </Modal>
     {extTarget&&<Modal open={!!extTarget} onClose={()=>setExtTarget(null)} title="Solicitar Extensao de Prazo" width={420}>
-      <div style={{padding:"8px 11px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:6,marginBottom:12,fontSize:12,color:C.warning}}>
+      <div style={{padding:"10px 14px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:8,marginBottom:14,fontSize:13,color:C.warning}}>
         <div style={{fontWeight:700}}>{extTarget.label}</div>
         <div>Prazo atual: {fmtD(extTarget.currentDate)}</div>
       </div>
       <ExtReqForm onClose={()=>setExtTarget(null)} onSubmit={requestExtension} currentDeadline={extTarget.currentDate} C={C} Sg={Sg}/>
     </Modal>}
     {adminDlTarget&&<Modal open={!!adminDlTarget} onClose={()=>setAdminDlTarget(null)} title="Alterar Prazo (Admin)" width={420}>
-      <div style={{padding:"8px 11px",background:C.accent+"0D",border:"1px solid "+C.accent+"44",borderRadius:6,marginBottom:12,fontSize:12}}>
+      <div style={{padding:"10px 14px",background:C.accent+"0D",border:"1px solid "+C.accent+"44",borderRadius:8,marginBottom:14,fontSize:13}}>
         <div style={{fontWeight:700,color:C.text}}>{adminDlTarget.label}</div>
         <div style={{color:C.muted}}>Prazo atual: {fmtD(adminDlTarget.currentDate)}</div>
       </div>
