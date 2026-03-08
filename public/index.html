@@ -2303,7 +2303,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </div>
           </div>}
 
-          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
+          {isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>⏱ Pedir extensao de prazo</button>
           </div>}
         </TaskDrawer>;
