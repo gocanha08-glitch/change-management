@@ -1262,7 +1262,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const getU=id=>allUsers.find(u=>u.id===id);
   const aa=(request.triage&&request.triage.assignedAreas)||[];
   const doneEv=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length;
-  const canPlan=isAdmin||(request.planResponsible===currentUser.id);
+  const canPlan=isAdmin||(parseInt(request.planResponsible)===parseInt(currentUser.id));
   const pendExt=(request.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
   const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
   const allActsDone=(request.actions||[]).length>0&&(request.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
@@ -1878,7 +1878,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
       {!["plano","execucao","concluida"].includes(request.status)
         ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes.</div>
-        :request.status==="plano"&&!isAdmin&&request.planResponsible!==currentUser.id
+        :request.status==="plano"&&!isAdmin&&parseInt(request.planResponsible)!==parseInt(currentUser.id)
         ?<div style={{fontSize:14,color:C.muted}}>O plano esta sendo montado pelo SGQ/responsavel. Disponivel apos liberacao para execucao.</div>
         :<div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
@@ -1918,7 +1918,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const ov=isOD(ac.deadline,ac.status);
                     const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
                     const resp=getU(ac.responsible);
-                    const isMine=ac.responsible===currentUser.id;
+                    const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
                     const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
                     const isExp=expandedAc[ac.id];
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
@@ -2149,7 +2149,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const ac=drawer.ac;
         const resp=allUsers.find(u=>u.id===ac.responsible);
         const isMine=ac.responsible===currentUser.id;
-        const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+        const canAct=(parseInt(ac.responsible)===parseInt(currentUser.id))&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
         const ov=isOD(ac.deadline,ac.status);
         const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
         return <TaskDrawer open={true} onClose={closeDrawer} title={ac.id+" — "+ac.desc} subtitle={(resp?"Responsavel: "+resp.name+" · ":"")+"Prazo: "+fmtD(ac.deadline)} C={C}>
