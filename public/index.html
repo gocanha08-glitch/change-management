@@ -1169,6 +1169,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
   const [showCancel,setShowCancel]=useState(false);
+  const [reopenPhase,setReopenPhase]=useState(null); // {key, label}
   const [reopenEval,setReopenEval]=useState(null);   // dept string
   const [reassignEval,setReassignEval]=useState(null); // {dept, currentUserId}
   const [reassignEvalUser,setReassignEvalUser]=useState("");
@@ -1298,6 +1299,23 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
+
+  // ── Reabrir fase ──
+  const doReopenPhase=(toPhase,motive)=>{
+    const patchMap={
+      aberta:  {status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      avaliacao:{status:"avaliacao",evaluations:{},ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      revisao: {status:"revisao",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      plano:   {status:"plano",ap3By:null,ap3At:null},
+      execucao:{status:"execucao"},
+    };
+    const patch=patchMap[toPhase];
+    if(!patch)return;
+    const phaseLabels={aberta:"Solicitacao Aberta",avaliacao:"Avaliacao Inicial",revisao:"Avaliacoes de Impacto",plano:"Plano de Acao",execucao:"Execucao"};
+    let r={...request,...patch};
+    r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[request.status]&&REQ_ST[request.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
+    onUpdate(r);setReopenPhase(null);
+  };
 
   // ── Cancelar SA ──
   const cancelSA=(motive)=>{
@@ -1436,16 +1454,115 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
 
     {/* ══ HEADER BAR ══ */}
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-      <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
-      <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>Change Management</span>
-      {isAdmin&&prevSt&&!["concluida","cancelada","aberta"].includes(request.status)&&
-        <button style={{...Sg.btn(),fontSize:12,padding:"4px 10px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
-      {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
-        <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
-      {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
-        <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setShowCancel(true)}>Cancelar SA</button>}
-    </div>
+    {(()=>{
+      const [sgqOpen,setSgqOpen]=useState(false);
+      const sgqRef=React.useRef(null);
+      React.useEffect(()=>{
+        if(!sgqOpen)return;
+        const close=(e)=>{if(sgqRef.current&&!sgqRef.current.contains(e.target))setSgqOpen(false);};
+        document.addEventListener("mousedown",close);
+        return()=>document.removeEventListener("mousedown",close);
+      },[sgqOpen]);
+      const phases=[
+        {key:"aberta",    label:"Solicitacao Aberta"},
+        {key:"avaliacao", label:"Avaliacao Inicial"},
+        {key:"revisao",   label:"Avaliacoes de Impacto"},
+        {key:"plano",     label:"Plano de Acao"},
+        {key:"execucao",  label:"Execucao"},
+      ];
+      const canReopen=(toPhase)=>{
+        const order={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5};
+        return order[request.status]>order[toPhase];
+      };
+      return <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
+        <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>Change Management</span>
+        {isAdmin&&<div style={{position:"relative"}} ref={sgqRef}>
+          <button style={{...Sg.btn("primary"),fontSize:12,padding:"6px 14px",display:"flex",alignItems:"center",gap:6}} onClick={()=>setSgqOpen(o=>!o)}>
+            ⚙ Acoes SGQ <span style={{fontSize:10,opacity:.7}}>{sgqOpen?"▲":"▼"}</span>
+          </button>
+          {sgqOpen&&<div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:260,padding:"6px 0",overflow:"hidden"}}>
+            {/* Reabrir fase */}
+            <div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir fase</div>
+            {phases.filter(p=>canReopen(p.key)).map(p=>(
+              <button key={p.key} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReopenPhase(p);}}>
+                <span style={{color:C.warning}}>↩</span> {p.label}
+              </button>
+            ))}
+            {phases.filter(p=>canReopen(p.key)).length===0&&<div style={{padding:"6px 14px",fontSize:12,color:C.muted,fontStyle:"italic"}}>Nenhuma fase anterior disponivel</div>}
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/>
+            {/* Reatribuir avaliacao */}
+            {aa.length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reatribuir avaliacao</div>
+            {aa.map(dept=>(
+              <button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>
+                <span style={{color:C.accent}}>👤</span> {dept}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            {/* Reatribuir acao */}
+            {(request.actions||[]).filter(a=>!["cancelada"].includes(a.status)).length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reatribuir acao</div>
+            {(request.actions||[]).filter(a=>!["cancelada"].includes(a.status)).map(ac=>(
+              <button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReassignAc(ac);setReassignAcUser("");}}>
+                <span style={{color:C.accent}}>👤</span> {ac.id} — {ac.desc.slice(0,30)}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            {/* Reabrir avaliacao especifica */}
+            {aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir avaliacao</div>
+            {aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).map(dept=>(
+              <button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReopenEval(dept);}}>
+                <span style={{color:C.warning}}>↺</span> {dept}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            {/* Reabrir acao especifica */}
+            {(request.actions||[]).filter(a=>a.status==="concluida").length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir acao</div>
+            {(request.actions||[]).filter(a=>a.status==="concluida").map(ac=>(
+              <button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReopenAc(ac);}}>
+                <span style={{color:C.warning}}>↺</span> {ac.id} — {ac.desc.slice(0,30)}
+              </button>
+            ))}
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            {/* Rejeitar / Cancelar */}
+            {!["concluida","cancelada"].includes(request.status)&&<>
+              {prevSt&&!["aberta"].includes(request.status)&&<button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setRegress(true);}}>
+                <span>←</span> Retornar fase anterior
+              </button>}
+              <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.danger,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setReject(true);}}>
+                <span>✕</span> Rejeitar SA
+              </button>
+              <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.danger,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                onClick={()=>{setSgqOpen(false);setShowCancel(true);}}>
+                <span>⊘</span> Cancelar SA
+              </button>
+            </>}
+          </div>}
+        </div>}
+      </div>;
+    })()}
 
     {/* ══ FOCUS BANNER — shown when coming from task/evaluation click ══ */}
     {(focusDept||focusAcId)&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.accent+"0D",border:"1px solid "+C.accent+"33",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -1644,15 +1761,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.success:C.accent}/></Td>
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                        {(done||canAct)
-                          ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>togEval(dept)}>
-                            {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
-                          </button>
-                          :<span style={{fontSize:12,color:C.muted}}>—</span>}
-                        {isAdmin&&done&&<button style={{...Sg.btn("warning"),fontSize:11,padding:"3px 9px"}} onClick={()=>setReopenEval(dept)}>Reabrir</button>}
-                        {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={()=>{setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>Reatribuir</button>}
-                      </div>
+                      {(done||canAct)
+                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>togEval(dept)}>
+                          {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
+                        </button>
+                        :<span style={{fontSize:12,color:C.muted}}>—</span>}
                     </Td>
                   </tr>
                   {isExp&&<tr>
@@ -1881,6 +1994,14 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>
       <ExtReqForm onClose={()=>setAdminDlTarget(null)} onSubmit={applyAdminDl} currentDeadline={adminDlTarget.currentDate} C={C} Sg={Sg} isAdmin/>
     </Modal>}
+
+    {/* Reabrir fase */}
+    <MotiveModal open={!!reopenPhase} onClose={()=>setReopenPhase(null)}
+      onConfirm={motive=>doReopenPhase(reopenPhase&&reopenPhase.key,motive)}
+      title={"Reabrir fase: "+(reopenPhase&&reopenPhase.label||"")}
+      confirmLabel="Reabrir fase" confirmStyle="warning"
+      description={reopenPhase?"ATENCAO: Retorna a SA para a fase '"+reopenPhase.label+"'. Dados da fase atual e posteriores serao preservados no historico mas o fluxo voltara para este ponto.":null}
+      C={C} Sg={Sg}/>
 
     {/* Cancelar SA */}
     <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={cancelSA}
