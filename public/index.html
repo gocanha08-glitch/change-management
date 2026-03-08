@@ -1118,7 +1118,7 @@ function AcConcForm({acId,conc,onNote,onAtt,onConfirm,request,currentUser,C,Sg})
 // ================================================================
 // REQUEST DETAIL v10 — with deadline extension requests
 // ================================================================
-function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab}){
+function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab,focusDept,focusAcId}){
   const {C}=useTheme();const Sg=mkSg(C);
 
   // ── State ────────────────────────────────────────────────────────
@@ -1132,16 +1132,26 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showAddAc,setAddAc]=useState(false);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
   const [editAc,setEditAc]=useState(null);
-  const [expandedAc,setExpandedAc]=useState({});
+  const [expandedAc,setExpandedAc]=useState(()=>focusAcId?{[focusAcId]:true}:{});
+
+  // Auto-scroll to focused item when coming from dashboard task click
+  React.useEffect(()=>{
+    if(!focusDept&&!focusAcId)return;
+    const id=focusDept?"eval-row-"+focusDept.replace(/[\s\/()&]/g,"-"):focusAcId?"ac-row-"+focusAcId:null;
+    if(!id)return;
+    setTimeout(()=>{
+      const el=document.getElementById(id);
+      if(el)el.scrollIntoView({behavior:"smooth",block:"center"});
+    },300);
+  },[]);
   const [acConc,setAcConc]=useState({});
   const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
-  const [evalOpen,setEvalOpen]=useState({});
-  const _evalScrollY=React.useRef(0);
+  const [evalOpen,setEvalOpen]=useState(()=>focusDept?{[focusDept]:true}:{});
   const togEval=(dept)=>{
-    _evalScrollY.current=window.scrollY;
+    const y=window.scrollY;
     setEvalOpen(p=>({...p,[dept]:!p[dept]}));
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,y)));
   };
-  React.useLayoutEffect(()=>{window.scrollTo(0,_evalScrollY.current);},[evalOpen]);
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
@@ -1336,6 +1346,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
     </div>
 
+    {/* ══ FOCUS BANNER — shown when coming from task/evaluation click ══ */}
+    {(focusDept||focusAcId)&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.accent+"0D",border:"1px solid "+C.accent+"33",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:14,color:C.accent}}>
+        {focusDept&&"Avaliacao pendente: "+focusDept}
+        {focusAcId&&"Acao pendente: "+focusAcId}
+      </span>
+      <span style={{fontSize:13,color:C.muted}}>— role para baixo para ver o formulario</span>
+    </div>}
+
     {/* ══ STEPPER CARD ══ */}
     <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:"24px 32px 20px",marginBottom:18,boxShadow:"0 2px 12px "+C.border+"66",overflowX:"auto"}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,position:"relative",minWidth:440}}>
@@ -1515,8 +1534,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 const stLabel=done?"Concluida":draft?"Rascunho":ov?"Atrasada":"Pendente";
                 const mand=isMandSaved(dept);
                 const concObs=done&&ev&&(ev.obs||(ev.answers&&ev.answers.filter(a=>a.a==="S").length+" sim / "+ev.answers.filter(a=>a.a==="N").length+" nao"))||"—";
+                const evalRowId="eval-row-"+dept.replace(/[\s\/()&]/g,"-");
                 return <React.Fragment key={dept}>
-                  <tr style={{background:isExp?C.accent+"08":di%2!==0?C.surface+"66":"transparent"}}>
+                  <tr id={evalRowId} style={{background:isExp?C.accent+"08":di%2!==0?C.surface+"66":"transparent"}}>
                     <Td><span style={{fontWeight:600}}>{dept}</span></Td>
                     <Td muted>{u?u.name:"—"}</Td>
                     <Td><span style={{color:ov&&!done?C.danger:C.muted,fontSize:13}}>{fmtD(dl)}</span></Td>
@@ -1589,7 +1609,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const conc=acConc[ac.id]||{};
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
-                      <tr style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
+                      <tr id={"ac-row-"+ac.id} style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
                         <Td><span style={{fontWeight:700,color:C.accent}}>{ac.id}</span></Td>
                         <Td>{ac.desc}</Td>
                         <Td muted>{resp?resp.name:"—"}</Td>
@@ -3292,6 +3312,8 @@ function App() {
   const [view, setView] = useState('dashboard');
   const [selId, setSel] = useState(null);
   const [initialTab, setInitialTab] = useState(null);
+  const [focusDept, setFocusDept] = useState(null);
+  const [focusAcId, setFocusAcId] = useState(null);
 
   // Data state
   const [users,    setUR] = useState([]);
@@ -3416,7 +3438,13 @@ const loadAll = async () => {
   const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
   const selected = requests.find(r => r.id === selId);
 
-  const nav = (v, id, initialTab) => { setView(v); if (id) setSel(id); if (initialTab) setInitialTab(initialTab); };
+  const nav = (v, id, initialTab, dept, acId) => {
+    setView(v);
+    if (id) setSel(id);
+    if (initialTab) setInitialTab(initialTab); else setInitialTab(null);
+    setFocusDept(dept||null);
+    setFocusAcId(acId||null);
+  };
 
   // ---- Nav items ----
   const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
@@ -3483,12 +3511,12 @@ const loadAll = async () => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id,'avaliacao')} onOpenAction={(r,a)=>nav('detail',r.id,'acoes')}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id,'avaliacao',dept)} onOpenAction={(r,ac)=>nav('detail',r.id,'acoes',null,ac.id)}/>}
       {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
-      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab}/>}
+      {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId}/>}
       {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
