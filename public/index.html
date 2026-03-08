@@ -919,8 +919,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
           <div style={{fontSize:12,color:C.text,lineHeight:1.4}}>{t.justification}</div>
           <div style={{fontSize:10,color:C.muted,marginTop:2}}>por {t.classifiedByName} {fmt(t.classifiedAt)}</div>
           <div style={{display:"flex",gap:5,marginTop:3,flexWrap:"wrap"}}>
-            {t.flagReg&&<Badge label="Risco Reg." color={C.warning}/>}
-            {t.flagProd&&<Badge label="Impacto Produto" color={C.accent}/>}
+
           </div>
         </div>
       </div>
@@ -948,7 +947,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   return <div style={{display:"flex",flexDirection:"column",gap:12}}>
     <div>
       <label style={Sg.lbl}>Criticidade *</label>
-      <div style={{display:"grid",gridTemplateColumns:"repeat("+Math.min(crits.length,4)+",1fr)",gap:6}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat("+Math.min(crits.length,4)+",1fr)",gap:6,marginBottom:crit?8:0}}>
         {crits.map(cr=>(
           <button key={cr.v} onClick={()=>setCrit(cr.v)} style={{padding:"8px 4px",borderRadius:8,border:"2px solid "+(crit===cr.v?cr.color:C.border),background:crit===cr.v?cr.color+"22":C.surface,cursor:"pointer",textAlign:"center",fontFamily:"inherit"}}>
             <div style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</div>
@@ -956,14 +955,9 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
           </button>
         ))}
       </div>
+      {(()=>{const cr=crits.find(c=>c.v===crit);return cr&&cr.desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {cr.desc}</div>:null;})()}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-      {[{v:fR,s:setFR,l:"Risco Regulatorio",c:C.warning},{v:fP,s:setFP,l:"Impacto em Produto",c:C.accent}].map((f,i)=>(
-        <button key={i} onClick={()=>f.s(!f.v)} style={{padding:"7px 10px",borderRadius:7,border:"2px solid "+(f.v?f.c:C.border),background:f.v?f.c+"15":C.surface,cursor:"pointer",display:"flex",alignItems:"center",gap:7,fontFamily:"inherit"}}>
-          <div style={{width:12,height:12,borderRadius:3,border:"2px solid "+(f.v?f.c:C.border),background:f.v?f.c:"transparent",flexShrink:0}}/>
-          <span style={{fontSize:12,fontWeight:600,color:f.v?f.c:C.muted}}>{f.l}</span>
-        </button>
-      ))}
     </div>
     <div>
       <label style={Sg.lbl}>Justificativa *</label>
@@ -1019,7 +1013,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     </div>}
     <div style={{display:"flex",justifyContent:"flex-end"}}>
       <button style={{...Sg.btn("warning"),opacity:canSave?1:.4,padding:"8px 18px"}} disabled={!canSave}
-        onClick={()=>onSave({criticality:crit,flagReg:fR,flagProd:fP,justification:just,classifiedBy:currentUser.id,classifiedByName:currentUser.name,classifiedAt:new Date().toISOString(),assignedAreas:areas,assignments:assigns,deadlines:{...dls},originalDeadlines:{...dls}})}>
+        onClick={()=>onSave({criticality:crit,flagReg:false,flagProd:false,justification:just,classifiedBy:currentUser.id,classifiedByName:currentUser.name,classifiedAt:new Date().toISOString(),assignedAreas:areas,assignments:assigns,deadlines:{...dls},originalDeadlines:{...dls}})}>
         Confirmar Triagem
       </button>
     </div>
@@ -1808,8 +1802,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             <FieldCard label="Motivo da Classificacao" wide>
               <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.triage.justification||"—"}</div>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-                {request.triage.flagReg&&<Pill label="Risco Regulatorio" color={C.warning}/>}
-                {request.triage.flagProd&&<Pill label="Impacto Produto" color={C.accent}/>}
+
               </div>
 
             </FieldCard>
@@ -2944,8 +2937,7 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
               <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
               <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.type}</div>
               <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>
-                {r.triage&&r.triage.flagReg&&<Badge label="Reg." color={C.warning}/>}
-                {r.triage&&r.triage.flagProd&&<Badge label="Prod." color={C.accent}/>}
+
                 {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
                 {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
               </div>
