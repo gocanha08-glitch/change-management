@@ -2258,31 +2258,25 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         return <TaskDrawer
           open={true}
           onClose={closeDrawer}
-          title={ac.id+" — "+ac.desc}
-          subtitle={(resp?"👤 "+resp.name+" · ":"")+"📅 "+fmtD(ac.deadline)}
+          title={ac.id}
+          subtitle={null}
           C={C}>
 
           {/* Voltar para plano */}
-          {drawer._fromPlan&&<button style={{...Sg.btn(),fontSize:12,marginBottom:14,display:"flex",alignItems:"center",gap:6}} onClick={()=>openPlanDrawer()}>← Voltar ao Plano</button>}
+          {drawer._fromPlan&&<button style={{...Sg.btn(),fontSize:12,marginBottom:16,display:"inline-flex",alignItems:"center",gap:6}} onClick={()=>openPlanDrawer()}>← Voltar ao Plano</button>}
 
-          {/* Status + Prazo */}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
-              <span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>
-                {ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}
-              </span>
-            </div>
-            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Prazo</div>
-              <div style={{fontSize:13,fontWeight:600,color:ov&&ac.status!=="concluida"?C.danger:C.text}}>{fmtD(ac.deadline)}</div>
-            </div>
+          {/* Info grid */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <FieldCard label="Descricao" wide><span style={{fontSize:14,color:C.text,lineHeight:1.5}}>{ac.desc}</span></FieldCard>
+            <FieldCard label="Responsavel" value={resp?resp.name:"—"}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:16}}>
+            <FieldCard label="Prazo"><span style={{fontSize:14,fontWeight:600,color:ov&&ac.status!=="concluida"?C.danger:C.text}}>{fmtD(ac.deadline)}</span></FieldCard>
+            <FieldCard label="Status"><span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>{ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}</span></FieldCard>
+            {ac.obs?<FieldCard label="Observacao" value={ac.obs}/>:<FieldCard label="Observacao" value="—"/>}
           </div>
 
-          {/* Observacao */}
-          {ac.obs&&<div style={{padding:"10px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border,fontSize:13,color:C.muted,marginBottom:16}}>
-            <strong style={{color:C.dim,fontSize:11,textTransform:"uppercase",letterSpacing:.5}}>Obs:</strong> {ac.obs}
-          </div>}
+
 
           {/* Conclusao anterior */}
           {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16}}>
