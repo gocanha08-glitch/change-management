@@ -1037,11 +1037,7 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
   const naCount=(ev.answers||[]).filter(a=>a.a==="N/A").length;
   return <div>
     {/* 4 FieldCards: responsavel planejado, concluido por, data conclusao, resumo */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-      <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Responsavel</div>
-        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{u?u.name:"—"}</div>
-      </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
       <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
         <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Concluido por</div>
         <div style={{fontSize:13,fontWeight:600,color:C.text}}>{ev.byName||"—"}</div>
@@ -1089,6 +1085,33 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
     {isAdmin&&<div style={{marginTop:8}}>
       <button style={{...Sg.btn(),fontSize:12,padding:"4px 12px"}} onClick={onEdit}>Editar avaliacao</button>
     </div>}
+  </div>;
+}
+
+// ================================================================
+// AcConcForm — stable component to avoid focus loss on re-render
+// ================================================================
+function AcConcForm({acId,conc,onNote,onAtt,onConfirm,request,currentUser,C,Sg}){
+  return <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
+    <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
+    <textarea
+      style={{...Sg.input(),minHeight:72,resize:"vertical",marginBottom:10}}
+      value={conc.note||""}
+      onChange={e=>onNote(e.target.value)}
+      placeholder="Descreva o que foi executado..."/>
+    <AttachmentsPanel
+      attachments={conc.att?[conc.att]:[]}
+      onAdd={onAtt}
+      readOnly={false}
+      stage={request.status}
+      currentUser={currentUser}
+      C={C}/>
+    <button
+      style={{...Sg.btn("success"),marginTop:10,opacity:conc.note&&conc.note.trim()?1:.4}}
+      disabled={!conc.note||!conc.note.trim()}
+      onClick={onConfirm}>
+      Confirmar Conclusao
+    </button>
   </div>;
 }
 
@@ -1564,8 +1587,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
                     const isExp=expandedAc[ac.id];
                     const conc=acConc[ac.id]||{};
+                    const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
-                      <tr style={{cursor:"pointer",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
+                      <tr style={{cursor:hasExpContent?"pointer":"default",background:isExp?C.accent+"08":ai%2!==0?C.surface+"66":"transparent"}} onClick={()=>hasExpContent&&setExpandedAc(p=>({...p,[ac.id]:!p[ac.id]}))}>
                         <Td><span style={{fontWeight:700,color:C.accent}}>{ac.id}</span></Td>
                         <Td>{ac.desc}</Td>
                         <Td muted>{resp?resp.name:"—"}</Td>
@@ -1578,32 +1602,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                       </tr>
                       {isExp&&<tr>
                         <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
-                          {/* Detalhes sempre visíveis */}
-                          {/* Se pendente e pode agir: formulario de conclusao */}
-                          {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
-                            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
-                            <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado..."/>
-                            <AttachmentsPanel attachments={conc.att?[conc.att]:[]} onAdd={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
-                            <button style={{...Sg.btn("success"),marginTop:10,opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
-                          </div>}
-                          {/* Acoes admin/responsavel */}
-                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:canAct?10:0,flexWrap:"wrap"}}>
+                          {canAct&&<AcConcForm acId={ac.id} conc={conc} onNote={note=>setAcConc(p=>({...p,[ac.id]:{...conc,note}}))} onAtt={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} onConfirm={()=>concludeAction(ac.id)} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
+                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:canAct?12:0,flexWrap:"wrap"}}>
                             {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
                             {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
                             {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
                             {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
                           </div>}
-                          {/* Se nao tem nada para mostrar */}
-                          {!canAct&&!((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status))&&<div style={{fontSize:13,color:C.muted}}>Nenhuma acao disponivel.</div>}
-                          {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px",marginBottom:10}}>
-                            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
-                            <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado e a evidencia..."/>
-                            <div style={{marginBottom:10}}>
-                              <AttachmentsPanel attachments={conc.att?[conc.att]:[]} onAdd={a=>setAcConc(p=>({...p,[ac.id]:{...conc,att:a}}))} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
-                            </div>
-                            <button style={{...Sg.btn("success"),opacity:conc.note&&conc.note.trim()?1:.4}} disabled={!conc.note||!conc.note.trim()} onClick={()=>concludeAction(ac.id)}>Confirmar Conclusao</button>
-                          </div>}
-
                         </td>
                       </tr>}
                     </React.Fragment>;
