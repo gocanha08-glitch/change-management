@@ -2484,6 +2484,193 @@ function ExtensionsTab({request,currentUser,allUsers,isAdmin,onDecide,onAdminCha
 // ================================================================
 // DASHBOARD v10 — compact tables, prazo em todas as seções
 // ================================================================
+// MyTasksDrawer — inbox of all pending tasks for current user
+// ================================================================
+function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initialSelected,onNav,onUpdate,matrix,deptQuestions,phaseDl,C}){
+  const Sg=mkSg(C);
+  const [selected,setSelected]=React.useState(null);
+
+  // Sync initialSelected when drawer opens
+  React.useEffect(()=>{
+    if(open&&initialSelected){
+      // Find matching task from live requests
+      const r=requests.find(r=>r.id===(initialSelected.req&&initialSelected.req.id));
+      if(r){
+        if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept});
+        else if(initialSelected.type==="action"){
+          const ac=(r.actions||[]).find(a=>a.id===initialSelected.ac.id)||initialSelected.ac;
+          setSelected({type:"action",req:r,ac});
+        }
+      }
+    }
+    if(!open) setSelected(null);
+  },[open]);
+
+  // Build task list from live requests
+  const buildTasks=()=>{
+    const tasks=[];
+    requests.forEach(r=>{
+      if(["avaliacao","revisao"].includes(r.status)){
+        const aa=(r.triage&&r.triage.assignedAreas)||[];
+        aa.forEach(dept=>{
+          const assignedId=r.triage&&r.triage.assignments&&r.triage.assignments[dept];
+          if(parseInt(assignedId)!==parseInt(currentUser.id))return;
+          const ev=r.evaluations&&r.evaluations[dept];
+          const done=!!(ev&&ev.at);
+          tasks.push({type:"eval",req:r,dept,done,label:dept,sublabel:r.id+" · "+r.title,urg:done?"done":urgCls((r.stageDeadlines&&r.stageDeadlines.avaliacao)||r.deadline,done?"concluida":"pendente")});
+        });
+      }
+      if(r.status==="execucao"){
+        (r.actions||[]).filter(a=>parseInt(a.responsible)===parseInt(currentUser.id)&&a.status==="pendente").forEach(a=>{
+          tasks.push({type:"action",req:r,ac:a,label:a.id+" — "+a.desc,sublabel:r.id+" · "+r.title,urg:urgCls(a.deadline,a.status)});
+        });
+      }
+      if(r.status==="plano"&&parseInt(r.planResponsible)===parseInt(currentUser.id)){
+        tasks.push({type:"plan",req:r,label:"Montar Plano de Acao",sublabel:r.id+" · "+r.title,urg:urgCls(r.stageDeadlines&&r.stageDeadlines.plano,"pendente")});
+      }
+    });
+    const urgOrder={overdue:0,today:1,soon:2,normal:3,done:4};
+    return tasks.sort((a,b)=>(urgOrder[a.urg||"normal"]||3)-(urgOrder[b.urg||"normal"]||3));
+  };
+  const tasks=buildTasks();
+  const urgColor=(u)=>u==="overdue"?C.danger:u==="today"?C.warning:u==="soon"?C.accent:u==="done"?C.success:C.muted;
+  const urgLabel=(u)=>u==="overdue"?"Atrasada":u==="today"?"Hoje":u==="soon"?"Em breve":u==="done"?"Concluida":"Pendente";
+  const pending=tasks.filter(t=>t.urg!=="done").length;
+
+  // Render task content inline
+  const renderTask=(t)=>{
+    if(t.type==="eval"){
+      const r=t.req;
+      const dept=t.dept;
+      const ev=r.evaluations&&r.evaluations[dept];
+      const done=!!(ev&&ev.at);
+      const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
+      const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
+      const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+      const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(r.status);
+      const saveEval=(dept,answers,obs,atts)=>{
+        const ev2={answers,obs,atts:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()};
+        const newEvs={...(r.evaluations||{}),[dept]:ev2};
+        const r2=mkLog({...r,evaluations:newEvs},currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept);
+        onUpdate(r2);
+      };
+      const saveDraft=(dept,answers,obs,atts)=>{
+        const ev2={answers,obs,atts:atts||[],by:currentUser.id,byName:currentUser.name,draft:true};
+        const r2={...r,evaluations:{...(r.evaluations||{}),[dept]:ev2}};
+        onUpdate(r2);
+      };
+      return <EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
+        allUsers={allUsers} deptQuestions={deptQuestions}
+        assignedUserId={r.triage&&r.triage.assignments&&r.triage.assignments[dept]}
+        isAdmin={isAdmin}
+        onChangeOwner={(d,id)=>{
+          const newU=allUsers.find(u=>u.id===id);
+          const r2={...r,triage:{...r.triage,assignments:{...r.triage.assignments,[d]:id}}};
+          onUpdate(mkLog(r2,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" → Para: "+(newU?newU.name:"—")));
+        }}
+        onClose={()=>setSelected(null)}
+        onSaveDraft={saveDraft}
+        onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);setSelected(null);}}
+        C={C}/>;
+    }
+    if(t.type==="action"){
+      const r=t.req;
+      const ac=(r.actions||[]).find(a=>a.id===t.ac.id)||t.ac;
+      const resp=allUsers.find(u=>parseInt(u.id)===parseInt(ac.responsible));
+      const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
+      const ov=isOD(ac.deadline,ac.status);
+      const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
+      const canAct=isMine&&r.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+      const concludeAc=(note,att)=>{
+        const actions=(r.actions||[]).map(a=>a.id===ac.id?{...a,status:"concluida",doneNote:note,doneAtt:att,doneBy:currentUser.id,doneByName:currentUser.name,doneAt:new Date().toISOString()}:a);
+        const r2=mkLog({...r,actions},currentUser.name,"acao","Acao concluida","ID: "+ac.id+" | "+(note.slice(0,80)));
+        onUpdate(r2);setSelected(null);
+      };
+      return <div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+          <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card,gridColumn:"1/-1"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>Descricao</div>
+            <div style={{fontSize:14,color:C.text}}>{ac.desc}</div>
+          </div>
+          <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>Responsavel</div>
+            <div style={{fontSize:13,fontWeight:600,color:C.text}}>{resp?resp.name:"—"}</div>
+          </div>
+          <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>Prazo</div>
+            <div style={{fontSize:13,fontWeight:600,color:ov?C.danger:C.text}}>{fmtD(ac.deadline)}</div>
+          </div>
+          <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
+            <span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>{ac.status==="concluida"?"Concluida":ov?"Atrasada":"Pendente"}</span>
+          </div>
+          {ac.obs&&<div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card,gridColumn:"1/-1"}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:.5}}>Observacao</div>
+            <div style={{fontSize:13,color:C.text}}>{ac.obs}</div>
+          </div>}
+        </div>
+        {canAct&&<AcConcForm acId={ac.id} onConfirm={concludeAc} request={r} currentUser={currentUser} C={C} Sg={Sg}/>}
+        {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginTop:8}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase"}}>Concluida</div>
+          <div style={{fontSize:13,color:C.text}}>{ac.doneNote}</div>
+        </div>}
+        <button style={{...Sg.btn(),fontSize:12,marginTop:16,display:"inline-flex",alignItems:"center",gap:6}} onClick={()=>onNav("detail",r.id)}>↗ Ver SA completa</button>
+      </div>;
+    }
+    if(t.type==="plan"){
+      return <div style={{textAlign:"center",padding:"20px 0"}}>
+        <div style={{fontSize:14,color:C.muted,marginBottom:16}}>Voce e responsavel por montar o plano de acao desta SA.</div>
+        <button style={Sg.btn("primary")} onClick={()=>{onClose();onNav("detail",t.req.id,"plano");}}>Abrir Plano de Acao →</button>
+      </div>;
+    }
+    return null;
+  };
+
+  if(!open)return null;
+  return <>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#000a",zIndex:300,backdropFilter:"blur(2px)"}}/>
+    <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(580px,100vw)",background:C.bg,borderLeft:"1px solid "+C.border,zIndex:301,display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px #0008"}}>
+      {/* Header */}
+      <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        {selected&&<button onClick={()=>setSelected(null)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:13,padding:"4px 10px",fontFamily:"inherit",flexShrink:0}}>← Voltar</button>}
+        <div style={{flex:1,minWidth:0}}>
+          {selected
+            ?<><div style={{fontSize:14,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.label}</div>
+               <div style={{fontSize:11,color:C.muted,marginTop:1}}>{selected.sublabel}</div></>
+            :<><div style={{fontSize:15,fontWeight:700,color:C.text}}>Minhas Tarefas</div>
+               <div style={{fontSize:12,color:C.muted,marginTop:1}}>{pending} pendente{pending!==1?"s":""} · {tasks.length} total</div></>}
+        </div>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0}}>✕</button>
+      </div>
+      {/* Content */}
+      <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
+        {selected?renderTask(selected):<>
+          {tasks.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.muted,fontSize:14}}>Nenhuma tarefa pendente 🎉</div>}
+          {tasks.map((t,i)=>{
+            const uc=urgColor(t.urg);
+            return <div key={i}
+              style={{border:"1px solid "+C.border,borderRadius:10,padding:"12px 16px",background:C.card,marginBottom:10,cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}
+              onClick={()=>setSelected(t)}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:15}}>{t.type==="eval"?"📋":t.type==="plan"?"📝":"⚡"}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:C.text}}>{t.label}</span>
+                </div>
+                <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,background:uc+"18",color:uc,border:"1px solid "+uc+"33",flexShrink:0}}>{urgLabel(t.urg)}</span>
+              </div>
+              <div style={{fontSize:11,color:C.muted,paddingLeft:23}}>{t.sublabel}</div>
+              {t.type==="action"&&<div style={{fontSize:11,color:uc,paddingLeft:23,marginTop:2}}>Prazo: {fmtD(t.ac.deadline)}</div>}
+            </div>;
+          })}
+        </>}
+      </div>
+    </div>
+  </>;
+}
+
+// ================================================================
 function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenAction,onNew}){
   const {C}=useTheme();const Sg=mkSg(C);
   const isAdmin=currentUser.role==="admin";
@@ -3981,6 +4168,8 @@ function App() {
   const [initialTab, setInitialTab] = useState(null);
   const [focusDept, setFocusDept] = useState(null);
   const [focusAcId, setFocusAcId] = useState(null);
+  const [myTasksOpen, setMyTasksOpen] = useState(false);
+  const [myTasksTarget, setMyTasksTarget] = useState(null); // {type:'eval'|'action', reqId, dept?, acId?}
 
   // Data state
   const [users,    setUR] = useState([]);
@@ -4178,7 +4367,21 @@ const loadAll = async () => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>nav('detail',r.id,'avaliacao',dept)} onOpenAction={(r,ac)=>nav('detail',r.id,'acoes',null,ac.id)}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{setMyTasksOpen(true);setMyTasksTarget({type:"eval",req:r,dept});}} onOpenAction={(r,ac)=>{setMyTasksOpen(true);setMyTasksTarget({type:"action",req:r,ac});}}/>}
+      <MyTasksDrawer
+        open={myTasksOpen}
+        onClose={()=>{setMyTasksOpen(false);setMyTasksTarget(null);}}
+        requests={requests}
+        currentUser={loggedIn}
+        allUsers={users}
+        crits={crits}
+        initialSelected={myTasksTarget}
+        onNav={nav}
+        onUpdate={updateReq}
+        matrix={matrix||mkMatrix()}
+        deptQuestions={deptQ}
+        phaseDl={phaseDl}
+        C={C}/>
       {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
