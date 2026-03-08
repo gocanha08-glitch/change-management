@@ -1222,6 +1222,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   // Auto-open drawer when coming from dashboard task click
   React.useEffect(()=>{
+    if(initialTab==="triage"){
+      setTimeout(()=>setTriageDrawer(true),100);
+      return;
+    }
+    if(initialTab==="revisao"){
+      // open SGQ approval modal for revisao
+      setTimeout(()=>setShowAp2(true),100);
+      return;
+    }
     if(initialTab==="plano"){
       setTimeout(()=>openPlanDrawer(),100);
       return;
@@ -2682,7 +2691,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   const getCrit=v=>crits.find(c=>c.v===v);
 
   const aprovSGQ=isAdmin?[
-    ...requests.filter(r=>r.status==="aberta").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Triagem",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="aberta").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aval. Inicial",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="revisao").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
@@ -2778,15 +2787,21 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
     {aprovSGQ.length>0&&<div style={{marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <Th cols="130px 1fr 60px 90px 120px 100px" labels={["ID","Titulo","Crit.","Prazo Etapa","Acao","Status"]}/>
+        <Th cols="130px 1fr 60px 90px 110px 130px" labels={["ID","Titulo","Crit.","Prazo Etapa","Acao","Status"]}/>
         {sortU(aprovSGQ).map((item,i)=>{
           const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
-          return <Row key={i} cols="130px 1fr 60px 90px 120px 100px" i={i} onClick={()=>onNav("detail",item.r.id)}>
+          const handleAprovClick=()=>{
+            if(item.type==="triage") onNav("detail",item.r.id,"triage");
+            else if(item.type==="revisao") onNav("detail",item.r.id,"revisao");
+            else if(item.type==="plano"||item.type==="montarplano") onNav("detail",item.r.id,"plano");
+            else onNav("detail",item.r.id);
+          };
+          return <Row key={i} cols="130px 1fr 60px 90px 110px 130px" i={i} onClick={handleAprovClick}>
             <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>
             <div><div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.type}</div></div>
             <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
             <UrgChip urg={item.urg} dl={item.deadline}/>
-            <span style={{fontSize:11,fontWeight:700,color:item.tagColor}}>{item.tag}</span>
+            <span style={{fontSize:11,fontWeight:700,color:item.tagColor,whiteSpace:"nowrap"}}>{item.tag}</span>
             <Badge label={st.label||""} color={st.color||C.muted}/>
           </Row>;
         })}
