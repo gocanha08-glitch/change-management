@@ -1878,6 +1878,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
       {!["plano","execucao","concluida"].includes(request.status)
         ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes.</div>
+        :request.status==="plano"&&!isAdmin&&request.planResponsible!==currentUser.id
+        ?<div style={{fontSize:14,color:C.muted}}>O plano esta sendo montado pelo SGQ/responsavel. Disponivel apos liberacao para execucao.</div>
         :<div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
             <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
