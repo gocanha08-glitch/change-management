@@ -218,10 +218,10 @@ const mkLog=(req,by,type,event,detail)=>({...req,log:[...(req.log||[]),{at:new D
 const RC={admin:"#EF4444",evaluator:"#4F8EF7",geral:"#2DD4BF"};
 const ROLES={admin:{label:"Admin / SGQ"},evaluator:{label:"Avaliador"},geral:{label:"Geral"}};
 const REQ_ST={
-  aberta:   {label:"Aguarda Triagem",   color:"#F97316",step:1},
+  aberta:   {label:"Aguarda Aval. Inicial", color:"#F97316",step:1},
   avaliacao:{label:"Em Avaliacao",      color:"#F59E0B",step:2},
-  revisao:  {label:"Aguarda Revisao",   color:"#8B5CF6",step:3},
-  plano:    {label:"Montagem do Plano", color:"#06B6D4",step:4},
+  revisao:  {label:"Aguarda Aprovacao", color:"#8B5CF6",step:3},
+  plano:    {label:"Montagem do Plano de Acao", color:"#06B6D4",step:4},
   execucao: {label:"Em Execucao",       color:"#4F8EF7",step:5},
   concluida:{label:"Concluida",         color:"#2DD4BF",step:6},
   cancelada:{label:"Cancelada",         color:"#EF4444",step:0},
@@ -251,11 +251,52 @@ function Badge({label,color}){return <span style={{display:"inline-flex",alignIt
 function Av({user,size=32}){if(!user)return null;const col=RC[user.role]||"#6B7A9F";return <div style={{width:size,height:size,borderRadius:"50%",background:col+"22",border:"2px solid "+col+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,color:col,flexShrink:0}}>{mkI(user.name)}</div>;}
 
 function Sel({value,onChange,options,placeholder,disabled,C}){
-  const st=C?{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}:{};
-  return <select value={value} onChange={e=>onChange(e.target.value)} disabled={!!disabled} style={{...st,appearance:"none",cursor:disabled?"default":"pointer",opacity:disabled?.5:1}}>
-    {placeholder&&<option value="">{placeholder}</option>}
-    {(options||[]).map(o=><option key={o.value!=null?o.value:o} value={o.value!=null?o.value:o}>{o.label!=null?o.label:o}</option>)}
-  </select>;
+  const [open,setOpen]=React.useState(false);
+  const [q,setQ]=React.useState("");
+  const ref=React.useRef(null);
+  const opts=options||[];
+  const selected=opts.find(o=>(o.value!=null?String(o.value):o)===String(value));
+  const filtered=q?opts.filter(o=>(o.label!=null?o.label:o).toLowerCase().includes(q.toLowerCase())):opts;
+
+  React.useEffect(()=>{
+    if(!open){setQ("");}
+    const handler=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",handler);
+    return()=>document.removeEventListener("mousedown",handler);
+  },[open]);
+
+  const st=C?{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:disabled?"default":"pointer",opacity:disabled?.5:1}:{};
+
+  return <div ref={ref} style={{position:"relative",width:"100%"}}>
+    <div onClick={()=>{if(!disabled)setOpen(o=>!o);}} style={{...st,userSelect:"none"}}>
+      <span style={{color:selected?(C?C.text:"inherit"):(C?C.muted:"#999"),overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+        {selected?(selected.label!=null?selected.label:selected):(placeholder||"Selecione...")}
+      </span>
+      <span style={{fontSize:10,color:C?C.muted:"#999",marginLeft:6,flexShrink:0}}>{open?"▲":"▼"}</span>
+    </div>
+    {open&&<div style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,zIndex:500,background:C?C.card:"#fff",border:"1px solid "+(C?C.border:"#ddd"),borderRadius:8,boxShadow:"0 8px 24px #0004",overflow:"hidden",maxHeight:260}}>
+      <div style={{padding:"6px 8px",borderBottom:"1px solid "+(C?C.border:"#eee")}}>
+        <input autoFocus style={{width:"100%",background:C?C.inputBg:"#f5f5f5",border:"1px solid "+(C?C.border:"#ddd"),borderRadius:6,padding:"5px 9px",fontSize:12,color:C?C.text:"#333",fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}
+          placeholder="Buscar..." value={q} onChange={e=>setQ(e.target.value)} onClick={e=>e.stopPropagation()}/>
+      </div>
+      <div style={{overflowY:"auto",maxHeight:200}}>
+        {placeholder&&!q&&<div style={{padding:"7px 11px",fontSize:13,color:C?C.muted:"#999",cursor:"pointer"}}
+          onClick={()=>{onChange("");setOpen(false);}}>{placeholder}</div>}
+        {filtered.length===0&&<div style={{padding:"10px 11px",fontSize:13,color:C?C.muted:"#999"}}>Nenhum resultado</div>}
+        {filtered.map((o,i)=>{
+          const v=o.value!=null?o.value:o;
+          const l=o.label!=null?o.label:o;
+          const isSel=String(v)===String(value);
+          return <div key={i} onClick={()=>{onChange(v);setOpen(false);}}
+            style={{padding:"8px 11px",fontSize:13,cursor:"pointer",background:isSel?(C?C.accent+"22":"#e8f0fe"):"transparent",color:isSel?(C?C.accent:"#1a73e8"):(C?C.text:"#333"),fontWeight:isSel?700:400}}
+            onMouseEnter={e=>{if(!isSel)e.currentTarget.style.background=C?C.surface:"#f5f5f5";}}
+            onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background="transparent";}}>
+            {l}
+          </div>;
+        })}
+      </div>
+    </div>}
+  </div>;
 }
 
 function Modal({open,onClose,title,children,width=600}){
@@ -956,8 +997,6 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
         ))}
       </div>
       {(()=>{const cr=crits.find(c=>c.v===crit);return cr&&cr.desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {cr.desc}</div>:null;})()}
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
     </div>
     <div>
       <label style={Sg.lbl}>Justificativa *</label>
@@ -4216,7 +4255,7 @@ const loadAll = async () => {
     if (us) setUR(us);
     if (rs) setRR(rs);
     try { const mx = await apiGet('/api/config/matrix'); if (mx) setMR(mx); } catch {}
-    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr); } catch {}
+    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr.map(c=>({desc:"",...(DEFAULT_CRITS.find(d=>d.v===c.v)||{}),...c}))); } catch {}
     try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
     try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
   };
