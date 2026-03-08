@@ -1592,7 +1592,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               <span>✓</span> Aprovar avaliacoes — iniciar plano
             </button>
             <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {request.status==="plano"&&(isAdmin||request.planResponsible===currentUser.id)&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
+            {request.status==="plano"&&(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
             <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.success,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
               onMouseEnter={e=>e.currentTarget.style.background=C.surface}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}
@@ -1876,11 +1876,14 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         4. PLANO DE ACAO
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
-      {!["plano","execucao","concluida"].includes(request.status)
-        ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes.</div>
-        :request.status==="plano"&&!isAdmin&&parseInt(request.planResponsible)!==parseInt(currentUser.id)
-        ?<div style={{fontSize:14,color:C.muted}}>O plano esta sendo montado pelo SGQ/responsavel. Disponivel apos liberacao para execucao.</div>
-        :<div>
+      {(()=>{
+        const inPlano=request.status==="plano";
+        const canSeePlano=isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id);
+        if(!["plano","execucao","concluida"].includes(request.status))
+          return <div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes de impacto.</div>;
+        if(inPlano&&!canSeePlano)
+          return <div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>O plano esta sendo montado. Voce tera acesso apos a liberacao para execucao.</div>;
+        return <div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
             <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
               <div>
@@ -1893,7 +1896,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 onUpdate(r);
               }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
             </div>
-            {(isAdmin||request.planResponsible===currentUser.id)&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+            {(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
             {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
           </div>
           {(request.actions||[]).length===0
@@ -1940,7 +1943,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 </tbody>
               </table>
             </div>}
-        </div>}
+        </div>;
+      })()}
     </SecCard>
 
     {/* ══════════════════════════════════════════════════════════
@@ -2384,13 +2388,20 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
     });
   });
 
-  // Acoes — prazo específico da ação
+  // Acoes — só aparece no dashboard quando SA estiver em execucao
   const acoes=[];
   requests.forEach(r=>{
-       (r.actions||[]).filter(a=>a.responsible===currentUser.id&&a.status==="pendente").forEach(a=>{
+    if(r.status!=="execucao")return;
+    (r.actions||[]).filter(a=>parseInt(a.responsible)===parseInt(currentUser.id)&&a.status==="pendente").forEach(a=>{
       acoes.push({r,a,dl:a.deadline,urg:urgCls(a.deadline,a.status)});
     });
   });
+  
+  // SAs aguardando aprovacao do plano (responsavel pelo plano ou admin)
+  const planosAguardando=requests.filter(r=>
+    r.status==="plano"&&
+    (parseInt(r.planResponsible)===parseInt(currentUser.id)||currentUser.role==="admin"||currentUser.role==="sgq")
+  );
 
   const minhasSAs=requests.filter(r=>r.createdBy===currentUser.id&&!["concluida","cancelada"].includes(r.status));
   const O={overdue:0,today:1,soon:2,normal:3};
@@ -2488,6 +2499,23 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
 
     {/* AÇÕES — responsável */}
     {acoes.length>0&&<div style={{marginBottom:14}}>
+      {planosAguardando.length>0&&<div style={{marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
+        <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
+          <Th cols="1fr 120px 140px 120px" labels={["Solicitacao","Criticidade","Acoes no Plano","Acao"]}/>
+          {planosAguardando.map(r=>(
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 120px",alignItems:"center",padding:"10px 11px",gap:8,borderBottom:"1px solid "+C.border+"55",background:"transparent"}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:700,color:C.accent,cursor:"pointer"}} onClick={()=>onNav("detail",r.id)}>{r.id}</div>
+                <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
+              </div>
+              <CritBadge crit={r.triage&&r.triage.criticality}/>
+              <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} acao{(r.actions||[]).length!==1?"es":""}</div>
+              <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={()=>onNav("detail",r.id,"plano")}>Ver Plano</button>
+            </div>
+          ))}
+        </div>
+      </div>}
       <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <Th cols="130px 1fr 60px 100px 120px" labels={["SA","Descricao Acao","Crit.","Prazo","Acao"]}/>
