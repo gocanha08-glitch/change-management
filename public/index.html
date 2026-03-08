@@ -1105,12 +1105,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [expandedAc,setExpandedAc]=useState({});
   const [acConc,setAcConc]=useState({});
   const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
-  const [evalOpen,setEvalOpenRaw]=useState(null);
-  const setEvalOpen=(dept)=>{
-    const scrollY=window.scrollY;
-    setEvalOpenRaw(dept);
-    requestAnimationFrame(()=>window.scrollTo({top:scrollY,behavior:"instant"}));
-  };
+  const [evalOpen,setEvalOpen]=useState(null);
+  const scrollRef=React.useRef(0);
+  React.useLayoutEffect(()=>{window.scrollTo(0,scrollRef.current);},[evalOpen]);
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
@@ -1503,7 +1500,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
                       {(done||canAct)
-                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>setEvalOpen(isExp?null:dept)}>
+                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>{scrollRef.current=window.scrollY;setEvalOpen(isExp?null:dept);}}>
                           {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
                         </button>
                         :<span style={{fontSize:12,color:C.muted}}>—</span>}
@@ -1518,7 +1515,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                           allUsers={allUsers} deptQuestions={deptQuestions}
                           assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]} isAdmin={isAdmin}
                           onChangeOwner={(d,id)=>{const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};onUpdate(mkLog(r,currentUser.name,"owner","Responsavel alterado","Area: "+d));}}
-                          onClose={()=>setEvalOpen(null)} onSaveDraft={saveDraftEval} onSave={saveEval} C={C}/>}
+                          onClose={()=>{scrollRef.current=window.scrollY;setEvalOpen(null);}} onSaveDraft={saveDraftEval} onSave={saveEval} C={C}/>}
                     </td>
                   </tr>}
                 </React.Fragment>;
