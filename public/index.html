@@ -2204,7 +2204,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 const ov=isOD(ac.deadline,ac.status);
                 const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
                 return <div key={ac.id} style={{border:"1px solid "+C.border,borderRadius:10,padding:"12px 16px",background:C.card,cursor:"pointer"}}
-                  onClick={()=>setDrawer({type:"action",ac})}>
+                  onClick={()=>{setDrawer({type:"action",ac,_fromPlan:true});setDrawerEditing(false);setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{ac.id}</span>
@@ -2255,42 +2255,62 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </div>
           </div>
         </TaskDrawer>;
-        return <TaskDrawer open={true} onClose={closeDrawer} title={ac.id+" — "+ac.desc} subtitle={(resp?"Responsavel: "+resp.name+" · ":"")+"Prazo: "+fmtD(ac.deadline)} C={C}>
-          {/* Status + obs */}
+        return <TaskDrawer
+          open={true}
+          onClose={closeDrawer}
+          title={ac.id+" — "+ac.desc}
+          subtitle={(resp?"👤 "+resp.name+" · ":"")+"📅 "+fmtD(ac.deadline)}
+          C={C}>
+
+          {/* Voltar para plano */}
+          {drawer._fromPlan&&<button style={{...Sg.btn(),fontSize:12,marginBottom:14,display:"flex",alignItems:"center",gap:6}} onClick={()=>openPlanDrawer()}>← Voltar ao Plano</button>}
+
+          {/* Status + Prazo */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
             <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
-              <span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>{ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}</span>
+              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
+              <span style={{display:"inline-flex",padding:"4px 10px",borderRadius:999,fontSize:12,fontWeight:700,background:acColor+"1A",color:acColor,border:"1px solid "+acColor+"44"}}>
+                {ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"}
+              </span>
             </div>
             <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Prazo</div>
+              <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Prazo</div>
               <div style={{fontSize:13,fontWeight:600,color:ov&&ac.status!=="concluida"?C.danger:C.text}}>{fmtD(ac.deadline)}</div>
             </div>
           </div>
+
+          {/* Observacao */}
           {ac.obs&&<div style={{padding:"10px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border,fontSize:13,color:C.muted,marginBottom:16}}>
-            <strong style={{color:C.dim}}>Observacao:</strong> {ac.obs}
+            <strong style={{color:C.dim,fontSize:11,textTransform:"uppercase",letterSpacing:.5}}>Obs:</strong> {ac.obs}
           </div>}
+
           {/* Conclusao anterior */}
           {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16}}>
             <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Concluida em {fmtD(ac.doneAt&&ac.doneAt.slice(0,10))}</div>
             <div style={{fontSize:14,color:C.text,lineHeight:1.5}}>{ac.doneNote||"—"}</div>
             {ac.doneAtt&&<div style={{fontSize:12,color:C.muted,marginTop:6}}>📎 {ac.doneAtt.name}</div>}
           </div>}
-          {/* Formulario de conclusao */}
+
+          {/* Form conclusao */}
           {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
-          {/* Botoes admin */}
-          {isAdmin&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:16,flexWrap:"wrap"}}>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>Alterar prazo</button>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setDrawerEditing(true)}>Editar</button>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>
-            {request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>Excluir</button>}
-            {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>Remover do plano</button>}
+
+          {/* Acoes admin/canPlan */}
+          {(isAdmin||canPlan)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
+                setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
+                setDrawerEditing(true);
+              }}>✏ Editar</button>
+              {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>}
+              {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>}
+              {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
+              {isAdmin&&request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
+            </div>
           </div>}
-          {isAdmin&&ac.status==="concluida"&&<div style={{marginTop:16}}>
-            <button style={{...Sg.btn("warning"),fontSize:12}} onClick={()=>{closeDrawer();setReopenAc(ac);}}>Reabrir acao</button>
-          </div>}
-          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:isAdmin?8:16}}>
-            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>Pedir extensao de prazo</button>
+
+          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
+            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>⏱ Pedir extensao de prazo</button>
           </div>}
         </TaskDrawer>;
       }
