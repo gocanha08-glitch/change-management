@@ -174,12 +174,7 @@ const THEMES = {
     purple:"#7C3AED", orange:"#EA580C", cyan:"#0891B2", muted:"#6B7280",
     text:"#111827", dim:"#374151", inputBg:"#F9FAFB",
   },
-  bw: {
-    bg:"#000000", surface:"#111111", card:"#1A1A1A", border:"#333333",
-    accent:"#FFFFFF", success:"#CCCCCC", warning:"#AAAAAA", danger:"#FFFFFF",
-    purple:"#BBBBBB", orange:"#999999", cyan:"#DDDDDD", muted:"#666666",
-    text:"#FFFFFF", dim:"#CCCCCC", inputBg:"#111111",
-  },
+
 };
 
 // ThemeContext
@@ -645,6 +640,7 @@ function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C,refId,
 // CRIT EDITOR — admin cria/edita/remove niveis livremente
 // ================================================================
 function CritEditor({crits,currentUser,onSave}){
+  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
   const {C}=useTheme();const Sg=mkSg(C);
   const [local,setLocal]=useState(()=>crits.map(c=>({...c})));
   const [saved,setSaved]=useState(false);
@@ -1218,6 +1214,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [extTarget,setExtTarget]=useState(null);
   const [adminDlTarget,setAdminDlTarget]=useState(null);
   const [editTriagem,setEditTriagem]=useState(false);
+  const [triageDrawer,setTriageDrawer]=useState(false);
   const [showAddAc,setAddAc]=useState(false);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
   const [editAc,setEditAc]=useState(null);
@@ -1614,7 +1611,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
               onMouseEnter={e=>e.currentTarget.style.background=C.surface}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              onClick={()=>{setSgqOpen(false);setEditTriagem(true);setOpenSec(o=>({...o,triagem:true}));}}>
+              onClick={()=>{setSgqOpen(false);setEditTriagem(true);setTriageDrawer(true);}}>
               <span style={{color:C.accent}}>✏</span> Editar Avaliacao Inicial
             </button>
             <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
@@ -1783,9 +1780,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       {!request.triage||editTriagem
         ?isAdmin
           ?<div>
-            {editTriagem&&<div style={{fontSize:13,color:C.warning,marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33"}}>Editando — ao salvar as avaliacoes serao resetadas.</div>}
-            <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>saveTriage(t,editTriagem)} C={C}/>
-            {editTriagem&&<button style={{...Sg.btn(),marginTop:10,fontSize:12}} onClick={()=>setEditTriagem(false)}>Cancelar</button>}
+            <button style={{...Sg.btn("primary"),fontSize:13,padding:"8px 18px"}} onClick={()=>setTriageDrawer(true)}>
+              {editTriagem?"✏ Editar Avaliacao Inicial":"Iniciar Avaliacao Inicial →"}
+            </button>
           </div>
           :<div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>Aguardando triagem pelo SGQ.</div>
         :<div>
@@ -2138,6 +2135,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         </div>
       </div>
     </Modal>}
+
+    {/* ══ TRIAGE DRAWER ══ */}
+    {triageDrawer&&<TaskDrawer open={true} onClose={()=>setTriageDrawer(false)} title={editTriagem?"Editar Avaliacao Inicial":"Avaliacao Inicial da Mudanca"} subtitle={editTriagem?"Alteracoes ficam registradas no historico":null} C={C}>
+      {editTriagem&&<div style={{marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33",fontSize:13,color:C.warning}}>Editando — areas removidas terao suas avaliacoes apagadas.</div>}
+      <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t,editTriagem);setTriageDrawer(false);setEditTriagem(false);}} C={C}/>
+      <button style={{...Sg.btn(),marginTop:12,fontSize:12}} onClick={()=>{setTriageDrawer(false);setEditTriagem(false);}}>Cancelar</button>
+    </TaskDrawer>}
 
     {/* ══ TASK DRAWER ══ */}
     {drawer&&(()=>{
@@ -4040,6 +4044,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
 // SETTINGS PAGE — includes phase deadlines editor + theme + pwd
 // ================================================================
 function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,setTheme}){
+  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
   const {C}=useTheme();const Sg=mkSg(C);
   const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
   const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
@@ -4060,7 +4065,7 @@ const go=async()=>{
     }catch(e){setMsg("err:"+e.message);}
   };
 
-  const themeOpts=[{v:"dark",l:"Escuro"},{v:"light",l:"Claro"},{v:"bw",l:"P&B"}];
+  const themeOpts=[{v:"dark",l:"Escuro"},{v:"light",l:"Claro"}];
 
   return <div style={{padding:"18px 22px",maxWidth:700}}>
     <h1 style={{margin:"0 0 16px",fontSize:18,color:C.text,fontWeight:700}}>Configuracoes</h1>
@@ -4313,10 +4318,11 @@ const loadAll = async () => {
     {id:"changes",   label:"Controles",    badge:0},
     {id:"acoes",     label:"Tarefas",      badge:(pendEv+pendAcs)||0},
     {id:"indicators",label:"Indicadores",  badge:0},
+    {id:"settings",  label:"Configuracoes",badge:0},
     ...(isAdmin?[
       {id:"matrix",    label:"Matriz",       badge:0,adm:true},
-      {id:"crits",     label:"Criticidade",  badge:0,adm:true},
-      {id:"perguntas", label:"Perguntas",    badge:0,adm:true},
+      {id:"crits",     label:"Criticidade",  badge:0},
+      {id:"perguntas", label:"Perguntas",    badge:0},
       {id:"users",     label:"Usuarios",     badge:0,adm:true},
       {id:"settings",  label:"Configuracoes",badge:pendExt||0,adm:true},
       {id:"log",       label:"Auditoria",    badge:0,adm:true},
@@ -4388,10 +4394,10 @@ const loadAll = async () => {
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
       {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
-      {view==='crits'     &&isAdmin&&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
-      {view==='perguntas' &&isAdmin&&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
+      {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
+      {view==='perguntas' &&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
       {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
-      {view==='settings'  &&isAdmin&&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
+      {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
     </div>
   </div>;
