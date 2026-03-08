@@ -1105,7 +1105,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [expandedAc,setExpandedAc]=useState({});
   const [acConc,setAcConc]=useState({});
   const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
-  const [evalOpen,setEvalOpen]=useState(null);
+  const [evalOpen,setEvalOpenRaw]=useState(null);
+  const setEvalOpen=(dept)=>{
+    const scrollY=window.scrollY;
+    setEvalOpenRaw(dept);
+    requestAnimationFrame(()=>window.scrollTo({top:scrollY,behavior:"instant"}));
+  };
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
