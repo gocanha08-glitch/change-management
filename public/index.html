@@ -1089,6 +1089,30 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 }
 
 // ================================================================
+// VerifyForm — owns internal state to avoid focus loss on parent re-render
+// ================================================================
+function VerifyForm({onConfirm,C,Sg}){
+  const [note,setNote]=useState("");
+  return <div>
+    <div style={{fontSize:14,color:"inherit",marginBottom:14}}>Todas as acoes foram concluidas. Registre a verificacao final para encerrar este controle.</div>
+    <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>Observacoes da Verificacao Final *</div>
+      <textarea
+        style={{...Sg.input(),minHeight:80,resize:"vertical",marginBottom:12,width:"100%"}}
+        value={note}
+        onChange={e=>setNote(e.target.value)}
+        placeholder="Descreva a verificacao realizada e confirme a conclusao..."/>
+      <button
+        style={{...Sg.btn("success"),opacity:note.trim()?1:.4,padding:"10px 24px",fontSize:14}}
+        disabled={!note.trim()}
+        onClick={()=>onConfirm(note)}>
+        ✓ Encerrar Controle de Mudancas
+      </button>
+    </div>
+  </div>;
+}
+
+// ================================================================
 // AcConcForm — owns internal state to avoid focus loss on parent re-render
 // ================================================================
 function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
@@ -1147,7 +1171,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     },300);
   },[]);
 
-  const [verifyNote,setVerifyNote]=useState(request.verifyNote||"");
+
   const [evalOpen,setEvalOpen]=useState(()=>focusDept?{[focusDept]:true}:{});
   const togEval=(dept)=>{
     const y=window.scrollY;
@@ -1247,10 +1271,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
 
-  const concludeSA=()=>{
-    if(!verifyNote.trim())return;
-    let r={...request,status:"concluida",closedAt:new Date().toISOString(),verifyNote,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
-    r=mkLog(r,currentUser.name,"conclusao","SA concluida e verificada",verifyNote);onUpdate(r);
+  const concludeSA=(note)=>{
+    if(!note||!note.trim())return;
+    let r={...request,status:"concluida",closedAt:new Date().toISOString(),verifyNote:note,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
+    r=mkLog(r,currentUser.name,"conclusao","SA concluida e verificada",note);onUpdate(r);
   };
 
   const rejeitar=()=>{
@@ -1656,13 +1680,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </FieldCard>
         </div>
         :isAdmin&&allActsDone
-          ?<div>
-            <div style={{fontSize:14,color:C.muted,marginBottom:14}}>Todas as acoes foram concluidas. Registre a verificacao final para encerrar este controle.</div>
-            <FieldCard label="Observacoes da Verificacao Final *" wide>
-              <textarea style={{...Sg.input(),minHeight:80,resize:"vertical",marginTop:6,marginBottom:12}} value={verifyNote} onChange={e=>setVerifyNote(e.target.value)} placeholder="Descreva a verificacao realizada e confirme a conclusao..."/>
-              <button style={{...Sg.btn("success"),opacity:verifyNote.trim()?1:.4,padding:"10px 24px",fontSize:14}} disabled={!verifyNote.trim()} onClick={concludeSA}>✓ Encerrar Controle de Mudancas</button>
-            </FieldCard>
-          </div>
+          ?<VerifyForm onConfirm={note=>concludeSA(note)} C={C} Sg={Sg}/>
           :<div style={{fontSize:14,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
     </SecCard>
 
