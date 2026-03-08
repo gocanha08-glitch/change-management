@@ -1032,55 +1032,60 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
 
 // Collapsible evaluation detail card
 function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
-  const [open,setOpen]=useState(false);
   const simCount=(ev.answers||[]).filter(a=>a.a==="S").length;
   const naoCount=(ev.answers||[]).filter(a=>a.a==="N").length;
   const naCount=(ev.answers||[]).filter(a=>a.a==="N/A").length;
-  return <div style={{...Sg.card({marginBottom:8,padding:0,overflow:"hidden"})}}>
-    {/* Header — always visible, click to expand */}
-    <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:open?C.surface:C.card,border:"none",cursor:"pointer",padding:"9px 13px",display:"flex",alignItems:"center",gap:10,textAlign:"left",fontFamily:"inherit"}}>
-      <span style={{fontSize:11,color:open?C.accent:C.muted,transform:open?"rotate(90deg)":"none",transition:"transform .2s",flexShrink:0}}>&#9658;</span>
-      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
-        {u&&<Av user={u} size={22}/>}
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dept}</div>
-          <div style={{fontSize:10,color:C.muted}}>
-            <strong style={{color:C.dim}}>{ev.byName}</strong> · {fmt(ev.at)}
-          </div>
-        </div>
+  return <div>
+    {/* Header cards: area, responsavel, data conclusao */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+      <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Area</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{dept}</div>
       </div>
-      {/* Mini summary badges */}
-      <div style={{display:"flex",gap:5,flexShrink:0}}>
-        {simCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.warning+"22",color:C.warning}}>{simCount} Sim</span>}
-        {naoCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.danger+"22",color:C.danger}}>{naoCount} Nao</span>}
-        {naCount>0&&<span style={{fontSize:10,fontWeight:700,padding:"1px 7px",borderRadius:10,background:C.muted+"22",color:C.muted}}>{naCount} N/A</span>}
-        <Badge label="OK" color={C.success}/>
+      <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Responsavel</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{u?u.name:ev.byName||"—"}</div>
       </div>
-    </button>
-    {/* Expandable answers */}
-    {open&&<div style={{borderTop:"1px solid "+C.border}}>
-      <div style={{display:"grid",gridTemplateColumns:"60px 1fr 1fr",background:C.surface+"88",padding:"4px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
-        {["Resp.","Pergunta","Justificativa / Obs"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.4}}>{h}</div>)}
+      <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Data de Conclusao</div>
+        <div style={{fontSize:13,fontWeight:600,color:C.text}}>{fmt(ev.at)}</div>
       </div>
-      {(ev.answers||[]).map((a,ai)=>{
-        const hasNote=(a.just&&a.just.trim())||(a.obs&&a.obs.trim());
-        return <div key={ai} style={{display:"grid",gridTemplateColumns:"60px 1fr 1fr",padding:"6px 13px",borderBottom:"1px solid "+C.border+"18",gap:8,alignItems:"start",background:ai%2===0?"transparent":C.surface+"44"}}>
-          <span style={{fontSize:12,fontWeight:700,color:a.a==="S"?C.warning:a.a==="N"?C.danger:C.muted}}>
-            {a.a==="S"?"Sim":a.a==="N"?"Nao":"N/A"}
-          </span>
-          <span style={{fontSize:12,color:C.text,lineHeight:1.4}}>{a.q}</span>
-          <span style={{fontSize:11,color:C.muted,lineHeight:1.4,fontStyle:hasNote?"normal":"italic"}}>
-            {a.just&&a.just.trim()?"— "+a.just:""}{a.obs&&a.obs.trim()?(a.just?"; ":"")+a.obs:""}
-            {!hasNote?"—":""}
-          </span>
-        </div>;
-      })}
-      {ev.obs&&<div style={{padding:"7px 13px",borderTop:"1px solid "+C.border+"33",fontSize:11,color:C.muted}}>
-        <strong>Obs gerais:</strong> {ev.obs}
-      </div>}
-      {isAdmin&&<div style={{padding:"7px 13px",borderTop:"1px solid "+C.border+"22"}}>
-        <button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={onEdit}>Editar avaliacao</button>
-      </div>}
+    </div>
+    {/* Resumo de respostas */}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      {simCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.warning+"18",color:C.warning,border:"1px solid "+C.warning+"33"}}>{simCount} Sim</span>}
+      {naoCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.danger+"18",color:C.danger,border:"1px solid "+C.danger+"33"}}>{naoCount} Nao</span>}
+      {naCount>0&&<span style={{fontSize:12,fontWeight:700,padding:"3px 10px",borderRadius:999,background:C.muted+"18",color:C.muted,border:"1px solid "+C.muted+"33"}}>{naCount} N/A</span>}
+    </div>
+    {/* Tabela de perguntas: Pergunta / Resposta / Observacao */}
+    <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden",marginBottom:ev.obs||isAdmin?12:0}}>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead>
+          <tr>
+            <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",letterSpacing:.4}}>Pergunta</th>
+            <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",width:90,letterSpacing:.4}}>Resposta</th>
+            <th style={{padding:"9px 14px",background:C.card,borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:700,color:C.muted,textAlign:"left",letterSpacing:.4}}>Observacao / Justificativa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(ev.answers||[]).map((a,ai)=>{
+            const obs=(a.just&&a.just.trim()?a.just:"")+(a.obs&&a.obs.trim()?(a.just?" — ":"")+a.obs:"");
+            return <tr key={ai} style={{background:ai%2!==0?C.surface+"55":"transparent"}}>
+              <td style={{padding:"10px 14px",fontSize:13,color:C.text,lineHeight:1.5,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top"}}>{a.q}</td>
+              <td style={{padding:"10px 14px",fontSize:13,fontWeight:700,color:a.a==="S"?C.warning:a.a==="N"?C.danger:C.muted,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top",whiteSpace:"nowrap"}}>
+                {a.a==="S"?"Sim":a.a==="N"?"Nao":"N/A"}
+              </td>
+              <td style={{padding:"10px 14px",fontSize:13,color:C.muted,lineHeight:1.5,borderBottom:"1px solid "+C.border+"44",verticalAlign:"top"}}>{obs||"—"}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div>
+    {ev.obs&&<div style={{padding:"10px 14px",background:C.surface,borderRadius:8,border:"1px solid "+C.border,fontSize:13,color:C.muted,marginBottom:isAdmin?10:0}}>
+      <strong style={{color:C.dim}}>Observacoes gerais:</strong> {ev.obs}
+    </div>}
+    {isAdmin&&<div style={{marginTop:8}}>
+      <button style={{...Sg.btn(),fontSize:12,padding:"4px 12px"}} onClick={onEdit}>Editar avaliacao</button>
     </div>}
   </div>;
 }
@@ -1512,7 +1517,6 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                   </tr>
                   {isExp&&<tr>
                     <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
-                      <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:.5}}>Perguntas / Respostas / Anexo</div>
                       {done&&!isMe&&!isAdmin
                         ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
                         :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
@@ -1583,50 +1587,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                       {isExp&&<tr>
                         <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
                           {/* Detalhes sempre visíveis */}
-                          {/* Planejamento */}
-                          <div style={{marginBottom:14}}>
-                            <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>Planejamento</div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-                              <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Responsavel</div>
-                                <div style={{fontSize:13,fontWeight:600,color:C.text}}>{resp?resp.name:"—"}</div>
-                              </div>
-                              <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Prazo Previsto</div>
-                                <div style={{fontSize:13,fontWeight:600,color:ov&&ac.status!=="concluida"?C.danger:C.text}}>{fmtD(ac.deadline)}</div>
-                              </div>
-                              <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Status</div>
-                                <Pill label={ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"} color={acColor}/>
-                              </div>
-                              {ac.obs&&<div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 14px",background:C.card,gridColumn:"span 1"}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Observacao</div>
-                                <div style={{fontSize:13,color:C.text,lineHeight:1.4}}>{ac.obs}</div>
-                              </div>}
-                            </div>
-                          </div>
-                          {/* Execucao — so quando concluida */}
-                          {ac.status==="concluida"&&<div style={{marginBottom:14}}>
-                            <div style={{fontSize:11,fontWeight:700,color:C.success,marginBottom:8,textTransform:"uppercase",letterSpacing:.5}}>Execucao</div>
-                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-                              <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Concluida por</div>
-                                <div style={{fontSize:13,fontWeight:600,color:C.text}}>{resp?resp.name:"—"}</div>
-                              </div>
-                              <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Data de Conclusao</div>
-                                <div style={{fontSize:13,fontWeight:600,color:C.text}}>{fmtD(ac.doneAt&&ac.doneAt.slice(0,10))}</div>
-                              </div>
-                              <div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08",gridColumn:"span 2"}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>O que foi executado</div>
-                                <div style={{fontSize:13,color:C.text,lineHeight:1.5}}>{ac.doneNote||"—"}</div>
-                              </div>
-                              {ac.doneAtt&&<div style={{border:"1px solid "+C.success+"44",borderRadius:10,padding:"10px 14px",background:C.success+"08"}}>
-                                <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Anexo de Evidencia</div>
-                                <div style={{fontSize:13,color:C.accent}}>📎 {ac.doneAtt.name}</div>
-                              </div>}
-                            </div>
-                          </div>}
+                          {/* Anexos da acao — unico conteudo extra nao visivel na tabela */}
+                          <AttachmentsPanel attachments={(request.attachments||[]).filter(a=>a.stage&&a.stage.includes(ac.id))} onAdd={att=>upd({attachments:[...(request.attachments||[]),{...att,stage:"acao-"+ac.id}]},"anexo","Anexo da acao","ID: "+ac.id)} readOnly={!canAct&&!isAdmin} stage={request.status} currentUser={currentUser} C={C}/>
                           {canAct&&<div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px",marginBottom:10}}>
                             <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
                             <textarea style={{...Sg.input(),minHeight:64,resize:"vertical",marginBottom:10}} value={conc.note||""} onChange={e=>setAcConc(p=>({...p,[ac.id]:{...conc,note:e.target.value}}))} placeholder="Descreva o que foi executado e a evidencia..."/>
