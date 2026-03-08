@@ -1169,6 +1169,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
   const [showCancel,setShowCancel]=useState(false);
+  const [showAp2,setShowAp2]=useState(false);
+  const [showAp3,setShowAp3]=useState(false);
+  const [ap2DateVal,setAp2DateVal]=useState("");
+  const [ap3DateVal,setAp3DateVal]=useState("");
   const [reopenPhase,setReopenPhase]=useState(null); // {key, label}
   const [reopenEval,setReopenEval]=useState(null);   // dept string
   const [reassignEval,setReassignEval]=useState(null); // {dept, currentUserId}
@@ -1178,8 +1182,6 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [reassignAcUser,setReassignAcUser]=useState("");
   const [extTarget,setExtTarget]=useState(null);
   const [adminDlTarget,setAdminDlTarget]=useState(null);
-  const [ap2Date,setAp2Date]=useState(null);
-  const [ap3Date,setAp3Date]=useState(null);
   const [editTriagem,setEditTriagem]=useState(false);
   const [showAddAc,setAddAc]=useState(false);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
@@ -1236,11 +1238,26 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   // ── Actions ──────────────────────────────────────────────────────
   const upd=(patch,type,ev,detail)=>{let r={...request,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);onUpdate(r);};
 
-  const saveTriage=triage=>{
+  const saveTriage=(triage,isEdit)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
-    const newSD={...(request.stageDeadlines||{}),avaliacao:addDays(todayStr(),pd.avaliacao.days)};
-    let r={...request,triage,status:"avaliacao",evaluations:{},ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
-    r=mkLog(r,currentUser.name,"triagem","Triagem aprovada","Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+")"+" | Areas: "+triage.assignedAreas.join(", "));
+    const oldCrit=request.triage&&request.triage.criticality;
+    const oldAreas=request.triage&&request.triage.assignedAreas||[];
+    const newAreas=triage.assignedAreas;
+    const removedAreas=oldAreas.filter(a=>!newAreas.includes(a));
+    // Only reset evaluations for areas that were removed
+    const newEvs=isEdit
+      ? Object.fromEntries(Object.entries(request.evaluations||{}).filter(([k])=>newAreas.includes(k)))
+      : {};
+    const newSD={...(request.stageDeadlines||{}),avaliacao:isEdit?(request.stageDeadlines&&request.stageDeadlines.avaliacao||addDays(todayStr(),pd.avaliacao.days)):addDays(todayStr(),pd.avaliacao.days)};
+    let detail="Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+")"+" | Areas: "+triage.assignedAreas.join(", ");
+    if(isEdit){
+      if(oldCrit!==triage.criticality)detail+=" | Criticidade alterada: "+oldCrit+" → "+triage.criticality;
+      if(removedAreas.length>0)detail+=" | Areas removidas: "+removedAreas.join(", ");
+      const addedAreas=newAreas.filter(a=>!oldAreas.includes(a));
+      if(addedAreas.length>0)detail+=" | Areas adicionadas: "+addedAreas.join(", ");
+    }
+    let r={...request,triage,status:isEdit?request.status:"avaliacao",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
+    r=mkLog(r,currentUser.name,"triagem",isEdit?"Avaliacao inicial editada pelo SGQ":"Triagem aprovada",detail);
     onUpdate(r);setEditTriagem(false);
   };
 
@@ -1273,10 +1290,18 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,execucao:execDl}},"aprovacao","Aprovacao 3: Plano aprovado — Execucao iniciada","Aprovado por: "+currentUser.name+" | Prazo de execucao: "+fmtD(execDl));
   };
 
+  const _scrollRef=React.useRef(0);
+  const updScroll=(patch,type,ev,detail)=>{
+    _scrollRef.current=window.scrollY;
+    const r2={...request,...patch};
+    const r3=ev?mkLog(r2,currentUser.name,type,ev,detail):r2;
+    onUpdate(r3);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,_scrollRef.current)));
+  };
   const addAction=()=>{
     const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
     const respU=allUsers.find(u=>u.id===parseInt(nAc.responsible));
-    upd({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
+    updScroll({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
     setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
   };
 
@@ -1494,6 +1519,35 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             ))}
             {phases.filter(p=>canReopen(p.key)).length===0&&<div style={{padding:"6px 14px",fontSize:12,color:C.muted,fontStyle:"italic"}}>Nenhuma fase anterior disponivel</div>}
             <div style={{height:1,background:C.border,margin:"6px 0"}}/>
+            {/* Acoes de fluxo */}
+            {request.status==="revisao"&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
+            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.purple,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+              onClick={()=>{setSgqOpen(false);setShowAp2(true);}}>
+              <span>✓</span> Aprovar avaliacoes — iniciar plano
+            </button>
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            {request.status==="plano"&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
+            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.success,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+              onClick={()=>{setSgqOpen(false);setShowAp3(true);}}>
+              <span>▶</span> Liberar para execucao
+            </button>
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+
+            {/* Editar avaliacao inicial */}
+            {request.triage&&<><div style={{height:1,background:C.border,margin:"6px 0"}}/>
+            <div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Avaliacao inicial</div>
+            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+              onClick={()=>{setSgqOpen(false);setEditTriagem(true);setOpenSec(o=>({...o,triagem:true}));}}>
+              <span style={{color:C.accent}}>✏</span> Editar Avaliacao Inicial
+            </button>
+            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+
             {/* Reatribuir avaliacao */}
             {aa.length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reatribuir avaliacao</div>
             {aa.map(dept=>(
@@ -1599,29 +1653,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     </div>
 
     {/* ══ BANNERS CONTEXTUAIS ══ */}
-    {request.status==="revisao"&&isAdmin&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.purple+"0D",border:"1px solid "+C.purple+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:14,fontWeight:600,color:C.purple}}>Aprovacao 2 — Revisar e aprovar avaliacoes</span>
-      <div style={{display:"flex",gap:8}}>
-        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setOpenSec(o=>({...o,avaliacoes:true}))}>Ver Avaliacoes</button>
-        <button style={Sg.btn("purple")} onClick={()=>setAp2Date(addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5))}>Aprovar Plano</button>
-      </div>
-      {ap2Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:10,borderTop:"1px solid "+C.purple+"22",flexWrap:"wrap"}}>
-        <span style={{fontSize:13,color:C.muted}}>Prazo para o plano:</span>
-        <input type="date" style={{...Sg.input(),width:150,fontSize:13}} value={ap2Date} min={todayStr()} onChange={e=>setAp2Date(e.target.value)}/>
-        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAp2Date(null)}>Cancelar</button>
-        <button style={{...Sg.btn("purple"),fontSize:13}} onClick={()=>{ap2(ap2Date);setAp2Date(null);}}>Confirmar</button>
-      </div>}
-    </div>}
-    {request.status==="plano"&&isAdmin&&(request.actions||[]).length>0&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.success+"0D",border:"1px solid "+C.success+"33",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:14,fontWeight:600,color:C.success}}>Aprovacao 3 — {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} no plano</span>
-      <button style={Sg.btn("success")} onClick={()=>setAp3Date(addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30))}>Iniciar Execucao</button>
-      {ap3Date&&<div style={{width:"100%",display:"flex",gap:10,alignItems:"center",paddingTop:10,borderTop:"1px solid "+C.success+"22",flexWrap:"wrap"}}>
-        <span style={{fontSize:13,color:C.muted}}>Prazo de execucao:</span>
-        <input type="date" style={{...Sg.input(),width:150,fontSize:13}} value={ap3Date} min={todayStr()} onChange={e=>setAp3Date(e.target.value)}/>
-        <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAp3Date(null)}>Cancelar</button>
-        <button style={{...Sg.btn("success"),fontSize:13}} onClick={()=>{ap3(ap3Date);setAp3Date(null);}}>Confirmar</button>
-      </div>}
-    </div>}
+
     {isAdmin&&pendExt>0&&<div style={{marginBottom:14,padding:"11px 18px",borderRadius:10,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:14,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} pendente{pendExt!==1?"s":""}</span>
       <ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
@@ -1681,7 +1713,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         ?isAdmin
           ?<div>
             {editTriagem&&<div style={{fontSize:13,color:C.warning,marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33"}}>Editando — ao salvar as avaliacoes serao resetadas.</div>}
-            <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={saveTriage} C={C}/>
+            <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>saveTriage(t,editTriagem)} C={C}/>
             {editTriagem&&<button style={{...Sg.btn(),marginTop:10,fontSize:12}} onClick={()=>setEditTriagem(false)}>Cancelar</button>}
           </div>
           :<div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>Aguardando triagem pelo SGQ.</div>
@@ -1702,7 +1734,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 {request.triage.flagReg&&<Pill label="Risco Regulatorio" color={C.warning}/>}
                 {request.triage.flagProd&&<Pill label="Impacto Produto" color={C.accent}/>}
               </div>
-              {isAdmin&&<button style={{...Sg.btn(),fontSize:11,marginTop:10,padding:"3px 10px"}} onClick={()=>setEditTriagem(true)}>Editar Triagem</button>}
+
             </FieldCard>
             <FieldCard label="Areas Definidas para Avaliacao de Impacto" wide>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
@@ -1795,14 +1827,22 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         4. PLANO DE ACAO
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
-      {!request.ap2At
-        ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes de impacto.</div>
+      {!["plano","execucao","concluida"].includes(request.status)
+        ?<div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes.</div>
         :<div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
-            <div style={{fontSize:14,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong>
-              {isAdmin&&<span style={{marginLeft:10}}><Sel value={request.planResponsible||""} onChange={v=>{const u=allUsers.find(x=>x.id===parseInt(v));upd({planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},"plano","Responsavel do plano alterado",u&&u.name||"");}} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Alterar..." C={C}/></span>}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:12,flexWrap:"wrap"}}>
+            <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
+                <div style={{fontSize:13,fontWeight:600,color:request.planResponsibleName?C.text:C.muted}}>{request.planResponsibleName||"Nao definido — somente SGQ pode adicionar acoes"}</div>
+              </div>
+              {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
+                const u=allUsers.find(x=>x.id===parseInt(v));
+                const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
+                onUpdate(r);
+              }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
             </div>
-            {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+            {(isAdmin||request.planResponsible===currentUser.id)&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
           </div>
           {(request.actions||[]).length===0
             ?<div style={{fontSize:14,color:C.muted}}>Nenhuma acao cadastrada ainda.</div>
@@ -2002,6 +2042,28 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       confirmLabel="Reabrir fase" confirmStyle="warning"
       description={reopenPhase?"ATENCAO: Retorna a SA para a fase '"+reopenPhase.label+"'. Dados da fase atual e posteriores serao preservados no historico mas o fluxo voltara para este ponto.":null}
       C={C} Sg={Sg}/>
+
+    {/* Aprovar avaliacoes - iniciar plano */}
+    {showAp2&&<Modal open={showAp2} onClose={()=>setShowAp2(false)} title="Aprovar Avaliacoes — Iniciar Plano" width={420}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>Confirme o prazo para montagem do plano de acoes.</div>
+      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo para o Plano *</label>
+      <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>setShowAp2(false)}>Cancelar</button>
+        <button style={Sg.btn("success")} onClick={()=>{ap2(ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5));setShowAp2(false);}}>Confirmar</button>
+      </div>
+    </Modal>}
+
+    {/* Liberar para execucao */}
+    {showAp3&&<Modal open={showAp3} onClose={()=>setShowAp3(false)} title="Liberar para Execucao" width={420}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>O plano tem {(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""}. Confirme o prazo de execucao.</div>
+      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo de Execucao *</label>
+      <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap3DateVal||addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30)} min={todayStr()} onChange={e=>setAp3DateVal(e.target.value)}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>setShowAp3(false)}>Cancelar</button>
+        <button style={Sg.btn("success")} onClick={()=>{ap3(ap3DateVal||addDays(todayStr(),(phaseDl&&phaseDl.execucao&&phaseDl.execucao.days)||30));setShowAp3(false);}}>Confirmar</button>
+      </div>
+    </Modal>}
 
     {/* Cancelar SA */}
     <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={cancelSA}
