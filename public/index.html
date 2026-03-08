@@ -1089,6 +1089,24 @@ function EvalDetail({dept,ev,u,isAdmin,onEdit,C,Sg}){
 }
 
 // ================================================================
+// MotiveModal — modal para qualquer acao SGQ que exige motivo registrado
+// ================================================================
+function MotiveModal({open,onClose,onConfirm,title,description,confirmLabel,confirmStyle,C,Sg}){
+  const [motive,setMotive]=useState("");
+  React.useEffect(()=>{if(open)setMotive("");},[open]);
+  if(!open)return null;
+  return <Modal open={open} onClose={onClose} title={title} width={440}>
+    {description&&<div style={{fontSize:13,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.surface,borderRadius:8}}>{description}</div>}
+    <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Motivo / Justificativa *</label>
+    <textarea style={{...Sg.input(),minHeight:72,resize:"vertical",marginBottom:14,width:"100%"}} value={motive} onChange={e=>setMotive(e.target.value)} placeholder="Descreva o motivo desta alteracao..."/>
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+      <button style={Sg.btn()} onClick={onClose}>Cancelar</button>
+      <button style={{...Sg.btn(confirmStyle||"primary"),opacity:motive.trim()?1:.4}} disabled={!motive.trim()} onClick={()=>onConfirm(motive)}>{confirmLabel||"Confirmar"}</button>
+    </div>
+  </Modal>;
+}
+
+// ================================================================
 // VerifyForm — owns internal state to avoid focus loss on parent re-render
 // ================================================================
 function VerifyForm({onConfirm,C,Sg}){
@@ -1150,6 +1168,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   // ── State ────────────────────────────────────────────────────────
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
+  const [showCancel,setShowCancel]=useState(false);
+  const [reopenEval,setReopenEval]=useState(null);   // dept string
+  const [reassignEval,setReassignEval]=useState(null); // {dept, currentUserId}
+  const [reassignEvalUser,setReassignEvalUser]=useState("");
+  const [reopenAc,setReopenAc]=useState(null);       // ac object
+  const [reassignAc,setReassignAc]=useState(null);   // ac object
+  const [reassignAcUser,setReassignAcUser]=useState("");
   const [extTarget,setExtTarget]=useState(null);
   const [adminDlTarget,setAdminDlTarget]=useState(null);
   const [ap2Date,setAp2Date]=useState(null);
@@ -1214,7 +1239,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const newSD={...(request.stageDeadlines||{}),avaliacao:addDays(todayStr(),pd.avaliacao.days)};
     let r={...request,triage,status:"avaliacao",evaluations:{},ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
-    r=mkLog(r,currentUser.name,"triagem","Triagem aprovada","Criticidade: "+triage.criticality+" | "+triage.assignedAreas.length+" areas");
+    r=mkLog(r,currentUser.name,"triagem","Triagem aprovada","Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+")"+" | Areas: "+triage.assignedAreas.join(", "));
     onUpdate(r);setEditTriagem(false);
   };
 
@@ -1222,8 +1247,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const evs={...request.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
     const allDone=aa.every(d=>evs[d]&&evs[d].at);
     let r={...request,evaluations:evs,status:allDone?"revisao":"avaliacao"};
-    r=mkLog(r,currentUser.name,"avaliacao","Avaliacao registrada","Area: "+dept);
-    if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2");
+    const simN=(answers||[]).filter(a=>a.a==="S").length;
+    const naoN=(answers||[]).filter(a=>a.a==="N").length;
+    r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
+    if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2 (SGQ)");
     onUpdate(r);setEvalOpen(null);
   };
 
@@ -1236,18 +1263,19 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const ap2=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const planDl=customDate||addDays(todayStr(),pd.plano.days);
-    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,plano:planDl}},"aprovacao","Avaliacoes aprovadas — Plano iniciado","Prazo: "+fmtD(planDl));
+    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
   };
 
   const ap3=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const execDl=customDate||addDays(todayStr(),pd.execucao.days);
-    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,execucao:execDl}},"aprovacao","Plano aprovado — Execucao iniciada","Prazo: "+fmtD(execDl));
+    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,execucao:execDl}},"aprovacao","Aprovacao 3: Plano aprovado — Execucao iniciada","Aprovado por: "+currentUser.name+" | Prazo de execucao: "+fmtD(execDl));
   };
 
   const addAction=()=>{
     const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
-    upd({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao adicionada","Desc: "+nAc.desc);
+    const respU=allUsers.find(u=>u.id===parseInt(nAc.responsible));
+    upd({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
     setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
   };
 
@@ -1264,23 +1292,68 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const actions=(request.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
     const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
     let r={...request,actions,attachments:newAtts};
-    r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId);
-    if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguarda verificacao");
+    r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+note.slice(0,80));
+    if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
     onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));
   };
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
 
+  // ── Cancelar SA ──
+  const cancelSA=(motive)=>{
+    let r={...request,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
+    r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive);
+    onUpdate(r);setShowCancel(false);
+  };
+
+  // ── Reabrir avaliacao ──
+  const doReopenEval=(dept,motive)=>{
+    const evs={...request.evaluations};
+    const prev=evs[dept];
+    delete evs[dept];
+    const wasAllDone=aa.every(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
+    let r={...request,evaluations:evs,status:wasAllDone?"avaliacao":request.status};
+    r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
+    onUpdate(r);setReopenEval(null);
+  };
+
+  // ── Reatribuir avaliacao ──
+  const doReassignEval=(dept,newUserId,motive)=>{
+    const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[dept]));
+    const newU=allUsers.find(u=>u.id===parseInt(newUserId));
+    const r=mkLog({...request,triage:{...request.triage,assignments:{...request.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    onUpdate(r);setReassignEval(null);setReassignEvalUser("");
+  };
+
+  // ── Reabrir acao ──
+  const doReopenAc=(acId,motive)=>{
+    const ac=(request.actions||[]).find(a=>a.id===acId);
+    const actions=(request.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
+    let r={...request,actions,status:request.status==="concluida"?"execucao":request.status};
+    r=mkLog(r,currentUser.name,"reabrir","Acao reaberta","ID: "+acId+" | Motivo: "+motive+(ac&&ac.doneNote?" | Conclusao anterior: "+ac.doneNote.slice(0,60):""));
+    onUpdate(r);setReopenAc(null);
+  };
+
+  // ── Reatribuir acao ──
+  const doReassignAc=(acId,newUserId,motive)=>{
+    const ac=(request.actions||[]).find(a=>a.id===acId);
+    const oldU=allUsers.find(u=>u.id===ac.responsible);
+    const newU=allUsers.find(u=>u.id===parseInt(newUserId));
+    const actions=(request.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
+    const r=mkLog({...request,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    onUpdate(r);setReassignAc(null);setReassignAcUser("");
+  };
+
   const concludeSA=(note)=>{
     if(!note||!note.trim())return;
     let r={...request,status:"concluida",closedAt:new Date().toISOString(),verifyNote:note,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
-    r=mkLog(r,currentUser.name,"conclusao","SA concluida e verificada",note);onUpdate(r);
+    r=mkLog(r,currentUser.name,"conclusao","SA encerrada e verificada pelo SGQ","Verificado por: "+currentUser.name+" | "+note.slice(0,100));onUpdate(r);
   };
 
   const rejeitar=()=>{
     let r={...request,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
       rejections:[...(request.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:request.status}]};
-    r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada","Motivo: "+rejectNote);
+    r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada e devolvida para abertura","Rejeitado por: "+currentUser.name+" | Motivo: "+rejectNote);
     onUpdate(r);setReject(false);setRN("");onBack();
   };
 
@@ -1288,7 +1361,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const prev={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
     if(!prev)return;
     let r={...request,status:prev};
-    r=mkLog(r,currentUser.name,"retorno","Retorno a fase anterior","De: "+st.label+" Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" Motivo: "+regressNote);
+    r=mkLog(r,currentUser.name,"retorno","SA retornada para fase anterior","De: "+st.label+" → Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" | Motivo: "+regressNote+" | Por: "+currentUser.name);
     onUpdate(r);setRegress(false);setGN("");
   };
 
@@ -1305,7 +1378,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     let r={...request};
     if(adminDlTarget.type==="eval"){const dl={...request.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
     else{const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);r={...r,actions};}
-    r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" -> "+fmtD(newDate));
+    r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | De: "+fmtD(adminDlTarget.currentDate)+" → Para: "+fmtD(newDate));
     onUpdate(r);setAdminDlTarget(null);
   };
 
@@ -1370,6 +1443,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <button style={{...Sg.btn(),fontSize:12,padding:"4px 10px"}} onClick={()=>setRegress(true)}>← Fase Anterior</button>}
       {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
         <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setReject(true)}>Rejeitar</button>}
+      {isAdmin&&!["concluida","cancelada"].includes(request.status)&&
+        <button style={{...Sg.btn("danger"),fontSize:12,padding:"4px 10px"}} onClick={()=>setShowCancel(true)}>Cancelar SA</button>}
     </div>
 
     {/* ══ FOCUS BANNER — shown when coming from task/evaluation click ══ */}
@@ -1569,11 +1644,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.success:C.accent}/></Td>
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
-                      {(done||canAct)
-                        ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>togEval(dept)}>
-                          {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
-                        </button>
-                        :<span style={{fontSize:12,color:C.muted}}>—</span>}
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        {(done||canAct)
+                          ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>togEval(dept)}>
+                            {isExp?"Fechar":done?"Ver respostas":draft?"Continuar":"Avaliar"}
+                          </button>
+                          :<span style={{fontSize:12,color:C.muted}}>—</span>}
+                        {isAdmin&&done&&<button style={{...Sg.btn("warning"),fontSize:11,padding:"3px 9px"}} onClick={()=>setReopenEval(dept)}>Reabrir</button>}
+                        {isAdmin&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 9px"}} onClick={()=>{setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>Reatribuir</button>}
+                      </div>
                     </Td>
                   </tr>
                   {isExp&&<tr>
@@ -1583,7 +1662,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                         :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
                           allUsers={allUsers} deptQuestions={deptQuestions}
                           assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]} isAdmin={isAdmin}
-                          onChangeOwner={(d,id)=>{const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};onUpdate(mkLog(r,currentUser.name,"owner","Responsavel alterado","Area: "+d));}}
+                          onChangeOwner={(d,id)=>{
+                            const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[d]));
+                            const newU=allUsers.find(u=>u.id===id);
+                            const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};
+                            onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
+                          }}
                           onClose={()=>togEval(dept)} onSaveDraft={saveDraftEval} onSave={saveEval} C={C}/>}
                     </td>
                   </tr>}
@@ -1648,11 +1732,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                       {isExp&&<tr>
                         <td colSpan={6} style={{padding:"18px 20px",background:C.surface,borderBottom:"1px solid "+C.border+"55"}}>
                           {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>concludeAction(ac.id,note,att)} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
-                          {(canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:canAct?12:0,flexWrap:"wrap"}}>
-                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
-                            {isMine&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>}
-                            {isAdmin&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
-                            {canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao removida",ac.desc)}>Remover</button>}
+                          {isAdmin&&<div style={{display:"flex",gap:8,marginTop:canAct?12:0,flexWrap:"wrap"}}>
+                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Alterar prazo</button>}
+                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>setEditAc(ac)}>Editar</button>}
+                            {!["concluida","cancelada"].includes(ac.status)&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{setReassignAc(ac);setReassignAcUser("");}}>Reatribuir</button>}
+                            {ac.status==="concluida"&&<button style={{...Sg.btn("warning"),fontSize:12}} onClick={()=>setReopenAc(ac)}>Reabrir</button>}
+                            {!["concluida","cancelada"].includes(ac.status)&&canPlan&&request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>updAc(ac.id,{status:"cancelada"},"Acao cancelada","ID: "+ac.id+" | "+ac.desc)}>Cancelar</button>}
+                          </div>}
+                          {isMine&&!["concluida","cancelada"].includes(ac.status)&&<div style={{display:"flex",gap:8,marginTop:4}}>
+                            <button style={{...Sg.btn(),fontSize:12}} onClick={()=>setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline})}>Pedir Extensao</button>
                           </div>}
                         </td>
                       </tr>}
@@ -1793,6 +1881,75 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>
       <ExtReqForm onClose={()=>setAdminDlTarget(null)} onSubmit={applyAdminDl} currentDeadline={adminDlTarget.currentDate} C={C} Sg={Sg} isAdmin/>
     </Modal>}
+
+    {/* Cancelar SA */}
+    <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={cancelSA}
+      title="Cancelar SA" confirmLabel="Confirmar Cancelamento" confirmStyle="danger"
+      description={"SA "+request.id+" sera cancelada permanentemente. Esta acao nao pode ser desfeita."}
+      C={C} Sg={Sg}/>
+
+    {/* Reabrir avaliacao */}
+    <MotiveModal open={!!reopenEval} onClose={()=>setReopenEval(null)}
+      onConfirm={motive=>doReopenEval(reopenEval,motive)}
+      title={"Reabrir Avaliacao — "+(reopenEval||"")} confirmLabel="Reabrir" confirmStyle="warning"
+      description="A avaliacao voltara para pendente. O responsavel precisara refazer."
+      C={C} Sg={Sg}/>
+
+    {/* Reatribuir avaliacao */}
+    {reassignEval&&<Modal open={!!reassignEval} onClose={()=>setReassignEval(null)} title={"Reatribuir Avaliacao — "+reassignEval.dept} width={460}>
+      {(()=>{
+        const [rmotive,setRmotive]=useState("");
+        const curU=allUsers.find(u=>u.id===reassignEval.currentUserId);
+        return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{curU?curU.name:"—"}</strong></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
+            <select style={{...Sg.input(),width:"100%"}} value={reassignEvalUser} onChange={e=>setReassignEvalUser(e.target.value)}>
+              <option value="">Selecione...</option>
+              {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
+            <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={rmotive} onChange={e=>setRmotive(e.target.value)} placeholder="Motivo da reatribuicao..."/>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button style={Sg.btn()} onClick={()=>setReassignEval(null)}>Cancelar</button>
+            <button style={{...Sg.btn("primary"),opacity:reassignEvalUser&&rmotive.trim()?1:.4}} disabled={!reassignEvalUser||!rmotive.trim()} onClick={()=>doReassignEval(reassignEval.dept,reassignEvalUser,rmotive)}>Confirmar</button>
+          </div>
+        </div>;
+      })()}
+    </Modal>}
+
+    {/* Reabrir acao */}
+    <MotiveModal open={!!reopenAc} onClose={()=>setReopenAc(null)}
+      onConfirm={motive=>doReopenAc(reopenAc.id,motive)}
+      title={"Reabrir Acao — "+(reopenAc&&reopenAc.id||"")} confirmLabel="Reabrir" confirmStyle="warning"
+      description={reopenAc?"Acao "+reopenAc.id+" ("+reopenAc.desc+") voltara para pendente. A conclusao registrada sera removida.":null}
+      C={C} Sg={Sg}/>
+
+    {/* Reatribuir acao */}
+    {reassignAc&&<Modal open={!!reassignAc} onClose={()=>setReassignAc(null)} title={"Reatribuir Acao — "+reassignAc.id} width={460}>
+      {(()=>{
+        const [rmotive2,setRmotive2]=useState("");
+        const curU=allUsers.find(u=>u.id===reassignAc.responsible);
+        return <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{curU?curU.name:"—"}</strong></div>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
+            <select style={{...Sg.input(),width:"100%"}} value={reassignAcUser} onChange={e=>setReassignAcUser(e.target.value)}>
+              <option value="">Selecione...</option>
+              {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
+            <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={rmotive2} onChange={e=>setRmotive2(e.target.value)} placeholder="Motivo da reatribuicao..."/>
+          </div>
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+            <button style={Sg.btn()} onClick={()=>setReassignAc(null)}>Cancelar</button>
+            <button style={{...Sg.btn("primary"),opacity:reassignAcUser&&rmotive2.trim()?1:.4}} disabled={!reassignAcUser||!rmotive2.trim()} onClick={()=>doReassignAc(reassignAc.id,reassignAcUser,rmotive2)}>Confirmar</button>
+          </div>
+        </div>;
+      })()}
+    </Modal>}
+
   </div>;
 }
 
