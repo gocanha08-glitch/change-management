@@ -2819,24 +2819,33 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
     {aprovSGQ.length>0&&<div style={{marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <Th cols="130px 1fr 60px 90px 110px 130px" labels={["ID","Titulo","Crit.","Prazo Etapa","Acao","Status"]}/>
-        {sortU(aprovSGQ).map((item,i)=>{
-          const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
-          const handleAprovClick=()=>{
+        <ResizableTable
+          storageKey="cm_dash_aprov_cols"
+          cols={[120,200,55,100,110,150]}
+          headers={["ID","Titulo","Crit.","Prazo Etapa","Acao","Status"]}
+          C={C}
+          onRowClick={item=>{
             if(item.type==="triage") onNav("detail",item.r.id,"triage");
             else if(item.type==="revisao") onNav("detail",item.r.id,"revisao");
             else if(item.type==="plano"||item.type==="montarplano") onNav("detail",item.r.id,"plano");
             else onNav("detail",item.r.id);
-          };
-          return <Row key={i} cols="130px 1fr 60px 90px 110px 130px" i={i} onClick={handleAprovClick}>
-            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>
-            <div><div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.type}</div></div>
-            <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
-            <UrgChip urg={item.urg} dl={item.deadline}/>
-            <span style={{fontSize:11,fontWeight:700,color:item.tagColor,whiteSpace:"nowrap"}}>{item.tag}</span>
-            <Badge label={st.label||""} color={st.color||C.muted}/>
-          </Row>;
-        })}
+          }}
+          rows={sortU(aprovSGQ).map(item=>{
+            const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
+            return {r:item,type:item.type,cells:[
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div>
+                <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.type}</div>
+                {item.r.description&&<div style={{fontSize:10,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{item.r.description}</div>}
+              </div>,
+              <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <UrgChip urg={item.urg} dl={item.deadline}/>,
+              <span style={{fontSize:11,fontWeight:700,color:item.tagColor,whiteSpace:"nowrap"}}>{item.tag}</span>,
+              <Badge label={st.label||""} color={st.color||C.muted}/>
+            ]};
+          })}
+        />
       </div>
     </div>}
 
@@ -2918,6 +2927,74 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
 // ================================================================
 // CONTROLES DE MUDANCA v10 — lista de SAs com data abertura + prazo etapa
 // ================================================================
+// ResizableTable — table with draggable column dividers
+// ================================================================
+function ResizableTable({cols:initialCols,headers,rows,onRowClick,C,storageKey}){
+  const saved=storageKey?JSON.parse(localStorage.getItem(storageKey)||"null"):null;
+  const [cols,setCols]=React.useState(saved||initialCols);
+  const dragging=React.useRef(null);
+
+  const startDrag=(e,i)=>{
+    e.preventDefault();
+    const startX=e.clientX;
+    const startW=cols[i];
+    dragging.current={i,startX,startW};
+    const onMove=(ev)=>{
+      if(!dragging.current)return;
+      const delta=ev.clientX-dragging.current.startX;
+      setCols(prev=>{
+        const next=[...prev];
+        next[dragging.current.i]=Math.max(60,dragging.current.startW+delta);
+        return next;
+      });
+    };
+    const onUp=()=>{
+      if(storageKey)localStorage.setItem(storageKey,JSON.stringify(cols));
+      dragging.current=null;
+      window.removeEventListener("mousemove",onMove);
+      window.removeEventListener("mouseup",onUp);
+    };
+    window.addEventListener("mousemove",onMove);
+    window.addEventListener("mouseup",onUp);
+  };
+
+  // Save cols on change
+  React.useEffect(()=>{
+    if(storageKey)localStorage.setItem(storageKey,JSON.stringify(cols));
+  },[cols]);
+
+  const tplStr=cols.map(w=>w+"px").join(" ");
+
+  return <div style={{overflowX:"auto"}}>
+    {/* Header */}
+    <div style={{display:"grid",gridTemplateColumns:tplStr,background:C.surface,borderBottom:"1px solid "+C.border,minWidth:cols.reduce((a,b)=>a+b,0)}}>
+      {headers.map((h,i)=>(
+        <div key={i} style={{position:"relative",padding:"7px 10px",fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6,userSelect:"none",display:"flex",alignItems:"center"}}>
+          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h}</span>
+          {i<headers.length-1&&<div
+            onMouseDown={e=>startDrag(e,i)}
+            style={{position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}}
+          ><div style={{width:2,height:"60%",background:C.border,borderRadius:1}}/></div>}
+        </div>
+      ))}
+    </div>
+    {/* Rows */}
+    <div>
+      {rows.map((row,i)=>(
+        <div key={i} onClick={()=>onRowClick&&onRowClick(row)}
+          style={{display:"grid",gridTemplateColumns:tplStr,borderBottom:"1px solid "+C.border+"22",background:i%2===0?"transparent":C.surface+"44",cursor:onRowClick?"pointer":"default",transition:"background .1s",minWidth:cols.reduce((a,b)=>a+b,0)}}
+          onMouseEnter={e=>{if(onRowClick)e.currentTarget.style.background=C.accent+"0D";}}
+          onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44";}}>
+          {row.cells.map((cell,j)=>(
+            <div key={j} style={{padding:"8px 10px",overflow:"hidden",alignSelf:"center"}}>{cell}</div>
+          ))}
+        </div>
+      ))}
+    </div>
+  </div>;
+}
+
+// ================================================================
 function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
   const {C}=useTheme();const Sg=mkSg(C);
   const [q,setQ]=useState("");const [sf,setSF]=useState("");const [st2,setST2]=useState("");
@@ -2958,44 +3035,43 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
       ))}
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-      <div style={{display:"grid",gridTemplateColumns:"115px 1fr 140px 55px 110px 105px 105px",background:C.surface,padding:"6px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
-        {["ID","Titulo / Tipo","Status","Crit.","Responsavel","Data Abertura","Prazo Etapa"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
-      </div>
-      <div style={{maxHeight:"calc(100vh - 290px)",overflowY:"auto"}}>
-        {vis.map((r,i)=>{
+      <ResizableTable
+        storageKey="cm_changes_cols"
+        cols={[120,240,155,55,120,105,115]}
+        headers={["ID","Titulo / Descricao","Status","Crit.","Responsavel","Abertura","Prazo Etapa"]}
+        onRowClick={row=>onOpen(row.r.id)}
+        C={C}
+        rows={vis.map(r=>{
           const cr=getCrit(r.triage&&r.triage.criticality);const st=REQ_ST[r.status]||{};
           const aa=(r.triage&&r.triage.assignedAreas)||[];const doneEv=aa.filter(d=>r.evaluations&&r.evaluations[d]&&r.evaluations[d].at).length;
           const ovAc=(r.actions||[]).filter(a=>isOD(a.deadline,a.status)).length;
           const pendExt=(r.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
-          return <div key={r.id} onClick={()=>onOpen(r.id)}
-            style={{display:"grid",gridTemplateColumns:"115px 1fr 140px 55px 110px 105px 105px",padding:"8px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s"}}
-            onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
-            onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
-            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>
+          return {r,cells:[
+            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
             <div>
               <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
               <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.type}</div>
+              {r.description&&<div style={{fontSize:10,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{r.description}</div>}
               <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>
-
                 {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
                 {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
               </div>
-            </div>
+            </div>,
             <div>
               <Badge label={st.label||""} color={st.color||C.muted}/>
               {aa.length>0&&<div style={{display:"flex",alignItems:"center",gap:5,marginTop:4}}>
-                <div style={{width:40,height:2.5,background:C.border,borderRadius:2}}><div style={{height:"100%",width:(aa.length?doneEv/aa.length*100:0)+"%",background:doneEv===aa.length?C.success:C.warning,borderRadius:2}}/></div>
+                <div style={{width:36,height:2.5,background:C.border,borderRadius:2}}><div style={{height:"100%",width:(aa.length?doneEv/aa.length*100:0)+"%",background:doneEv===aa.length?C.success:C.warning,borderRadius:2}}/></div>
                 <span style={{fontSize:9,color:C.muted}}>{doneEv}/{aa.length}</span>
               </div>}
-            </div>
-            <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>
-            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.createdByName}</span>
-            <span style={{fontSize:11,color:C.muted}}>{fmtD(r.createdAt&&r.createdAt.slice(0,10))}</span>
+            </div>,
+            <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>,
+            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.createdByName}</span>,
+            <span style={{fontSize:11,color:C.muted}}>{fmtD(r.createdAt&&r.createdAt.slice(0,10))}</span>,
             <DeadlineCell r={r}/>
-          </div>;
+          ]};
         })}
-        {vis.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhum registro encontrado.</div>}
-      </div>
+      />
+      {vis.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhum registro encontrado.</div>}
     </div>
   </div>;
 }
