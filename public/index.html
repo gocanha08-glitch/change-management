@@ -1000,7 +1000,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
           </button>
         ))}
       </div>
-      {(()=>{const cr=crits.find(c=>c.v===crit);return cr&&cr.desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {cr.desc}</div>:null;})()}
+      {(()=>{const cr=crits.find(c=>c.v===crit);const desc=cr&&(cr.desc||(DEFAULT_CRITS.find(d=>d.v===cr.v)||{}).desc);return cr&&desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {desc}</div>:null;})()}
     </div>
     <div>
       <label style={Sg.lbl}>Justificativa *</label>
@@ -2792,7 +2792,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
 
   const total=aprovSGQ.length+analises.length+acoes.length+minhasSAs.length;
 
-  return <div style={{padding:"18px 22px",maxWidth:1060}}>
+  return <div style={{padding:"18px 22px"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:10}}>
       <div>
         <h1 style={{fontSize:18,margin:"0 0 3px",color:C.text,fontWeight:700}}>
@@ -2825,8 +2825,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_aprov_cols_v3"
-          cols={[100,175,195,115,40,85,115,175]}
+          storageKey="cm_dash_aprov_cols_v4"
+          cols={[105,185,255,135,42,88,120,180]}
           headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
           C={C}
           onRowClick={row=>{
@@ -2859,8 +2859,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>ANALISES PENDENTES ({analises.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_analises_cols"
-          cols={[110,200,260,45,90,110]}
+          storageKey="cm_dash_analises_cols_v2"
+          cols={[110,230,380,44,95,120]}
           headers={["SA","Título SA","Área","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(analises).map(item=>{
@@ -2884,8 +2884,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
         <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
           <ResizableTable
-            storageKey="cm_dash_planos_cols_v2"
-            cols={[100,170,220,120,45,130,110]}
+            storageKey="cm_dash_planos_cols_v3"
+            cols={[105,185,290,135,44,130,115]}
             headers={["ID","Titulo","Descricao","Tipo","Crit.","Acoes no Plano","Acao"]}
             onRowClick={row=>onNav("detail",row.r.id,"plano")}
             C={C}
@@ -2907,8 +2907,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_acoes_cols"
-          cols={[110,170,75,230,45,90,110]}
+          storageKey="cm_dash_acoes_cols_v2"
+          cols={[110,185,78,310,44,95,120]}
           headers={["SA","Título SA","ID Ação","Descrição Ação","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(acoes).map(item=>{
@@ -2932,8 +2932,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:6}}>MINHAS SOLICITACOES ({minhasSAs.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_minhas_cols"
-          cols={[110,180,230,120,45,90,130,60]}
+          storageKey="cm_dash_minhas_cols_v2"
+          cols={[105,180,300,130,44,90,170,60]}
           headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Status",""]}
           onRowClick={row=>onNav("detail",row.r.id)}
           C={C}
