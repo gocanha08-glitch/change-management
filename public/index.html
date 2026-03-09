@@ -4394,6 +4394,7 @@ const loadAll = async () => {
     sessionStorage.setItem('cm_user', JSON.stringify(data.user));
     setLI(data.user);
     setView('dashboard');
+    try { if(historyOK) window.history.replaceState({v:'dashboard'}, '', '?view=dashboard'); } catch {}
     return null; // no error
   };
 
@@ -4401,6 +4402,7 @@ const loadAll = async () => {
     sessionStorage.removeItem('cm_token');
     sessionStorage.removeItem('cm_user');
     setLI(null); setView('dashboard');
+    try { if(typeof historyOK!=='undefined'&&historyOK) window.history.replaceState({v:'dashboard'}, '', '?view=dashboard'); } catch {}
   };
 
   // ---- Persist helpers ----
@@ -4471,13 +4473,74 @@ const loadAll = async () => {
   const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
   const selected = requests.find(r => r.id === selId);
 
-  const nav = (v, id, initialTab, dept, acId) => {
+  // ---- Browser history (back/forward button support) ----
+  // Only active on real domains (not srcdoc/iframe previews)
+  const historyOK = (() => { try { return window.location.href.startsWith('http'); } catch { return false; } })();
+
+  const navPush = (v, id, tab, dept, acId) => {
+    if (historyOK) {
+      const state = {v, id:id||null, tab:tab||null, dept:dept||null, acId:acId||null};
+      const url = id ? ('?view='+v+'&id='+encodeURIComponent(id)+(tab?'&tab='+tab:'')) : ('?view='+v);
+      try { window.history.pushState(state, '', url); } catch {}
+    }
     setView(v);
-    if (id) setSel(id);
-    if (initialTab) setInitialTab(initialTab); else setInitialTab(null);
+    if (id) setSel(id); else setSel(null);
+    setInitialTab(tab||null);
     setFocusDept(dept||null);
     setFocusAcId(acId||null);
   };
+
+  const nav = navPush;
+
+  // Listen to browser back/forward
+  useEffect(()=>{
+    if (!historyOK) return;
+    const onPop = e => {
+      const s = e.state;
+      if (!s) { setView('dashboard'); setSel(null); setInitialTab(null); setFocusDept(null); setFocusAcId(null); return; }
+      setView(s.v||'dashboard');
+      setSel(s.id||null);
+      setInitialTab(s.tab||null);
+      setFocusDept(s.dept||null);
+      setFocusAcId(s.acId||null);
+    };
+    window.addEventListener('popstate', onPop);
+    try { window.history.replaceState({v:'dashboard'}, '', '?view=dashboard'); } catch {}
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // ---- Auto-refresh: pull new data every 30s without disrupting user ----
+  useEffect(()=>{
+    if (!loggedIn) return;
+    const INTERVAL = 30000; // 30 seconds
+    const refresh = async () => {
+      try {
+        // Only refresh requests and users — config rarely changes
+        const [us, rs] = await Promise.all([
+          apiGet('/api/users').catch(()=>null),
+          apiGet('/api/requests').catch(()=>null),
+        ]);
+        // Merge carefully: don't overwrite if user is actively editing
+        // We compare by updatedAt / log length to detect server changes
+        if (rs) setRR(prev => {
+          // For each request from server, only update if server version is newer
+          const prevMap = Object.fromEntries(prev.map(r=>[r.id,r]));
+          return rs.map(sr => {
+            const lr = prevMap[sr.id];
+            if (!lr) return sr; // new request from server
+            const srLog = (sr.log||[]).length;
+            const lrLog = (lr.log||[]).length;
+            // Server has more events → use server version
+            if (srLog > lrLog) return sr;
+            return lr; // keep local (user may be editing)
+          });
+        });
+        if (us) setUR(us);
+      } catch {}
+    };
+    const t = setInterval(refresh, INTERVAL);
+    return () => clearInterval(t);
+  }, [loggedIn]);
 
   // ---- Nav items ----
   const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
