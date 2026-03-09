@@ -754,9 +754,9 @@ function CritEditor({crits,currentUser,onSave}){
             </div>
             <div>
               <label style={Sg.lbl}>Nome</label>
-              <input style={Sg.input()} value={cr.label} onChange={e=>upd(i,"label",e.target.value)}/>
+              <input style={{...Sg.input(),opacity:isAdmin?1:.7}} value={cr.label} readOnly={!isAdmin} onChange={e=>isAdmin&&upd(i,"label",e.target.value)}/>
               <label style={{...Sg.lbl,marginTop:7}}>Descricao</label>
-              <input style={Sg.input()} value={cr.desc||""} onChange={e=>upd(i,"desc",e.target.value)} placeholder="Descricao do impacto..."/>
+              <input style={{...Sg.input(),opacity:isAdmin?1:.7}} value={cr.desc||""} readOnly={!isAdmin} onChange={e=>isAdmin&&upd(i,"desc",e.target.value)} placeholder="Descricao do impacto..."/>
             </div>
             <div>
               <label style={Sg.lbl}>Cor</label>
@@ -770,11 +770,11 @@ function CritEditor({crits,currentUser,onSave}){
                 <span style={{fontSize:10,color:C.muted}}>Cor hex customizada</span>
               </div>
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"center"}}>
+            {isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"center"}}>
               <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===0?.3:1}} onClick={()=>moveUp(i)} disabled={i===0} title="Mover para cima">^</button>
               <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===local.length-1?.3:1}} onClick={()=>moveDown(i)} disabled={i===local.length-1} title="Mover para baixo">v</button>
               <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>remove(i)} title="Remover nivel">X</button>
-            </div>
+            </div>}
           </div>
         </div>
       ))}
@@ -2755,7 +2755,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   // SAs aguardando aprovacao do plano (responsavel pelo plano ou admin)
   const planosAguardando=requests.filter(r=>
     r.status==="plano"&&
-    (parseInt(r.planResponsible)===parseInt(currentUser.id)||currentUser.role==="admin"||currentUser.role==="sgq")
+    parseInt(r.planResponsible)===parseInt(currentUser.id)
   );
 
   const minhasSAs=requests.filter(r=>r.createdBy===currentUser.id&&!["concluida","cancelada"].includes(r.status));
@@ -2821,7 +2821,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_dash_aprov_cols_v2"
-          cols={[110,160,140,120,50,95,105,140]}
+          cols={[110,200,220,130,45,90,100,130]}
           headers={["ID","Titulo","Descricao","Tipo","Crit.","Prazo Etapa","Acao","Status"]}
           C={C}
           onRowClick={row=>{
@@ -2855,7 +2855,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_dash_analises_cols"
-          cols={[110,140,140,50,90,110]}
+          cols={[110,200,260,45,90,110]}
           headers={["SA","Titulo SA","Area","Crit.","Prazo","Acao"]}
           C={C}
           rows={sortU(analises).map(item=>{
@@ -2878,25 +2878,32 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       {planosAguardando.length>0&&<div style={{marginBottom:20}}>
         <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
         <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
-          <Th cols="1fr 120px 140px 120px" labels={["Solicitacao","Criticidade","Acoes no Plano","Acao"]}/>
-          {planosAguardando.map(r=>(
-            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 120px",alignItems:"center",padding:"10px 11px",gap:8,borderBottom:"1px solid "+C.border+"55",background:"transparent"}}>
-              <div>
-                <div style={{fontSize:12,fontWeight:700,color:C.accent,cursor:"pointer"}} onClick={()=>onNav("detail",r.id)}>{r.id}</div>
-                <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
-              </div>
-              {(()=>{const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));return cr?<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:6,background:(cr.color||C.accent)+"22",color:cr.color||C.accent,border:"1px solid "+(cr.color||C.accent)+"44"}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>;})()}
-              <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} acao{(r.actions||[]).length!==1?"es":""}</div>
-              <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={()=>onNav("detail",r.id,"plano")}>Ver Plano</button>
-            </div>
-          ))}
+          <ResizableTable
+            storageKey="cm_dash_planos_cols"
+            cols={[350,130,180,120]}
+            headers={["Solicitacao","Criticidade","Acoes no Plano","Acao"]}
+            onRowClick={row=>onNav("detail",row.r.id,"plano")}
+            C={C}
+            rows={planosAguardando.map(r=>{
+              const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
+              return {r,cells:[
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.id}</div>
+                  <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
+                </div>,
+                cr?<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:6,background:(cr.color||C.accent)+"22",color:cr.color||C.accent,border:"1px solid "+(cr.color||C.accent)+"44"}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>,
+                <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} acao{(r.actions||[]).length!==1?"es":""}</div>,
+                <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onNav("detail",r.id,"plano");}}>Ver Plano</button>
+              ]};
+            })}
+          />
         </div>
       </div>}
       <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_dash_acoes_cols"
-          cols={[110,140,80,190,50,90,110]}
+          cols={[110,170,75,230,45,90,110]}
           headers={["SA","Titulo SA","ID Acao","Descricao Acao","Crit.","Prazo","Acao"]}
           C={C}
           rows={sortU(acoes).map(item=>{
@@ -2921,7 +2928,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_dash_minhas_cols"
-          cols={[110,150,140,120,50,100,140,70]}
+          cols={[110,180,230,120,45,90,130,60]}
           headers={["ID","Titulo","Descricao","Tipo","Crit.","Prazo Etapa","Status",""]}
           onRowClick={row=>onNav("detail",row.r.id)}
           C={C}
@@ -3062,7 +3069,7 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
       <ResizableTable
         storageKey="cm_changes_cols_v2"
-        cols={[115,160,160,140,55,110,95,105]}
+        cols={[110,160,230,130,45,145,90,100]}
         headers={["ID","Titulo","Descricao","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
         onRowClick={row=>onOpen(row.r.id)}
         C={C}
@@ -3250,7 +3257,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_acoes_cols_v2"
-          cols={[110,80,180,150,50,105,95,100]}
+          cols={[110,70,180,220,45,105,90,95]}
           headers={["SA","ID Acao","Descricao","Responsavel","Crit.","Status","Criacao","Prazo"]}
           onRowClick={a=>onNav("detail",a.r.id)}
           C={C}
@@ -3302,7 +3309,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
           storageKey="cm_avals_cols"
-          cols={[110,160,150,55,110,100,105]}
+          cols={[110,200,240,45,110,90,100]}
           headers={["SA","Area","Avaliador","Crit.","Status","Criacao","Prazo"]}
           onRowClick={e=>onNav("detail",e.r.id)}
           C={C}
@@ -4138,7 +4145,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
             <div style={{fontSize:13,fontWeight:700,color:C.text}}>{selDept}</div>
             <div style={{fontSize:11,color:C.muted,marginTop:1}}>{qs.length} pergunta{qs.length!==1?"s":""}{isModified&&<span style={{color:C.warning,marginLeft:6}}>Modificado</span>}</div>
           </div>
-          {isModified&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={resetDept}>Restaurar Padrao</button>}
+          {isAdmin&&isModified&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={resetDept}>Restaurar Padrao</button>}
         </div>
 
         {/* Question list */}
@@ -4156,7 +4163,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
                 </div>
                 :<div style={{flex:1,fontSize:12,color:C.text,lineHeight:1.5,paddingTop:1}}>{q}</div>
               }
-              {editIdx!==i&&<div style={{display:"flex",gap:3,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
+              {editIdx!==i&&isAdmin&&<div style={{display:"flex",gap:3,flexShrink:0,flexWrap:"wrap",justifyContent:"flex-end"}}>
                 <button title="Mover para cima" style={{...Sg.btn(),fontSize:10,padding:"2px 6px",opacity:i===0?.3:1}} disabled={i===0} onClick={()=>moveQ(i,-1)}>↑</button>
                 <button title="Mover para baixo" style={{...Sg.btn(),fontSize:10,padding:"2px 6px",opacity:i===qs.length-1?.3:1}} disabled={i===qs.length-1} onClick={()=>moveQ(i,1)}>↓</button>
                 <button style={{...Sg.btn(),fontSize:10,padding:"2px 7px"}} onClick={()=>startEdit(i)}>Editar</button>
@@ -4168,7 +4175,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
         </div>
 
         {/* Add new question */}
-        <div style={{...Sg.card({padding:"11px 13px",border:"1px dashed "+C.border})}}>
+        {isAdmin&&<div style={{...Sg.card({padding:"11px 13px",border:"1px dashed "+C.border})}}>
           <div style={{fontSize:11,fontWeight:700,color:C.muted,marginBottom:7,letterSpacing:.5}}>NOVA PERGUNTA</div>
           <textarea style={{...Sg.input(),minHeight:46,resize:"vertical",fontSize:12,marginBottom:8}}
             value={newQ} onChange={e=>setNewQ(e.target.value)}
@@ -4178,7 +4185,8 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
             <span style={{fontSize:10,color:C.muted}}>Ctrl+Enter para adicionar</span>
             <button style={{...Sg.btn("primary"),fontSize:12,opacity:newQ.trim()?1:.4}} disabled={!newQ.trim()} onClick={addQ}>+ Adicionar</button>
           </div>
-        </div>
+        </div>}
+
       </div>
     </div>
   </div>;
