@@ -1262,16 +1262,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       setTimeout(()=>setShowAp2(true),100);
       return;
     }
+    if(focusAcId){
+      const ac=(request.actions||[]).find(a=>a.id===focusAcId);
+      if(ac){setTimeout(()=>openAcDrawer(ac),100);return;}
+    }
+    if(focusDept){
+      setTimeout(()=>openEvalDrawer(focusDept),100);
+      return;
+    }
     if(initialTab==="plano"){
       setTimeout(()=>openPlanDrawer(),100);
       return;
-    }
-    if(!autoOpenDrawer)return;
-    if(focusDept){
-      setTimeout(()=>openEvalDrawer(focusDept),100);
-    } else if(focusAcId){
-      const ac=(request.actions||[]).find(a=>a.id===focusAcId);
-      if(ac)setTimeout(()=>openAcDrawer(ac),100);
     }
   },[]);
 
