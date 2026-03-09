@@ -3040,10 +3040,24 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
   const getCrit=v=>crits.find(c=>c.v===v);
 
   const DeadlineCell=({r})=>{
-    const dl=getPhaseDeadline(r);
+    let dl=getPhaseDeadline(r);
+    // For "plano" and "execucao" status, use latest action deadline as reference
+    if((r.status==="plano"||r.status==="execucao")&&(r.actions||[]).length>0){
+      const pendingDls=(r.actions||[]).filter(a=>a.status!=="concluida"&&a.status!=="cancelada"&&a.deadline).map(a=>a.deadline);
+      if(pendingDls.length>0) dl=pendingDls.sort().reverse()[0];
+      else{
+        // all done — show latest completion
+        const doneDls=(r.actions||[]).filter(a=>a.deadline).map(a=>a.deadline);
+        if(doneDls.length>0) dl=doneDls.sort().reverse()[0];
+      }
+    }
     if(!dl)return <span style={{color:C.muted,fontSize:11}}>—</span>;
-    // mostra apenas a data, sem badge de urgencia (gestao de atrasos fica nos indicadores)
-    return <span style={{fontSize:11,color:C.muted,fontWeight:500}}>{fmtD(dl)}</span>;
+    const urg=urgCls(dl,"");
+    const color=urg==="overdue"?C.danger:urg==="today"?C.warning:urg==="soon"?C.accent:C.muted;
+    return <div style={{display:"flex",flexDirection:"column",gap:1}}>
+      <span style={{fontSize:11,fontWeight:700,color}}>{fmtD(dl)}</span>
+      {urg!=="normal"&&<span style={{fontSize:9,fontWeight:700,color,background:color+"18",borderRadius:3,padding:"0 3px",width:"fit-content"}}>{urg==="overdue"?"Atrasado":urg==="today"?"Hoje":"Breve"}</span>}
+    </div>;
   };
 
   return <div style={{padding:"18px 22px"}}>
@@ -3180,8 +3194,11 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
   const evLate=allEvals.filter(e=>!e.done&&isOD(e.dl,"")).length;
   const evDone=allEvals.filter(e=>e.done).length;
 
-  const UrgCell=({urg,dl,done})=>{
-    if(done)return <span style={{fontSize:10,color:C.success}}>✓ Feita</span>;
+  const UrgCell=({urg,dl,done,doneAt})=>{
+    if(done)return <div style={{display:"flex",flexDirection:"column",gap:1}}>
+      <span style={{fontSize:10,color:C.success,fontWeight:700}}>✓ Concluida</span>
+      {doneAt&&<span style={{fontSize:9,color:C.muted}}>{fmtD(doneAt.slice(0,10))}</span>}
+    </div>;
     if(!dl)return <span style={{color:C.muted,fontSize:11}}>—</span>;
     const color=urg==="overdue"?C.danger:urg==="today"?C.warning:urg==="soon"?C.accent:C.muted;
     return <div style={{display:"flex",flexDirection:"column",gap:1}}>
@@ -3273,7 +3290,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
               <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <Badge label={stLabel} color={stColor}/>,
               <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done}/>
+              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done} doneAt={a.doneAt}/>
             ]};
           })}
         />
@@ -3324,7 +3341,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
               <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <div style={{display:"flex",flexDirection:"column",gap:2}}><Badge label={stLabel} color={stColor}/>{e.done&&e.ev&&<span style={{fontSize:9,color:C.muted}}>{e.ev.byName}</span>}</div>,
               <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={e.urg} dl={e.dl} done={e.done}/>
+              <UrgCell urg={e.urg} dl={e.dl} done={e.done} doneAt={e.ev&&e.ev.at}/>
             ]};
           })}
         />
