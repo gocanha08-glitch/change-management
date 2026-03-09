@@ -3577,6 +3577,7 @@ const ALL_PERMS_META = [
 ];
 
 function GroupManager({currentUser,C,Sg}){
+  const {C:Ctx}=useTheme();const CC=C||Ctx;const Sg=mkSg(CC);C=CC;
   const [groups,setGroups]=React.useState([]);
   const [loading,setLoading]=React.useState(true);
   const [editing,setEditing]=React.useState(null); // null | {id,name,description,permissions,is_system}
