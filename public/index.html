@@ -29,8 +29,16 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.0.1";
+const APP_VERSION = "10.1.0";
 const APP_DATE = "2026-03-09";
+
+// ── Permissões ─────────────────────────────────────────────
+const hasPermission = (user, perm) => {
+  if (!user) return false;
+  const perms = user.permissions || [];
+  return perms.includes(perm);
+};
+const hasPerm = (user, perm) => hasPermission(user, perm);
 
 const DEFAULT_CRITS = [
   {v:"C1", label:"Baixa",    color:"#2DD4BF", desc:"Impacto minimo, sem risco regulatorio"},
@@ -685,7 +693,7 @@ function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C,refId,
 // CRIT EDITOR — admin cria/edita/remove niveis livremente
 // ================================================================
 function CritEditor({crits,currentUser,onSave}){
-  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+  const isAdmin=hasPerm(currentUser,'triagem.aprovar');
   const {C}=useTheme();const Sg=mkSg(C);
   const [local,setLocal]=useState(()=>crits.map(c=>({...c})));
   const [saved,setSaved]=useState(false);
@@ -939,7 +947,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     });
   };
 
-  const evFor=dept=>allUsers.filter(u=>u.active&&(u.role==="sgq"||u.role==="admin")&&(u.evalDepts||[]).includes(dept));
+  const evFor=dept=>allUsers.filter(u=>u.active&&hasPerm(u,'avaliacao.revisar')&&(u.evalDepts||[]).includes(dept));
   const allSet=areas.length>0&&areas.every(a=>assigns[a]&&dls[a]);
   const canSave=crit&&just.trim()&&areas.length>0&&allSet;
 
@@ -1309,7 +1317,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const togSec=id=>setOpenSec(o=>({...o,[id]:!o[id]}));
 
   // ── Derived ──────────────────────────────────────────────────────
-  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+  const isAdmin=hasPerm(currentUser,'config.prazos');
   const cr=crits.find(c=>c.v===(request.triage&&request.triage.criticality));
   const st=REQ_ST[request.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
@@ -2599,7 +2607,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
       const done=!!(ev&&ev.at);
       const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
       const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
-      const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+      const isAdmin=hasPerm(currentUser,'triagem.aprovar');
       const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(r.status);
       const saveEval=(dept,answers,obs,atts)=>{
         const ev2={answers,obs,atts:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()};
@@ -2726,7 +2734,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
 // ================================================================
 function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenAction,onNew}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const isAdmin=currentUser.role==="admin";
+  const isAdmin=hasPerm(currentUser,'grupos.gerenciar');
   const h=new Date().getHours(),nome=currentUser.name.split(" ")[0];
   const getCrit=v=>crits.find(c=>c.v===v);
 
@@ -3496,7 +3504,7 @@ const PERFIS={
 
   function DeptChk({user,onChange,C}){
   const {C:Ctx}=useTheme();const CC=C||Ctx;
-  if(user.role==="geral")return null;
+  if(!user.role||user.role==="geral")return null;
   return <div style={{marginTop:8}}>
     <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Areas para avaliacao</label>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:3,maxHeight:150,overflowY:"auto",padding:4,border:"1px solid "+CC.border,borderRadius:7,background:CC.bg}}>
@@ -3510,6 +3518,230 @@ const PERFIS={
   </div>;
 }
   
+
+// ══════════════════════════════════════════════════════════════
+// GROUP MANAGER — Gestão de grupos e permissões
+// ══════════════════════════════════════════════════════════════
+const ALL_PERMS_META = [
+  {section:"Telas", items:[
+    {id:"dashboard",  label:"Início / Dashboard"},
+    {id:"changes",    label:"Controles — lista de SAs"},
+    {id:"detail",     label:"Detalhe da SA"},
+    {id:"acoes",      label:"Tarefas pessoais"},
+    {id:"indicators", label:"Indicadores e gráficos"},
+    {id:"crits",      label:"Criticidade (C1–C4)"},
+    {id:"perguntas",  label:"Perguntas por área"},
+    {id:"settings",   label:"Configurações"},
+    {id:"matrix",     label:"Matriz de impacto"},
+    {id:"users",      label:"Usuários"},
+    {id:"log",        label:"Auditoria"},
+  ]},
+  {section:"Solicitações de Alteração", items:[
+    {id:"sa.criar",      label:"Criar nova SA"},
+    {id:"sa.cancelar",   label:"Cancelar SA"},
+    {id:"sa.ver_todas",  label:"Ver SAs de todas as áreas"},
+    {id:"sa.anexar",     label:"Anexar arquivos"},
+  ]},
+  {section:"Triagem", items:[
+    {id:"triagem.executar", label:"Executar triagem (criticidade, áreas, prazos)"},
+    {id:"triagem.aprovar",  label:"Aprovar triagem"},
+  ]},
+  {section:"Avaliação de Impacto", items:[
+    {id:"avaliacao.responder",   label:"Responder avaliação da área"},
+    {id:"avaliacao.revisar",     label:"Revisar e aprovar avaliações (AP1/AP2)"},
+    {id:"avaliacao.reatribuir",  label:"Reatribuir avaliador"},
+  ]},
+  {section:"Plano de Ação", items:[
+    {id:"plano.montar",        label:"Montar plano de ação"},
+    {id:"plano.aprovar",       label:"Aprovar plano (AP3)"},
+    {id:"plano.atribuir_resp", label:"Atribuir responsável pelo plano"},
+  ]},
+  {section:"Execução", items:[
+    {id:"acao.concluir",      label:"Concluir ação"},
+    {id:"acao.solicitar_ext", label:"Solicitar extensão de prazo"},
+    {id:"prazo.aprovar_ext",  label:"Aprovar/rejeitar extensão de prazo"},
+    {id:"prazo.alterar_direto",label:"Alterar prazo diretamente"},
+  ]},
+  {section:"Configurações do Sistema", items:[
+    {id:"config.criticidades", label:"Editar criticidades"},
+    {id:"config.perguntas",    label:"Editar perguntas"},
+    {id:"config.matriz",       label:"Editar matriz de impacto"},
+    {id:"config.prazos",       label:"Editar prazos por etapa"},
+  ]},
+  {section:"Usuários e Grupos", items:[
+    {id:"usuarios.gerenciar", label:"Gerenciar usuários (criar, editar, desativar)"},
+    {id:"usuarios.importar",  label:"Importar usuários via Excel"},
+    {id:"grupos.gerenciar",   label:"Gerenciar grupos de permissão"},
+    {id:"auditoria.ver",      label:"Ver auditoria completa"},
+  ]},
+];
+
+function GroupManager({currentUser,C,Sg}){
+  const [groups,setGroups]=React.useState([]);
+  const [loading,setLoading]=React.useState(true);
+  const [editing,setEditing]=React.useState(null); // null | {id,name,description,permissions,is_system}
+  const [isNew,setIsNew]=React.useState(false);
+  const [err,setErr]=React.useState("");
+  const [saving,setSaving]=React.useState(false);
+  const [confirmDel,setConfirmDel]=React.useState(null);
+
+  const load=async()=>{
+    setLoading(true);
+    try{const r=await apiGet('/api/roles');if(r)setGroups(r);}
+    catch(e){setErr("Erro ao carregar grupos");}
+    finally{setLoading(false);}
+  };
+  React.useEffect(()=>{load();},[]);
+
+  const openNew=()=>{
+    setEditing({name:"",description:"",permissions:[],is_system:false});
+    setIsNew(true);setErr("");
+  };
+  const openEdit=(g)=>{
+    setEditing({...g,permissions:Array.isArray(g.permissions)?g.permissions:[]});
+    setIsNew(false);setErr("");
+  };
+
+  const togglePerm=(perm)=>{
+    if(!editing)return;
+    const has=editing.permissions.includes(perm);
+    setEditing({...editing,permissions:has?editing.permissions.filter(p=>p!==perm):[...editing.permissions,perm]});
+  };
+
+  const toggleSection=(items)=>{
+    const ids=items.map(i=>i.id);
+    const allOn=ids.every(id=>editing.permissions.includes(id));
+    if(allOn){setEditing({...editing,permissions:editing.permissions.filter(p=>!ids.includes(p))});}
+    else{const merged=[...new Set([...editing.permissions,...ids])];setEditing({...editing,permissions:merged});}
+  };
+
+  const save=async()=>{
+    if(!editing.name.trim()){setErr("Nome do grupo é obrigatório");return;}
+    setSaving(true);setErr("");
+    try{
+      let r;
+      if(isNew) r=await apiPost('/api/roles',{name:editing.name,description:editing.description,permissions:editing.permissions});
+      else r=await apiPut('/api/roles',{id:editing.id,name:editing.name,description:editing.description,permissions:editing.permissions});
+      if(r&&r.error){setErr(r.error);return;}
+      setEditing(null);load();
+    }catch(e){setErr(e.message||"Erro ao salvar");}
+    finally{setSaving(false);}
+  };
+
+  const del=async(g)=>{
+    try{
+      const r=await apiFetch('/api/roles',{method:'DELETE',body:{id:g.id}});
+      if(r&&r.error){setErr(r.error);return;}
+      setConfirmDel(null);load();
+    }catch(e){setErr(e.message||"Erro ao excluir");}
+  };
+
+  if(loading)return<div style={{padding:32,color:C.muted}}>Carregando grupos...</div>;
+
+  // ── Tela de edição ────────────────────────────────────────
+  if(editing){
+    return<div style={{padding:"24px 32px",maxWidth:800}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+        <button onClick={()=>setEditing(null)} style={{background:"none",border:"none",cursor:"pointer",color:C.muted,fontSize:20}}>←</button>
+        <h2 style={{margin:0,fontSize:20,fontWeight:700,color:C.text}}>{isNew?"Novo Grupo":editing.is_system?"Editar Grupo (sistema)":"Editar Grupo"}</h2>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:24}}>
+        <div>
+          <label style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.5,display:"block",marginBottom:4}}>NOME DO GRUPO *</label>
+          <input value={editing.name} onChange={e=>setEditing({...editing,name:e.target.value})}
+            disabled={editing.is_system}
+            placeholder="Ex: Auditor, TI, Aprovador..."
+            style={{width:"100%",padding:"8px 12px",borderRadius:7,border:"1px solid "+C.border,background:editing.is_system?C.surface2||C.surface:C.surface,color:C.text,fontSize:14,fontFamily:"inherit"}}/>
+          {editing.is_system&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>Nome de grupo do sistema não pode ser alterado</div>}
+        </div>
+        <div>
+          <label style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.5,display:"block",marginBottom:4}}>DESCRIÇÃO</label>
+          <input value={editing.description||""} onChange={e=>setEditing({...editing,description:e.target.value})}
+            placeholder="Descreva o propósito deste grupo..."
+            style={{width:"100%",padding:"8px 12px",borderRadius:7,border:"1px solid "+C.border,background:C.surface,color:C.text,fontSize:14,fontFamily:"inherit"}}/>
+        </div>
+      </div>
+
+      <div style={{marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <label style={{fontSize:13,fontWeight:700,color:C.text}}>Permissões</label>
+        <span style={{fontSize:11,color:C.muted}}>{editing.permissions.length} selecionadas</span>
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:16,marginBottom:24}}>
+        {ALL_PERMS_META.map(({section,items})=>{
+          const allOn=items.every(i=>editing.permissions.includes(i.id));
+          const someOn=items.some(i=>editing.permissions.includes(i.id));
+          return<div key={section} style={{border:"1px solid "+C.border,borderRadius:8,overflow:"hidden"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 14px",background:C.surface,borderBottom:"1px solid "+C.border}}>
+              <span style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.5,textTransform:"uppercase"}}>{section}</span>
+              <button onClick={()=>toggleSection(items)} style={{fontSize:11,padding:"3px 10px",borderRadius:5,border:"1px solid "+C.border,background:allOn?"#2563EB":someOn?"#93C5FD":"none",color:allOn||someOn?"#fff":C.muted,cursor:"pointer",fontFamily:"inherit"}}>
+                {allOn?"Desmarcar todos":"Marcar todos"}
+              </button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:0}}>
+              {items.map(item=>{
+                const on=editing.permissions.includes(item.id);
+                return<label key={item.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",cursor:"pointer",borderBottom:"1px solid "+C.border,background:on?"#EFF6FF":C.bg}}>
+                  <input type="checkbox" checked={on} onChange={()=>togglePerm(item.id)} style={{accentColor:"#2563EB"}}/>
+                  <span style={{fontSize:12,color:on?"#1D4ED8":C.text}}>{item.label}</span>
+                </label>;
+              })}
+            </div>
+          </div>;
+        })}
+      </div>
+
+      {err&&<div style={{marginBottom:12,padding:"8px 12px",borderRadius:7,background:"#FEE2E2",color:"#DC2626",fontSize:12}}>{err}</div>}
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button onClick={()=>setEditing(null)} style={{padding:"8px 20px",borderRadius:7,border:"1px solid "+C.border,background:"none",color:C.text,cursor:"pointer",fontFamily:"inherit"}}>Cancelar</button>
+        <button onClick={save} disabled={saving} style={{padding:"8px 20px",borderRadius:7,border:"none",background:"#2563EB",color:"#fff",cursor:"pointer",fontWeight:700,fontFamily:"inherit",opacity:saving?.6:1}}>
+          {saving?"Salvando...":"Salvar Grupo"}
+        </button>
+      </div>
+    </div>;
+  }
+
+  // ── Lista de grupos ────────────────────────────────────────
+  return<div style={{padding:"24px 32px"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
+      <div>
+        <h2 style={{margin:0,fontSize:20,fontWeight:700,color:C.text}}>Grupos e Permissões</h2>
+        <div style={{fontSize:12,color:C.muted,marginTop:4}}>{groups.length} grupos cadastrados</div>
+      </div>
+      <button onClick={openNew} style={{padding:"8px 18px",borderRadius:7,border:"none",background:"#2563EB",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+ Novo Grupo</button>
+    </div>
+
+    {err&&<div style={{marginBottom:16,padding:"8px 12px",borderRadius:7,background:"#FEE2E2",color:"#DC2626",fontSize:12}}>{err}</div>}
+
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {groups.map(g=><div key={g.id} style={{border:"1px solid "+C.border,borderRadius:10,padding:"14px 18px",background:C.surface,display:"flex",alignItems:"center",gap:16}}>
+        <div style={{flex:1}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+            <span style={{fontSize:15,fontWeight:700,color:C.text}}>{g.name}</span>
+            {g.is_system&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:10,background:"#EFF6FF",color:"#2563EB",fontWeight:700}}>SISTEMA</span>}
+            <span style={{fontSize:11,color:C.muted}}>{g.user_count||0} usuário(s)</span>
+          </div>
+          {g.description&&<div style={{fontSize:12,color:C.muted,marginBottom:6}}>{g.description}</div>}
+          <div style={{fontSize:11,color:C.muted}}>{Array.isArray(g.permissions)?g.permissions.length:0} permissões</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>openEdit(g)} style={{padding:"6px 14px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.text,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Editar</button>
+          {!g.is_system&&<button onClick={()=>setConfirmDel(g)} style={{padding:"6px 14px",borderRadius:6,border:"none",background:"#FEE2E2",color:"#DC2626",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Excluir</button>}
+        </div>
+      </div>)}
+    </div>
+
+    {confirmDel&&<Modal open title={"Excluir grupo: "+confirmDel.name} onClose={()=>setConfirmDel(null)} width={400}>
+      <p style={{color:C.text,fontSize:14}}>Tem certeza que deseja excluir o grupo <strong>{confirmDel.name}</strong>? Esta ação não pode ser desfeita.</p>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:16}}>
+        <button onClick={()=>setConfirmDel(null)} style={{padding:"8px 16px",borderRadius:7,border:"1px solid "+C.border,background:"none",color:C.text,cursor:"pointer",fontFamily:"inherit"}}>Cancelar</button>
+        <button onClick={()=>del(confirmDel)} style={{padding:"8px 16px",borderRadius:7,border:"none",background:"#DC2626",color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Excluir</button>
+      </div>
+    </Modal>}
+  </div>;
+}
+
 function UserManager({users,currentUser,onSave,addSysLog}){
   const {C}=useTheme();const Sg=mkSg(C);
   const [lu,setLU]=useState(()=>users.map(u=>({...u})));
@@ -4122,7 +4354,7 @@ function IndicatorsPage({requests,allUsers,crits}){
 // ================================================================
 function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+  const isAdmin=hasPerm(currentUser,'triagem.aprovar');
   const [selDept,setSD]=useState(ALL_DEPTS[0]);
   const [localQ,setLQ]=useState(()=>{
     const base={};
@@ -4248,7 +4480,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
 // SETTINGS PAGE — includes phase deadlines editor + theme + pwd
 // ================================================================
 function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,setTheme}){
-  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
+  const isAdmin=hasPerm(currentUser,'config.prazos');
   const {C}=useTheme();const Sg=mkSg(C);
   const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
   const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
@@ -4506,8 +4738,8 @@ const loadAll = async () => {
   };
 
   // ---- Derived ----
-  const isAdmin = loggedIn && ['admin','sgq'].includes(loggedIn.role);
-  const isSuperAdmin = loggedIn && loggedIn.role === 'admin';
+  const isAdmin = loggedIn && (hasPerm(loggedIn,'triagem.aprovar') || hasPerm(loggedIn,'avaliacao.revisar'));
+  const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
   const selected = requests.find(r => r.id === selId);
 
   // ---- Browser history (back/forward button support) ----
@@ -4586,18 +4818,17 @@ const loadAll = async () => {
   const pendExt = isAdmin ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
 
   const navItems=[
-    {id:"dashboard", label:"Inicio",       badge:0},
-    {id:"changes",   label:"Controles",    badge:0},
-    {id:"acoes",     label:"Tarefas",      badge:(pendEv+pendAcs)||0},
-    {id:"indicators",label:"Indicadores",  badge:0},
-    {id:"crits",     label:"Criticidade",  badge:0},
-    {id:"perguntas", label:"Perguntas",    badge:0},
-    {id:"settings",  label:"Configuracoes",badge:isAdmin?(pendExt||0):0},
-    ...(isAdmin?[
-      {id:"matrix",    label:"Matriz",       badge:0,adm:true},
-      {id:"users",     label:"Usuarios",     badge:0,adm:true},
-      {id:"log",       label:"Auditoria",    badge:0,adm:true},
-    ]:[]),
+    {id:"dashboard",  label:"Inicio",        badge:0},
+    {id:"changes",    label:"Controles",     badge:0},
+    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs)||0},
+    {id:"indicators", label:"Indicadores",   badge:0},
+    ...(hasPerm(loggedIn,'crits')          ?[{id:"crits",     label:"Criticidade",  badge:0}]:[]),
+    ...(hasPerm(loggedIn,'perguntas')      ?[{id:"perguntas", label:"Perguntas",    badge:0}]:[]),
+    {id:"settings",   label:"Configuracoes", badge:isAdmin?(pendExt||0):0},
+    ...(hasPerm(loggedIn,'matrix')         ?[{id:"matrix",    label:"Matriz",       badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'grupos.gerenciar')?[{id:"grupos",   label:"Grupos",       badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'auditoria.ver')  ?[{id:"log",       label:"Auditoria",    badge:0,adm:true}]:[]),
   ];
 
   // ---- Inline eval modal state ----
@@ -4617,7 +4848,7 @@ const loadAll = async () => {
         </div>
         <div style={{fontSize:8,color:C.muted,letterSpacing:.2,display:'flex',alignItems:'center',gap:4}}>
           <div title="Dados atualizados automaticamente a cada 30s" className="refresh-dot" style={{width:5,height:5,borderRadius:'50%',background:C.success,flexShrink:0}}/>
-          v{APP_VERSION} · {loggedIn.role.toUpperCase()}
+          v{APP_VERSION} · {(loggedIn.roles&&loggedIn.roles.length>0)?loggedIn.roles.map(r=>r.name).join(', '):loggedIn.role.toUpperCase()}
         </div>
       </div>
       <div style={{flex:1,padding:'6px 0'}}>
@@ -4673,6 +4904,7 @@ const loadAll = async () => {
       {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
+      {view==='grupos'    &&isSuperAdmin&&<GroupManager currentUser={loggedIn} C={C} Sg={Sg}/>}
     </div>
   </div>;
 }
