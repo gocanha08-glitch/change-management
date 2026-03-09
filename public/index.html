@@ -20,6 +20,7 @@ body{background:var(--app-bg,#0F1117);font-family:'Segoe UI',system-ui,sans-seri
 select option{background:#1E2333;color:#E8EAF0}
 input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 textarea,input,select,button{font-family:inherit}
+  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
 </style>
 </head>
 <body><div id="root"></div>
@@ -555,7 +556,10 @@ function Login({users,onLogin}){
     <div style={{width:380,...Sg.card({padding:36,borderRadius:16})}}>
       <div style={{textAlign:"center",marginBottom:28}}>
         <div style={{fontSize:24,fontWeight:900,letterSpacing:3,color:C.accent,marginBottom:3}}>CHANGE</div>
-        <div style={{fontSize:9,color:C.muted,letterSpacing:2}}>GESTAO DE MUDANCAS v{APP_VERSION}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div title="Dados atualizados automaticamente a cada 30s" style={{width:6,height:6,borderRadius:"50%",background:C.success,opacity:.7,animation:"pulse 2s infinite"}}/>
+          <div style={{fontSize:9,color:C.muted,letterSpacing:2}}>GESTAO DE MUDANCAS v{APP_VERSION}</div>
+        </div>
       </div>
       <div style={{marginBottom:12}}>
         <label style={Sg.lbl}>E-mail ou Nome</label>
@@ -2822,7 +2826,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <ResizableTable
           storageKey="cm_dash_aprov_cols_v2"
           cols={[110,200,220,130,45,90,100,130]}
-          headers={["ID","Titulo","Descricao","Tipo","Crit.","Prazo Etapa","Acao","Status"]}
+          headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
           C={C}
           onRowClick={row=>{
             const item=row.r;
@@ -2856,7 +2860,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <ResizableTable
           storageKey="cm_dash_analises_cols"
           cols={[110,200,260,45,90,110]}
-          headers={["SA","Titulo SA","Area","Crit.","Prazo","Acao"]}
+          headers={["SA","Título SA","Área","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(analises).map(item=>{
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
@@ -2879,20 +2883,20 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
         <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
           <ResizableTable
-            storageKey="cm_dash_planos_cols"
-            cols={[350,130,180,120]}
-            headers={["Solicitacao","Criticidade","Acoes no Plano","Acao"]}
+            storageKey="cm_dash_planos_cols_v2"
+            cols={[100,170,220,120,45,130,110]}
+            headers={["ID","Titulo","Descricao","Tipo","Crit.","Acoes no Plano","Acao"]}
             onRowClick={row=>onNav("detail",row.r.id,"plano")}
             C={C}
             rows={planosAguardando.map(r=>{
               const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
               return {r,cells:[
-                <div>
-                  <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.id}</div>
-                  <div style={{fontSize:11,color:C.muted,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.title}</div>
-                </div>,
-                cr?<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:6,background:(cr.color||C.accent)+"22",color:cr.color||C.accent,border:"1px solid "+(cr.color||C.accent)+"44"}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>,
-                <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} acao{(r.actions||[]).length!==1?"es":""}</div>,
+                <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
+                <span style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.title}</span>,
+                <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.description||"—"}</span>,
+                <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+                cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>,
+                <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} ação{(r.actions||[]).length!==1?"ões":""}</div>,
                 <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onNav("detail",r.id,"plano");}}>Ver Plano</button>
               ]};
             })}
@@ -2904,7 +2908,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <ResizableTable
           storageKey="cm_dash_acoes_cols"
           cols={[110,170,75,230,45,90,110]}
-          headers={["SA","Titulo SA","ID Acao","Descricao Acao","Crit.","Prazo","Acao"]}
+          headers={["SA","Título SA","ID Ação","Descrição Ação","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(acoes).map(item=>{
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
@@ -2929,7 +2933,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <ResizableTable
           storageKey="cm_dash_minhas_cols"
           cols={[110,180,230,120,45,90,130,60]}
-          headers={["ID","Titulo","Descricao","Tipo","Crit.","Prazo Etapa","Status",""]}
+          headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Status",""]}
           onRowClick={row=>onNav("detail",row.r.id)}
           C={C}
           rows={minhasSAs.map(r=>{
@@ -3082,9 +3086,9 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
       <ResizableTable
-        storageKey="cm_changes_cols_v2"
-        cols={[110,160,230,130,45,145,90,100]}
-        headers={["ID","Titulo","Descricao","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
+        storageKey="cm_changes_cols_v3"
+        cols={[100,150,210,120,40,170,85,95]}
+        headers={["ID","Título","Descrição","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
         onRowClick={row=>onOpen(row.r.id)}
         C={C}
         rows={vis.map(r=>{
@@ -3273,24 +3277,27 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visAc.length} acao{visAc.length!==1?"es":""}</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_acoes_cols_v2"
-          cols={[110,70,180,220,45,105,90,95]}
-          headers={["SA","ID Acao","Descricao","Responsavel","Crit.","Status","Criacao","Prazo"]}
+          storageKey="cm_acoes_cols_v3"
+          cols={[90,155,65,205,155,40,120,80,105,135]}
+          headers={["SA","Titulo SA","ID Ação","Descrição","Responsável","Crit.","Status","Criação","Prazo","Concluído por"]}
           onRowClick={a=>onNav("detail",a.r.id)}
           C={C}
           rows={visAc.map(a=>{
             const ov=isOD(a.deadline,a.status);const done=a.status==="concluida";const cancel=a.status==="cancelada";
             const stColor=done?C.success:cancel?C.muted:ov?C.danger:a.status==="andamento"?C.accent:C.warning;
-            const stLabel=done?"Concluida":cancel?"Cancelada":ov?"Atrasada":a.status==="andamento"?"Em andamento":"Pendente";
+            const stLabel=done?"Concluída":cancel?"Cancelada":ov?"Atrasada":a.status==="andamento"?"Em andamento":"Pendente";
+            const doneByUser=done&&a.doneByName?a.doneByName:(done&&a.resp?a.resp.name:null);
             return {r:a,cells:[
-              <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{a.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.r.title}</div></div>,
+              <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{a.r.id}</span>,
+              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{a.r.title}</span>,
               <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{a.id}</span>,
               <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
               <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
               <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <Badge label={stLabel} color={stColor}/>,
               <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done} doneAt={a.doneAt}/>
+              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done} doneAt={a.doneAt}/>,
+              <span style={{fontSize:11,color:done?C.success:C.muted}}>{doneByUser||"—"}</span>
             ]};
           })}
         />
@@ -3325,23 +3332,25 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visEv.length} avaliacao{visEv.length!==1?"oes":""}</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_avals_cols"
-          cols={[110,200,240,45,110,90,100]}
-          headers={["SA","Area","Avaliador","Crit.","Status","Criacao","Prazo"]}
+          storageKey="cm_avals_cols_v2"
+          cols={[90,150,170,170,40,115,80,105,140]}
+          headers={["SA","Titulo SA","Área","Avaliador","Crit.","Status","Criação","Prazo","Concluído por"]}
           onRowClick={e=>onNav("detail",e.r.id)}
           C={C}
           rows={visEv.map(e=>{
             const ov=!e.done&&isOD(e.dl,"");
             const stColor=e.done?C.success:ov?C.danger:C.warning;
-            const stLabel=e.done?"Concluida":ov?"Atrasada":"Pendente";
+            const stLabel=e.done?"Concluída":ov?"Atrasada":"Pendente";
             return {r:e,cells:[
-              <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{e.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.r.title}</div></div>,
+              <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{e.r.id}</span>,
+              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.r.title}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.dept}</span>,
               <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>,
               <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-              <div style={{display:"flex",flexDirection:"column",gap:2}}><Badge label={stLabel} color={stColor}/>{e.done&&e.ev&&<span style={{fontSize:9,color:C.muted}}>{e.ev.byName}</span>}</div>,
+              <Badge label={stLabel} color={stColor}/>,
               <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={e.urg} dl={e.dl} done={e.done} doneAt={e.ev&&e.ev.at}/>
+              <UrgCell urg={e.urg} dl={e.dl} done={e.done} doneAt={e.ev&&e.ev.at}/>,
+              <span style={{fontSize:11,color:e.done?C.success:C.muted}}>{e.done&&e.ev?e.ev.byName:"—"}</span>
             ]};
           })}
         />
@@ -4448,7 +4457,9 @@ const loadAll = async () => {
 
   const saveCrits = async (cr, by) => {
     await apiPut('/api/config/crits', cr);
-    setCR(cr); addSL(by, 'config', 'Criticidades atualizadas', '');
+    // Always merge desc from DEFAULT_CRITS so TriagePanel shows descriptions
+    setCR(cr.map(c=>({desc:"",...(DEFAULT_CRITS.find(d=>d.v===c.v)||{}),...c})));
+    addSL(by, 'config', 'Criticidades atualizadas', '');
   };
 
   const savePhaseDl = async (ph, by) => {
