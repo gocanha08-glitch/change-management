@@ -1,7 +1,8 @@
-// api/users/index.js — GET list, POST create, PUT update batch
+// api/users/index.js — GET list, POST create, PUT update
 const { sql } = require('../../lib/db');
 const { requireAdmin, requireAuth } = require('../../lib/auth');
 const bcrypt = require('bcryptjs');
+const { validatePassword } = require('../../lib/passwordPolicy');
 
 const CORS = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,7 +14,7 @@ module.exports = async (req, res) => {
   CORS(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  // GET — any authenticated user can fetch user list (for assignment dropdowns)
+  // GET — qualquer usuário autenticado
   if (req.method === 'GET') {
     const user = requireAuth(req, res);
     if (!user) return;
@@ -32,15 +33,19 @@ module.exports = async (req, res) => {
     }
   }
 
-  // POST — create single user (admin only)
+  // POST — criar usuário (admin only)
   if (req.method === 'POST') {
     const admin = requireAdmin(req, res);
     if (!admin) return;
     const { name, email, area, role, pwd, evalDepts } = req.body || {};
     if (!name || !email || !pwd) return res.status(400).json({ error: 'Nome, email e senha obrigatorios' });
 
+    // Validar política de senha
+    const policyErr = validatePassword(pwd, { name, email });
+    if (policyErr) return res.status(400).json({ error: policyErr });
+
     try {
-      const hash = await bcrypt.hash(pwd, 10);
+      const hash = await bcrypt.hash(pwd, 12);
       const rows = await sql`
         INSERT INTO users (name, email, area, role, pwd_hash, eval_depts, active, created_by)
         VALUES (${name}, ${email.toLowerCase()}, ${area||''}, ${role||'geral'}, ${hash}, ${JSON.stringify(evalDepts||[])}, true, ${admin.name})
@@ -54,35 +59,56 @@ module.exports = async (req, res) => {
     }
   }
 
-  // PUT — update single user or batch update
+  // PUT — atualizar usuário (admin only)
   if (req.method === 'PUT') {
     const admin = requireAdmin(req, res);
     if (!admin) return;
     const body = req.body || {};
 
-    // Batch update (from Excel import or full list save)
-    if (Array.isArray(body.users) && body.users.length > 0 && !body.users.some(u => u._new)) {
+    // Batch update (importação Excel)
+    if (Array.isArray(body.users)) {
       try {
         for (const u of body.users) {
           if (u._new && u.pwd) {
-            const hash = await bcrypt.hash(u.pwd, 10);
+            const pwdErr = validatePassword(u.pwd, { name: u.name, email: u.email });
+            if (pwdErr) continue; // pula usuários com senha inválida na importação
+            const hash = await bcrypt.hash(u.pwd, 12);
             await sql`
               INSERT INTO users (id, name, email, area, role, pwd_hash, eval_depts, active, created_by)
               VALUES (${u.id}, ${u.name}, ${u.email.toLowerCase()}, ${u.area||''}, ${u.role||'geral'}, ${hash}, ${JSON.stringify(u.evalDepts||[])}, ${u.active!==false}, ${admin.name})
               ON CONFLICT (email) DO NOTHING
             `;
           } else {
-            const updates = { name: u.name, area: u.area||'', role: u.role, eval_depts: JSON.stringify(u.evalDepts||[]), active: u.active!==false };
-            if (u._np) updates.pwd_hash = await bcrypt.hash(u._np, 10);
-            await sql`
-              UPDATE users SET
-                name = ${updates.name},
-                area = ${updates.area},
-                role = ${updates.role},
-                eval_depts = ${updates.eval_depts},
-                active = ${updates.active}
-              WHERE id = ${u.id}
-            `;
+            // Atualizar dados (sem senha)
+            if (u._np) {
+              const pwdErr = validatePassword(u._np, { name: u.name, email: u.email });
+              if (pwdErr) return res.status(400).json({ error: `Usuario ${u.name}: ${pwdErr}` });
+
+              // Buscar hash atual para histórico
+              const cur = await sql`SELECT pwd_hash FROM users WHERE id = ${u.id} LIMIT 1`;
+              const hash = await bcrypt.hash(u._np, 12);
+
+              // Verificar reutilização
+              if (cur[0]) {
+                const same = await bcrypt.compare(u._np, cur[0].pwd_hash);
+                if (same) return res.status(400).json({ error: `Usuario ${u.name}: nova senha igual a atual` });
+              }
+
+              await sql`
+                UPDATE users SET
+                  name = ${u.name}, area = ${u.area||''}, role = ${u.role},
+                  eval_depts = ${JSON.stringify(u.evalDepts||[])}, active = ${u.active!==false},
+                  pwd_hash = ${hash}, pwd_hash_prev = ${cur[0]?.pwd_hash || null}
+                WHERE id = ${u.id}
+              `;
+            } else {
+              await sql`
+                UPDATE users SET
+                  name = ${u.name}, area = ${u.area||''}, role = ${u.role},
+                  eval_depts = ${JSON.stringify(u.evalDepts||[])}, active = ${u.active!==false}
+                WHERE id = ${u.id}
+              `;
+            }
           }
         }
         return res.json({ ok: true });
@@ -95,12 +121,39 @@ module.exports = async (req, res) => {
     // Single user update
     const { id, name, email, area, role, evalDepts, active, _np } = body;
     if (!id) return res.status(400).json({ error: 'ID obrigatorio' });
+
     try {
       if (_np) {
-        const hash = await bcrypt.hash(_np, 10);
-        await sql`UPDATE users SET name=${name}, email=${email.toLowerCase()}, area=${area||''}, role=${role}, eval_depts=${JSON.stringify(evalDepts||[])}, active=${active!==false}, pwd_hash=${hash} WHERE id=${id}`;
+        const pwdErr = validatePassword(_np, { name, email });
+        if (pwdErr) return res.status(400).json({ error: pwdErr });
+
+        // Buscar hash atual para verificar reutilização e guardar histórico
+        const cur = await sql`SELECT pwd_hash, pwd_hash_prev FROM users WHERE id = ${id} LIMIT 1`;
+        if (cur[0]) {
+          const same = await bcrypt.compare(_np, cur[0].pwd_hash);
+          if (same) return res.status(400).json({ error: 'A nova senha nao pode ser igual a senha atual' });
+
+          if (cur[0].pwd_hash_prev) {
+            const samePrev = await bcrypt.compare(_np, cur[0].pwd_hash_prev);
+            if (samePrev) return res.status(400).json({ error: 'A nova senha nao pode ser igual a ultima senha utilizada' });
+          }
+        }
+
+        const hash = await bcrypt.hash(_np, 12);
+        await sql`
+          UPDATE users SET
+            name=${name}, email=${email.toLowerCase()}, area=${area||''},
+            role=${role}, eval_depts=${JSON.stringify(evalDepts||[])}, active=${active!==false},
+            pwd_hash=${hash}, pwd_hash_prev=${cur[0]?.pwd_hash || null}
+          WHERE id=${id}
+        `;
       } else {
-        await sql`UPDATE users SET name=${name}, email=${email.toLowerCase()}, area=${area||''}, role=${role}, eval_depts=${JSON.stringify(evalDepts||[])}, active=${active!==false} WHERE id=${id}`;
+        await sql`
+          UPDATE users SET
+            name=${name}, email=${email.toLowerCase()}, area=${area||''},
+            role=${role}, eval_depts=${JSON.stringify(evalDepts||[])}, active=${active!==false}
+          WHERE id=${id}
+        `;
       }
       return res.json({ ok: true });
     } catch (err) {

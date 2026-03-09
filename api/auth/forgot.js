@@ -1,7 +1,7 @@
-
-
+// api/auth/forgot.js
 const { sql } = require('../../lib/db');
 const { Resend } = require('resend');
+const crypto = require('crypto');
 
 const CORS = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,7 +22,9 @@ module.exports = async (req, res) => {
     if (!rows.length) return res.json({ ok: true }); // não revela se email existe
 
     const user = rows[0];
-    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+    // Token criptograficamente seguro (substituindo Math.random)
+    const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000).toISOString(); // 1 hora
 
     await sql`UPDATE users SET reset_token = ${token}, reset_expires = ${expires} WHERE id = ${user.id}`;
@@ -32,7 +34,13 @@ module.exports = async (req, res) => {
       from: 'onboarding@resend.dev',
       to: email,
       subject: 'Recuperacao de senha - CHANGE',
-      html: `<p>Ola ${user.name},</p><p>Clique no link para redefinir sua senha:</p><p><a href="https://change-management-eta.vercel.app/reset?token=${token}">Redefinir senha</a></p><p>Este link expira em 1 hora.</p>`
+      html: `
+        <p>Ola ${user.name},</p>
+        <p>Clique no link abaixo para redefinir sua senha:</p>
+        <p><a href="https://change-management-eta.vercel.app/reset?token=${token}">Redefinir senha</a></p>
+        <p>Este link expira em <strong>1 hora</strong>.</p>
+        <p>Se voce nao solicitou a redefinicao, ignore este e-mail.</p>
+      `
     });
 
     return res.json({ ok: true });

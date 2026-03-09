@@ -227,11 +227,19 @@ const REQ_ST={
   concluida:{label:"Concluida",         color:"#2DD4BF",step:6},
   cancelada:{label:"Cancelada",         color:"#EF4444",step:0},
 };
-const validatePwd=p=>{
-  if(!p||p.length<6)return"Minimo 6 caracteres";
+const validatePwd=(p,user={})=>{
+  if(!p||typeof p!=="string")return"Senha obrigatoria";
+  if(p.length<8)return"Minimo 8 caracteres";
+  if(p.length>20)return"Maximo 20 caracteres";
   if(!/[A-Z]/.test(p))return"Precisa de ao menos 1 letra maiuscula";
+  if(!/[a-z]/.test(p))return"Precisa de ao menos 1 letra minuscula";
   if(!/[0-9]/.test(p))return"Precisa de ao menos 1 numero";
-  if(!/[^A-Za-z0-9]/.test(p))return"Precisa de ao menos 1 caractere especial";
+  if(!/[^A-Za-z0-9]/.test(p))return"Precisa de ao menos 1 caractere especial (!@#$%...)";
+  if(/(.){4,}/.test(p))return"Senha nao pode ter caracteres repetidos em sequencia";
+  const weak=["12345678","senha123","senha@123","qwerty123","admin@123","mudar@123","abc@1234","pass@1234"];
+  if(weak.some(w=>p.toLowerCase()===w))return"Senha muito fraca ou comum";
+  if(user.name){const parts=user.name.toLowerCase().split(/\s+/).filter(x=>x.length>=3);if(parts.some(pt=>p.toLowerCase().includes(pt)))return"Senha nao pode conter seu nome";}
+  if(user.email){const loc=user.email.toLowerCase().split("@")[0];if(loc.length>=3&&p.toLowerCase().includes(loc))return"Senha nao pode conter seu e-mail";}
   return null;
 };
 
