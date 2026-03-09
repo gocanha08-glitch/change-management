@@ -563,11 +563,11 @@ function Login({users,onLogin}){
       </div>
       <div style={{marginBottom:12}}>
         <label style={Sg.lbl}>E-mail ou Nome</label>
-        <input style={Sg.input()} value={email} onChange={e=>{setEmail(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="ana@empresa.com" autoFocus/>
+        <input style={Sg.input()} value={email} onChange={e=>{setEmail(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="seu@email.com" autoFocus autoComplete="off"/>
       </div>
       <div style={{marginBottom:18}}>
         <label style={Sg.lbl}>Senha</label>
-        <input type="password" style={Sg.input()} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="..."/>
+        <input type="password" style={Sg.input()} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} onKeyDown={e=>e.key==="Enter"&&go()} placeholder="..." autoComplete="new-password"/>
       </div>
       {err&&<div style={{fontSize:12,color:C.danger,textAlign:"center",marginBottom:13,padding:8,background:C.danger+"11",borderRadius:7}}>{err}</div>}
       <button style={{...Sg.btn("primary"),width:"100%",padding:11,fontSize:14,borderRadius:8}} onClick={go}>Entrar</button>
@@ -584,14 +584,6 @@ function Login({users,onLogin}){
         }}>Enviar link</button>
         {forgotMsg&&<div style={{fontSize:12,color:C.accent,marginTop:8,textAlign:"center"}}>{forgotMsg}</div>}
       </div>}
-      <details style={{marginTop:16}}>
-        <summary style={{fontSize:11,color:C.muted,cursor:"pointer",padding:"4px 0",userSelect:"none"}}>Credenciais demo</summary>
-        <div style={{marginTop:7,padding:9,background:C.surface,borderRadius:7,fontSize:11,color:C.muted,lineHeight:2.1}}>
-          <b style={{color:C.dim}}>Admin:</b> ana@empresa.com / Admin@123<br/>
-          <b style={{color:C.dim}}>Avaliador:</b> roberto@empresa.com / Avalia@123<br/>
-          <b style={{color:C.dim}}>Geral:</b> mariana@empresa.com / Geral@123
-        </div>
-      </details>
     </div>
   </div>;
 }
