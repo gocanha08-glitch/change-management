@@ -715,10 +715,10 @@ function CritEditor({crits,currentUser,onSave}){
         <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Niveis de Criticidade</h1>
         <div style={{fontSize:11,color:C.muted,marginTop:2}}>Crie e edite os niveis usados na triagem das SAs</div>
       </div>
-      <div style={{display:"flex",gap:7}}>
+      {isAdmin&&<div style={{display:"flex",gap:7}}>
         <button style={Sg.btn()} onClick={()=>setShowNew(v=>!v)}>+ Novo Nivel</button>
         <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>
-      </div>
+      </div>}
     </div>
 
     {showNew&&<div style={{...Sg.card({marginBottom:14,border:"1px solid "+C.accent+"44"})}}>
@@ -2930,26 +2930,32 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
 // ResizableTable — table with draggable column dividers
 // ================================================================
 function ResizableTable({cols:initialCols,headers,rows,onRowClick,C,storageKey}){
-  const saved=storageKey?JSON.parse(localStorage.getItem(storageKey)||"null"):null;
-  const [cols,setCols]=React.useState(saved||initialCols);
+  const load=()=>{
+    try{
+      const s=storageKey&&localStorage.getItem(storageKey);
+      if(s){const p=JSON.parse(s);if(Array.isArray(p)&&p.length===initialCols.length&&p.every(v=>typeof v==="number"&&v>0))return p;}
+    }catch(e){}
+    return initialCols.map(v=>Number(v)||80);
+  };
+  const [cols,setCols]=React.useState(()=>load());
   const dragging=React.useRef(null);
+  const containerRef=React.useRef(null);
 
   const startDrag=(e,i)=>{
-    e.preventDefault();
+    e.preventDefault();e.stopPropagation();
     const startX=e.clientX;
     const startW=cols[i];
-    dragging.current={i,startX,startW};
+    dragging.current={i,startX,startW,live:[...cols]};
     const onMove=(ev)=>{
       if(!dragging.current)return;
       const delta=ev.clientX-dragging.current.startX;
-      setCols(prev=>{
-        const next=[...prev];
-        next[dragging.current.i]=Math.max(60,dragging.current.startW+delta);
-        return next;
-      });
+      const next=[...dragging.current.live];
+      next[dragging.current.i]=Math.max(60,Math.min(600,dragging.current.startW+delta));
+      dragging.current.live=next;
+      setCols([...next]);
     };
     const onUp=()=>{
-      if(storageKey)localStorage.setItem(storageKey,JSON.stringify(cols));
+      if(dragging.current&&storageKey)localStorage.setItem(storageKey,JSON.stringify(dragging.current.live));
       dragging.current=null;
       window.removeEventListener("mousemove",onMove);
       window.removeEventListener("mouseup",onUp);
@@ -2958,38 +2964,36 @@ function ResizableTable({cols:initialCols,headers,rows,onRowClick,C,storageKey})
     window.addEventListener("mouseup",onUp);
   };
 
-  // Save cols on change
-  React.useEffect(()=>{
-    if(storageKey)localStorage.setItem(storageKey,JSON.stringify(cols));
-  },[cols]);
-
   const tplStr=cols.map(w=>w+"px").join(" ");
+  const totalW=cols.reduce((a,b)=>a+b,0);
 
-  return <div style={{overflowX:"auto"}}>
-    {/* Header */}
-    <div style={{display:"grid",gridTemplateColumns:tplStr,background:C.surface,borderBottom:"1px solid "+C.border,minWidth:cols.reduce((a,b)=>a+b,0)}}>
-      {headers.map((h,i)=>(
-        <div key={i} style={{position:"relative",padding:"7px 10px",fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6,userSelect:"none",display:"flex",alignItems:"center"}}>
-          <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h}</span>
-          {i<headers.length-1&&<div
-            onMouseDown={e=>startDrag(e,i)}
-            style={{position:"absolute",right:0,top:0,bottom:0,width:6,cursor:"col-resize",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}}
-          ><div style={{width:2,height:"60%",background:C.border,borderRadius:1}}/></div>}
-        </div>
-      ))}
-    </div>
-    {/* Rows */}
-    <div>
+  return <div ref={containerRef} style={{overflowX:"auto",width:"100%"}}>
+    <div style={{minWidth:totalW}}>
+      {/* Header */}
+      <div style={{display:"grid",gridTemplateColumns:tplStr,background:C.surface,borderBottom:"1px solid "+C.border}}>
+        {headers.map((h,i)=>(
+          <div key={i} style={{position:"relative",padding:"7px 10px",fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6,userSelect:"none",display:"flex",alignItems:"center",overflow:"hidden"}}>
+            <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{h}</span>
+            {i<headers.length-1&&<div
+              onMouseDown={e=>startDrag(e,i)}
+              title="Arraste para redimensionar"
+              style={{position:"absolute",right:-1,top:0,bottom:0,width:8,cursor:"col-resize",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3}}
+            ><div style={{width:2,height:"55%",background:C.accent+"66",borderRadius:1}}/></div>}
+          </div>
+        ))}
+      </div>
+      {/* Rows */}
       {rows.map((row,i)=>(
         <div key={i} onClick={()=>onRowClick&&onRowClick(row)}
-          style={{display:"grid",gridTemplateColumns:tplStr,borderBottom:"1px solid "+C.border+"22",background:i%2===0?"transparent":C.surface+"44",cursor:onRowClick?"pointer":"default",transition:"background .1s",minWidth:cols.reduce((a,b)=>a+b,0)}}
+          style={{display:"grid",gridTemplateColumns:tplStr,borderBottom:"1px solid "+C.border+"22",background:i%2===0?"transparent":C.surface+"44",cursor:onRowClick?"pointer":"default",transition:"background .1s"}}
           onMouseEnter={e=>{if(onRowClick)e.currentTarget.style.background=C.accent+"0D";}}
           onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44";}}>
           {row.cells.map((cell,j)=>(
-            <div key={j} style={{padding:"8px 10px",overflow:"hidden",alignSelf:"center"}}>{cell}</div>
+            <div key={j} style={{padding:"7px 10px",overflow:"hidden",alignSelf:"center",minWidth:0}}>{cell}</div>
           ))}
         </div>
       ))}
+      {rows.length===0&&<div style={{textAlign:"center",padding:28,color:C.muted,fontSize:13}}>Nenhum registro encontrado.</div>}
     </div>
   </div>;
 }
@@ -3036,9 +3040,9 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
       <ResizableTable
-        storageKey="cm_changes_cols"
-        cols={[120,240,155,55,120,105,115]}
-        headers={["ID","Titulo / Descricao","Status","Crit.","Responsavel","Abertura","Prazo Etapa"]}
+        storageKey="cm_changes_cols_v2"
+        cols={[115,160,160,140,55,110,95,105]}
+        headers={["ID","Titulo","Descricao","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
         onRowClick={row=>onOpen(row.r.id)}
         C={C}
         rows={vis.map(r=>{
@@ -3050,28 +3054,26 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
             <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
             <div>
               <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
-              <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.type}</div>
-              {r.description&&<div style={{fontSize:10,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{r.description}</div>}
-              <div style={{display:"flex",gap:3,marginTop:2,flexWrap:"wrap"}}>
+              <div style={{display:"flex",gap:3,marginTop:2}}>
                 {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
                 {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
               </div>
             </div>,
+            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.description||"—"}</span>,
+            <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+            <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>,
             <div>
               <Badge label={st.label||""} color={st.color||C.muted}/>
-              {aa.length>0&&<div style={{display:"flex",alignItems:"center",gap:5,marginTop:4}}>
-                <div style={{width:36,height:2.5,background:C.border,borderRadius:2}}><div style={{height:"100%",width:(aa.length?doneEv/aa.length*100:0)+"%",background:doneEv===aa.length?C.success:C.warning,borderRadius:2}}/></div>
+              {aa.length>0&&<div style={{display:"flex",alignItems:"center",gap:4,marginTop:4}}>
+                <div style={{width:32,height:2.5,background:C.border,borderRadius:2}}><div style={{height:"100%",width:(aa.length?doneEv/aa.length*100:0)+"%",background:doneEv===aa.length?C.success:C.warning,borderRadius:2}}/></div>
                 <span style={{fontSize:9,color:C.muted}}>{doneEv}/{aa.length}</span>
               </div>}
             </div>,
-            <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>,
-            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.createdByName}</span>,
             <span style={{fontSize:11,color:C.muted}}>{fmtD(r.createdAt&&r.createdAt.slice(0,10))}</span>,
             <DeadlineCell r={r}/>
           ]};
         })}
       />
-      {vis.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhum registro encontrado.</div>}
     </div>
   </div>;
 }
@@ -3225,28 +3227,27 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       </div>
       <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visAc.length} acao{visAc.length!==1?"es":""}</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <Th cols="105px 1fr 1fr 55px 115px 100px 105px" labels={["SA","Descricao","Responsavel","Crit.","Status","Data Criacao","Prazo"]}/>
-        <div style={{maxHeight:"calc(100vh - 400px)",overflowY:"auto"}}>
-          {visAc.map((a,i)=>{
+        <ResizableTable
+          storageKey="cm_acoes_cols"
+          cols={[110,180,150,55,110,100,105]}
+          headers={["SA","Descricao","Responsavel","Crit.","Status","Criacao","Prazo"]}
+          onRowClick={a=>onNav("detail",a.r.id)}
+          C={C}
+          rows={visAc.map(a=>{
             const ov=isOD(a.deadline,a.status);const done=a.status==="concluida";const cancel=a.status==="cancelada";
             const stColor=done?C.success:cancel?C.muted:ov?C.danger:a.status==="andamento"?C.accent:C.warning;
             const stLabel=done?"Concluida":cancel?"Cancelada":ov?"Atrasada":a.status==="andamento"?"Em andamento":"Pendente";
-            const urg=urgCls(a.deadline,a.status);
-            return <div key={a.id+"_"+i} onClick={()=>onNav("detail",a.r.id)}
-              style={{display:"grid",gridTemplateColumns:"105px 1fr 1fr 55px 115px 100px 105px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s",opacity:cancel?.65:1}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
-              onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
-              <div><div style={{fontSize:10,fontWeight:700,color:C.accent}}>{a.r.id}</div><div style={{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.r.title}</div></div>
-              <div><div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}<div style={{fontSize:9,color:C.muted,marginTop:1}}>{a.id}</div></div>
-              <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>
-              <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
-              <Badge label={stLabel} color={stColor}/>
-              <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>
-              <UrgCell urg={urg} dl={a.deadline} done={done}/>
-            </div>;
+            return {r:a,cells:[
+              <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{a.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.r.title}</div></div>,
+              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}<div style={{fontSize:9,color:C.muted,marginTop:1}}>{a.id}</div></div>,
+              <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
+              <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <Badge label={stLabel} color={stColor}/>,
+              <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>,
+              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done}/>
+            ]};
           })}
-          {visAc.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhuma acao encontrada.</div>}
-        </div>
+        />
       </div>
     </>}
 
@@ -3277,30 +3278,27 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       </div>
       <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visEv.length} avaliacao{visEv.length!==1?"oes":""}</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <Th cols="105px 1fr 1fr 55px 110px 100px 105px" labels={["SA","Area","Avaliador","Crit.","Status","Data Criacao","Prazo"]}/>
-        <div style={{maxHeight:"calc(100vh - 400px)",overflowY:"auto"}}>
-          {visEv.map((e,i)=>{
+        <ResizableTable
+          storageKey="cm_avals_cols"
+          cols={[110,160,150,55,110,100,105]}
+          headers={["SA","Area","Avaliador","Crit.","Status","Criacao","Prazo"]}
+          onRowClick={e=>onNav("detail",e.r.id)}
+          C={C}
+          rows={visEv.map(e=>{
             const ov=!e.done&&isOD(e.dl,"");
             const stColor=e.done?C.success:ov?C.danger:C.warning;
             const stLabel=e.done?"Concluida":ov?"Atrasada":"Pendente";
-            return <div key={e.r.id+e.dept+i} onClick={()=>onNav("detail",e.r.id)}
-              style={{display:"grid",gridTemplateColumns:"105px 1fr 1fr 55px 110px 100px 105px",padding:"7px 12px",borderBottom:"1px solid "+C.border+"22",gap:8,cursor:"pointer",alignItems:"center",background:i%2===0?"transparent":C.surface+"44",transition:"background .12s"}}
-              onMouseEnter={el=>el.currentTarget.style.background=C.accent+"0D"}
-              onMouseLeave={el=>el.currentTarget.style.background=i%2===0?"transparent":C.surface+"44"}>
-              <div><div style={{fontSize:10,fontWeight:700,color:C.accent}}>{e.r.id}</div><div style={{fontSize:9,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.r.title}</div></div>
-              <div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.dept}</div>
-              <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>
-              <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>
-              <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                <Badge label={stLabel} color={stColor}/>
-                {e.done&&e.ev&&<span style={{fontSize:9,color:C.muted}}>{e.ev.byName}</span>}
-              </div>
-              <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>
+            return {r:e,cells:[
+              <div><div style={{fontSize:11,fontWeight:700,color:C.accent}}>{e.r.id}</div><div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.r.title}</div></div>,
+              <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.dept}</span>,
+              <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>,
+              <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <div style={{display:"flex",flexDirection:"column",gap:2}}><Badge label={stLabel} color={stColor}/>{e.done&&e.ev&&<span style={{fontSize:9,color:C.muted}}>{e.ev.byName}</span>}</div>,
+              <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>,
               <UrgCell urg={e.urg} dl={e.dl} done={e.done}/>
-            </div>;
+            ]};
           })}
-          {visEv.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhuma avaliacao encontrada.</div>}
-        </div>
+        />
       </div>
     </>}
   </div>;
@@ -4043,6 +4041,7 @@ function IndicatorsPage({requests,allUsers,crits}){
 // ================================================================
 function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const {C}=useTheme();const Sg=mkSg(C);
+  const isAdmin=currentUser.role==="admin"||currentUser.role==="sgq";
   const [selDept,setSD]=useState(ALL_DEPTS[0]);
   const [localQ,setLQ]=useState(()=>{
     const base={};
@@ -4082,12 +4081,13 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const isModified=JSON.stringify(qs)!==JSON.stringify(defaultQs);
 
   return <div style={{padding:"18px 22px",maxWidth:860}}>
+    {!isAdmin&&<div style={{marginBottom:12,padding:"10px 16px",background:C.accent+"11",border:"1px solid "+C.accent+"33",borderRadius:8,fontSize:13,color:C.muted}}>Visualizacao apenas — somente SGQ pode editar.</div>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:10}}>
       <div>
         <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Perguntas de Avaliacao</h1>
         <div style={{fontSize:11,color:C.muted,marginTop:2}}>Configure as perguntas exibidas para cada area durante a avaliacao de uma SA.</div>
       </div>
-      <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar Tudo"}</button>
+      {isAdmin&&<button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar Tudo"}</button>}
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:14}}>
@@ -4204,14 +4204,15 @@ const go=async()=>{
       </div>
       <div style={{marginBottom:16}}>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:8,letterSpacing:.7}}>TEMA</div>
-        <div style={{display:"flex",gap:7}}>
+        <div style={{display:"flex",gap:7,alignItems:"center"}}>
           {themeOpts.map(t=>(
-            <button key={t.v} onClick={()=>setTheme(t.v)}
-              style={{flex:1,padding:"8px 0",borderRadius:7,border:"2px solid "+(theme===t.v?C.accent:C.border),background:theme===t.v?C.accent+"22":C.surface,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:theme===t.v?700:400,color:theme===t.v?C.accent:C.muted}}>
-              {t.l}
+            <button key={t.v} onClick={()=>{setTheme(t.v);setMsg("ok:Tema salvo!");setTimeout(()=>setMsg(""),2000);}}
+              style={{flex:1,padding:"10px 0",borderRadius:7,border:"2px solid "+(theme===t.v?C.accent:C.border),background:theme===t.v?C.accent+"22":C.surface,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:theme===t.v?700:400,color:theme===t.v?C.accent:C.muted,transition:"all .15s"}}>
+              {t.v==="dark"?"🌙 Escuro":"☀️ Claro"}
             </button>
           ))}
         </div>
+        {msg&&msg.startsWith("ok:")&&<div style={{fontSize:12,color:C.success,fontWeight:600,marginTop:6}}>{msg.slice(3)}</div>}
       </div>
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:9,letterSpacing:.7}}>ALTERAR SENHA</div>
@@ -4220,7 +4221,8 @@ const go=async()=>{
           <div><label style={Sg.lbl}>Nova Senha</label><div style={{position:"relative"}}><input type={showN1?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/><button type="button" onClick={()=>setShowN1(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN1?"🙈":"👁️"}</button></div>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
           <div><label style={Sg.lbl}>Confirmar</label><div style={{position:"relative"}}><input type={showN2?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowN2(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN2?"🙈":"👁️"}</button></div></div>
         </div>
-        {msg&&<div style={{fontSize:12,color:msg.startsWith("ok")?C.success:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
+        {msg&&msg.startsWith("err:")&&<div style={{fontSize:12,color:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(4)}</div>}
+        {msg&&msg.startsWith("ok:")&&!msg.includes("Tema")&&<div style={{fontSize:12,color:C.success,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
         <button style={Sg.btn("primary")} onClick={go}>Alterar Senha</button>
       </div>
     </div>
@@ -4440,13 +4442,12 @@ const loadAll = async () => {
     {id:"changes",   label:"Controles",    badge:0},
     {id:"acoes",     label:"Tarefas",      badge:(pendEv+pendAcs)||0},
     {id:"indicators",label:"Indicadores",  badge:0},
-    {id:"settings",  label:"Configuracoes",badge:0},
+    {id:"crits",     label:"Criticidade",  badge:0},
+    {id:"perguntas", label:"Perguntas",    badge:0},
+    {id:"settings",  label:"Configuracoes",badge:isAdmin?(pendExt||0):0},
     ...(isAdmin?[
       {id:"matrix",    label:"Matriz",       badge:0,adm:true},
-      {id:"crits",     label:"Criticidade",  badge:0},
-      {id:"perguntas", label:"Perguntas",    badge:0},
       {id:"users",     label:"Usuarios",     badge:0,adm:true},
-      {id:"settings",  label:"Configuracoes",badge:pendExt||0,adm:true},
       {id:"log",       label:"Auditoria",    badge:0,adm:true},
     ]:[]),
   ];
