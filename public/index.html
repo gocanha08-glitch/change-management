@@ -20,7 +20,7 @@ body{background:var(--app-bg,#0F1117);font-family:'Segoe UI',system-ui,sans-seri
 select option{background:#1E2333;color:#E8EAF0}
 input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 textarea,input,select,button{font-family:inherit}
-  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+  @keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:1} } .refresh-dot { animation: pulse 2.5s ease-in-out infinite; }
 </style>
 </head>
 <body><div id="root"></div>
@@ -557,7 +557,7 @@ function Login({users,onLogin}){
       <div style={{textAlign:"center",marginBottom:28}}>
         <div style={{fontSize:24,fontWeight:900,letterSpacing:3,color:C.accent,marginBottom:3}}>CHANGE</div>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <div title="Dados atualizados automaticamente a cada 30s" style={{width:6,height:6,borderRadius:"50%",background:C.success,opacity:.7,animation:"pulse 2s infinite"}}/>
+          <div title="Dados atualizados automaticamente a cada 30s" className="refresh-dot" style={{width:7,height:7,borderRadius:"50%",background:C.success}}/>
           <div style={{fontSize:9,color:C.muted,letterSpacing:2}}>GESTAO DE MUDANCAS v{APP_VERSION}</div>
         </div>
       </div>
@@ -1836,6 +1836,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
             <FieldCard label="Nivel Selecionado">
               {cr&&<span style={{fontSize:15,fontWeight:700,color:cr.color}}>{cr.v} — {cr.label}</span>}
+              {cr&&cr.desc&&<div style={{fontSize:11,color:C.muted,marginTop:4,lineHeight:1.5}}>{cr.desc}</div>}
             </FieldCard>
             <FieldCard label="Avaliado por" value={request.ap1ByName}/>
             <FieldCard label="Data da Avaliacao" value={fmt(request.ap1At)}/>
@@ -2824,8 +2825,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_aprov_cols_v2"
-          cols={[110,200,220,130,45,90,100,130]}
+          storageKey="cm_dash_aprov_cols_v3"
+          cols={[100,175,195,115,40,85,115,175]}
           headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
           C={C}
           onRowClick={row=>{
@@ -3086,8 +3087,8 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
       <ResizableTable
-        storageKey="cm_changes_cols_v3"
-        cols={[100,150,210,120,40,170,85,95]}
+        storageKey="cm_changes_cols_v4"
+        cols={[95,145,200,115,38,185,82,90]}
         headers={["ID","Título","Descrição","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
         onRowClick={row=>onOpen(row.r.id)}
         C={C}
