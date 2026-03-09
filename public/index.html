@@ -1000,7 +1000,9 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
           </button>
         ))}
       </div>
-      {(()=>{const cr=crits.find(c=>c.v===crit);const defCr=DEFAULT_CRITS.find(d=>d.v===(cr&&cr.v));const desc=(cr&&cr.desc&&cr.desc.trim())||(defCr&&defCr.desc)||"";return cr&&desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {desc}</div>:null;})()}
+      <div style={{display:"grid",gridTemplateColumns:"repeat("+Math.min(crits.length,4)+",1fr)",gap:6,marginTop:6}}>
+        {crits.map(cr=>{const defCr=DEFAULT_CRITS.find(d=>d.v===cr.v);const desc=(cr.desc&&cr.desc.trim())||(defCr&&defCr.desc)||"";const sel=crit===cr.v;return <div key={cr.v} style={{padding:"7px 10px",borderRadius:7,background:sel?cr.color+"22":C.bg,border:"1px solid "+(sel?cr.color:C.border)+"66",transition:"all .15s"}}><span style={{fontWeight:700,color:cr.color,fontSize:11}}>{cr.v} — {cr.label}</span>{desc?<div style={{fontSize:11,color:sel?C.text:C.muted,marginTop:2,lineHeight:1.5}}>{desc}</div>:null}</div>;})}
+      </div>
     </div>
     <div>
       <label style={Sg.lbl}>Justificativa *</label>
