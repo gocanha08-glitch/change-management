@@ -3480,11 +3480,14 @@ const PERFIS={
           {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,40)}...</option>)}
         </select>
       </div>
-      <div style={{gridColumn:"1/-1"}}><label>{pwdLabel}</label>
-<div style={{position:"relative"}}>
-  <input type={u._showPwd?"text":"password"} autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",paddingRight:36,borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
-  <button type="button" onClick={()=>onChange({...u,_showPwd:!u._showPwd})} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{u._showPwd?"🙈":"👁️"}</button>
-</div>      </div>
+      <div style={{gridColumn:"1/-1"}}>
+        <label>{pwdLabel}</label>
+        <div style={{position:"relative"}}>
+          <input type={u._showPwd?"text":"password"} autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{width:"100%",padding:"7px 10px",paddingRight:36,borderRadius:7,border:"1px solid #2a2f45",background:"#0d1021",color:"#fff",fontSize:13}}/>
+          <button type="button" onClick={()=>onChange({...u,_showPwd:!u._showPwd})} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{u._showPwd?"🙈":"👁️"}</button>
+        </div>
+        {(()=>{const pwd=u.pwd||u._np||"";if(!pwd)return<div style={{fontSize:10,color:"#6b7a9f",marginTop:4}}>Requisitos: 8-20 caracteres · maiúscula · minúscula · número · especial (!@#$...)</div>;const err=validatePwd(pwd,{name:u.name,email:u.email});return err?<div style={{fontSize:10,color:"#EF4444",marginTop:4}}>⚠ {err}</div>:<div style={{fontSize:10,color:"#2DD4BF",marginTop:4}}>✓ Senha válida</div>;})()}
+      </div>
     </div>
     <DeptChk user={u} onChange={onChange}/>
   </div>;
@@ -3529,7 +3532,7 @@ function UserManager({users,currentUser,onSave,addSysLog}){
   };
 
   const addUser=()=>{
-    const err=validatePwd(nU.pwd);if(err){setPE(err);return;}
+    const err=validatePwd(nU.pwd,{name:nU.name,email:nU.email});if(err){setPE(err);return;}
     if(!nU.name.trim()||!nU.email.trim()){setPE("Nome e email obrigatorios");return;}
     if(lu.find(u=>u.email.toLowerCase()===nU.email.toLowerCase())){setPE("Email ja cadastrado");return;}
     const newUser={...nU,id:Date.now(),evalDepts:nU.evalDepts||[]};
@@ -3540,19 +3543,20 @@ function UserManager({users,currentUser,onSave,addSysLog}){
   };
 
 const saveEdit=async()=>{
-    if(editing._np){const err=validatePwd(editing._np);if(err){setPE(err);return;}}
+    if(editing._np){const err=validatePwd(editing._np,{name:editing.name,email:editing.email});if(err){setPE(err);return;}}
     const u={...editing};
     try {
-      await apiPut('/api/users', {
+      const res=await apiPut('/api/users', {
         id: u.id, name: u.name, email: u.email, area: u.area||'',
         role: u.role, evalDepts: u.evalDepts||[], active: u.active!==false,
         _np: u._np||undefined
       });
+      if(res&&res.error){setPE(res.error);return;}
       const newList=lu.map(x=>x.id===u.id?{...u}:x);
       setLU(newList);
       save([u], "usuario_editado", "Editado: "+u.name);
       setEd(null);setPE("");
-    } catch(err){ alert('Erro ao editar: '+err.message); }
+    } catch(err){ setPE(err.message||'Erro ao salvar'); }
   };
 
   const deactivate=(uid)=>{
