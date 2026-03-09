@@ -3290,7 +3290,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
           storageKey="cm_acoes_cols_v3"
           cols={[90,155,65,205,155,40,120,80,105,135]}
           headers={["SA","Titulo SA","ID Ação","Descrição","Responsável","Crit.","Status","Criação","Prazo","Concluído por"]}
-          onRowClick={a=>onNav("detail",a.r.id)}
+          onRowClick={a=>onNav("detail",a.r.id,"plano",null,a.id)}
           C={C}
           rows={visAc.map(a=>{
             const ov=isOD(a.deadline,a.status);const done=a.status==="concluida";const cancel=a.status==="cancelada";
@@ -3345,7 +3345,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
           storageKey="cm_avals_cols_v2"
           cols={[90,150,170,170,40,115,80,105,140]}
           headers={["SA","Titulo SA","Área","Avaliador","Crit.","Status","Criação","Prazo","Concluído por"]}
-          onRowClick={e=>onNav("detail",e.r.id)}
+          onRowClick={e=>onNav("detail",e.r.id,"avaliacao",e.dept)}
           C={C}
           rows={visEv.map(e=>{
             const ov=!e.done&&isOD(e.dl,"");
