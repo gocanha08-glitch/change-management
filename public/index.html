@@ -29,8 +29,8 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.0.0";
-const APP_DATE = "2026-03-03";
+const APP_VERSION = "10.0.1";
+const APP_DATE = "2026-03-09";
 
 const DEFAULT_CRITS = [
   {v:"C1", label:"Baixa",    color:"#2DD4BF", desc:"Impacto minimo, sem risco regulatorio"},
@@ -1000,7 +1000,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
           </button>
         ))}
       </div>
-      {(()=>{const cr=crits.find(c=>c.v===crit);const desc=cr&&(cr.desc||(DEFAULT_CRITS.find(d=>d.v===cr.v)||{}).desc);return cr&&desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {desc}</div>:null;})()}
+      {(()=>{const cr=crits.find(c=>c.v===crit);const defCr=DEFAULT_CRITS.find(d=>d.v===(cr&&cr.v));const desc=(cr&&cr.desc&&cr.desc.trim())||(defCr&&defCr.desc)||"";return cr&&desc?<div style={{padding:"10px 14px",borderRadius:8,background:(cr.color||C.accent)+"11",border:"1px solid "+(cr.color||C.accent)+"33",fontSize:13,color:C.text,lineHeight:1.6}}><span style={{fontWeight:700,color:cr.color||C.accent}}>{cr.v} — {cr.label}:</span> {desc}</div>:null;})()}
     </div>
     <div>
       <label style={Sg.lbl}>Justificativa *</label>
@@ -4391,7 +4391,7 @@ const loadAll = async () => {
     if (us) setUR(us);
     if (rs) setRR(rs);
     try { const mx = await apiGet('/api/config/matrix'); if (mx) setMR(mx); } catch {}
-    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr.map(c=>({desc:"",...(DEFAULT_CRITS.find(d=>d.v===c.v)||{}),...c}))); } catch {}
+    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};})); } catch {}
     try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
     try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
   };
@@ -4459,7 +4459,7 @@ const loadAll = async () => {
   const saveCrits = async (cr, by) => {
     await apiPut('/api/config/crits', cr);
     // Always merge desc from DEFAULT_CRITS so TriagePanel shows descriptions
-    setCR(cr.map(c=>({desc:"",...(DEFAULT_CRITS.find(d=>d.v===c.v)||{}),...c})));
+    setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};}));
     addSL(by, 'config', 'Criticidades atualizadas', '');
   };
 
