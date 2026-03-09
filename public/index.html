@@ -4905,7 +4905,7 @@ const loadAll = async () => {
       {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
-      {view==='grupos'    &&isSuperAdmin&&<GroupManager currentUser={loggedIn} C={C} Sg={Sg}/>}
+      {view==='grupos'    &&isSuperAdmin&&<GroupManager currentUser={loggedIn} C={C}/>}
     </div>
   </div>;
 }
