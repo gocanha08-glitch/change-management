@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.1.6";
+const APP_VERSION = "10.1.7";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -1894,8 +1894,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>}
       {/* Anexos */}
       <FieldCard label="Anexos da Solicitacao" wide>
-        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={!["aberta","avaliacao"].includes(localReq.status)&&!isAdmin} stage={localReq.status} currentUser={currentUser} C={C}/>
-        {!["aberta","avaliacao"].includes(localReq.status)&&!isAdmin&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Solicite ao SGQ para adicionar anexos nesta etapa.</div>}
+        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={!["aberta","avaliacao"].includes(localReq.status)} stage={localReq.status} currentUser={currentUser} C={C}/>
+        {!["aberta","avaliacao"].includes(localReq.status)&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Fase encerrada — use a secao "Anexos do Registro" abaixo para gerenciar.</div>}
       </FieldCard>
     </SecCard>
 
@@ -2112,11 +2112,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         6. ANEXOS DO REGISTRO
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="documentos" title={"Anexos do Registro"+(allAtts.length?" ("+allAtts.length+")":"")}>
+      {/* Admin pode adicionar anexo em qualquer fase por aqui */}
+      {isAdmin&&<div style={{marginBottom:12}}>
+        <AttachmentsPanel attachments={[]} onAdd={addAttachment} onRemove={null} isAdmin={isAdmin} readOnly={false} stage={localReq.status} currentUser={currentUser} C={C} refId={localReq.id} refType="request"/>
+      </div>}
       {allAtts.length===0
         ?<div style={{fontSize:14,color:C.muted}}>Nenhum documento anexado.</div>
         :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr><Th>Documento</Th><Th>Origem</Th><Th>Incluido por</Th><Th>Data</Th><Th w="90px"></Th></tr></thead>
+            <thead><tr><Th>Documento</Th><Th>Origem</Th><Th>Incluido por</Th><Th>Data</Th><Th w={isAdmin?"140px":"90px"}></Th></tr></thead>
             <tbody>
               {allAtts.map((a,i)=>(
                 <tr key={a.id||i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
@@ -2124,7 +2128,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                   <Td muted>{a._src||"—"}</Td>
                   <Td muted>{a._by||"—"}</Td>
                   <Td muted>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</Td>
-                  <Td>{a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"3px 10px"}} onClick={async()=>{if(!a.r2key){alert("Arquivo local nao disponivel.");return;}try{const r=await apiGet('/api/uploads?key='+encodeURIComponent(a.r2key));window.open(r.downloadUrl,'_blank');}catch(e){alert("Erro: "+e.message);}}}>Download</button>}</Td>
+                  <Td><div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
+                    {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"3px 10px"}} onClick={async()=>{if(!a.r2key){alert("Arquivo local nao disponivel.");return;}try{const r=await apiGet('/api/uploads?key='+encodeURIComponent(a.r2key));window.open(r.downloadUrl,'_blank');}catch(e){alert("Erro: "+e.message);}}}>Download</button>}
+                    {isAdmin&&<button style={{...Sg.btn("danger"),fontSize:12,padding:"3px 8px"}} title="Remover anexo" onClick={()=>{if(window.confirm('Remover "'+a.name+'"? Ficara registrado no historico.'))removeAttachment(a);}}>✕</button>}
+                  </div></Td>
                 </tr>
               ))}
             </tbody>
