@@ -26,8 +26,8 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.1.0";
-const APP_DATE = "2026-03-09";
+const APP_VERSION = "10.1.5";
+const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
 const hasPermission = (user, perm) => {
@@ -601,7 +601,7 @@ function Login({users,onLogin}){
   </div>;
 }
 
-function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C,refId,refType}){
+function AttachmentsPanel({attachments,onAdd,onRemove,readOnly,stage,currentUser,isAdmin,C,refId,refType}){
   const Sg=mkSg(C);
   const [name,setName]=useState("");
   const [ref,setRef]=useState("");
@@ -680,6 +680,7 @@ function AttachmentsPanel({attachments,onAdd,readOnly,stage,currentUser,C,refId,
           </div>
         </div>
         {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px",flexShrink:0}} onClick={()=>download(a)}>Download</button>}
+        {onRemove&&isAdmin&&<button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 8px",flexShrink:0}} title="Remover anexo" onClick={()=>{if(window.confirm("Remover o anexo \""+a.name+"\"? Esta acao fica registrada no historico."))onRemove(a);}}>✕</button>}
       </div>
     ))}
   </div>;
@@ -795,7 +796,7 @@ function CritEditor({crits,currentUser,onSave}){
 // ================================================================
 // EVAL FORM v10 — obs ao responder Sim, perguntas vem de deptQuestions state
 // ================================================================
-function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQuestions,onChangeOwner,onClose,onSave,onSaveDraft,C}){
+function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQuestions,onChangeOwner,onClose,onSave,onSaveDraft,currentUser,C}){
   const Sg=mkSg(C);
   // Use custom questions if available, fallback to DEPT_Q constant
   const qs=(deptQuestions&&deptQuestions[dept])||DEPT_Q[dept]||[];
@@ -805,6 +806,7 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
       :qs.map(q=>({q,a:"",just:"",obs:""}))
   );
   const [obs,setObs]=useState((existing&&existing.obs)||"");
+  const [atts,setAtts]=useState(()=>(existing&&existing.attachments)||[]);
   const [newOwner,setNewOwner]=useState("");
   const [showOwner,setShowOwner]=useState(false);
   const [submitted,setSubmitted]=useState(false);
@@ -813,7 +815,9 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
     setAns(existing&&existing.answers&&existing.answers.length
       ?existing.answers.map(a=>({...a}))
       :qs.map(q=>({q,a:"",just:"",obs:""})));
-    setObs((existing&&existing.obs)||"");setSubmitted(false);
+    setObs((existing&&existing.obs)||"");
+    setAtts((existing&&existing.attachments)||[]);
+    setSubmitted(false);
   },[dept]);
 
   const needsJ=a=>a==="N"||a==="N/A";
@@ -825,7 +829,7 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
   const canSave=unanswered===0&&missing===0;
   const evOpts=allUsers.filter(u=>u.active&&u.role==="evaluator"&&(u.evalDepts||[]).includes(dept));
   const aUser=allUsers.find(u=>u.id===assignedUserId);
-  const trySubmit=()=>{setSubmitted(true);if(canSave)onSave(dept,ans,obs);};
+
 
   return <div style={{display:"flex",flexDirection:"column",gap:10}}>
     <div style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:C.surface,borderRadius:8}}>
@@ -885,12 +889,27 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
       {unanswered>0&&<div>{unanswered} pergunta{unanswered!==1?"s":""} sem resposta</div>}
       {missing>0&&<div>{missing} justificativa{missing!==1?"s":""} pendente{missing!==1?"s":""}</div>}
     </div>}
+    {!readOnly&&<AttachmentsPanel
+      attachments={atts}
+      onAdd={a=>setAtts(p=>[...p,a])}
+      onRemove={a=>setAtts(p=>p.filter(x=>x.id!==a.id))}
+      isAdmin={true}
+      readOnly={false}
+      stage="avaliacao"
+      currentUser={currentUser||{name:"--"}}
+      C={C}/>}
+    {readOnly&&atts.length>0&&<AttachmentsPanel
+      attachments={atts}
+      readOnly={true}
+      stage="avaliacao"
+      currentUser={{name:"--"}}
+      C={C}/>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,paddingTop:4,flexWrap:"wrap"}}>
       <div style={{fontSize:10,color:C.muted}}>{!readOnly&&onSaveDraft&&"Voce pode salvar rascunho e continuar depois."}</div>
       <div style={{display:"flex",gap:8}}>
         <button style={Sg.btn()} onClick={onClose}>Fechar</button>
-        {!readOnly&&onSaveDraft&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>onSaveDraft(dept,ans,obs)}>Salvar Rascunho</button>}
-        {!readOnly&&<button style={Sg.btn("primary")} onClick={trySubmit}>Registrar Avaliacao</button>}
+        {!readOnly&&onSaveDraft&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>onSaveDraft(dept,ans,obs,atts)}>Salvar Rascunho</button>}
+        {!readOnly&&<button style={Sg.btn("primary")} onClick={()=>{setSubmitted(true);if(canSave)onSave(dept,ans,obs,atts);}}>Registrar Avaliacao</button>}
       </div>
     </div>
   </div>;
@@ -913,7 +932,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   const evalDays=(phaseDl&&phaseDl.avaliacao&&phaseDl.avaliacao.days)||7;
 
   const getCell=(dept)=>{
-    if(!crit||!matrix[request.type]||!matrix[request.type][dept])return"";
+    if(!crit||!matrix||!matrix[request.type]||!matrix[request.type][dept])return"";
     return matrix[request.type][dept][crit]||"";
   };
 
@@ -1175,7 +1194,7 @@ function VerifyForm({onConfirm,C,Sg}){
 // ================================================================
 function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
   const [note,setNote]=useState("");
-  const [att,setAtt]=useState(null);
+  const [atts,setAtts]=useState([]);
   return <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"16px"}}>
     <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:10}}>Registrar conclusao *</div>
     <textarea
@@ -1184,8 +1203,10 @@ function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
       onChange={e=>setNote(e.target.value)}
       placeholder="Descreva o que foi executado..."/>
     <AttachmentsPanel
-      attachments={att?[att]:[]}
-      onAdd={a=>setAtt(a)}
+      attachments={atts}
+      onAdd={a=>setAtts(p=>[...p,a])}
+      onRemove={a=>setAtts(p=>p.filter(x=>x.id!==a.id))}
+      isAdmin={true}
       readOnly={false}
       stage={request.status}
       currentUser={currentUser}
@@ -1193,7 +1214,7 @@ function AcConcForm({acId,onConfirm,request,currentUser,C,Sg}){
     <button
       style={{...Sg.btn("success"),marginTop:10,opacity:note.trim()?1:.4}}
       disabled={!note.trim()}
-      onClick={()=>onConfirm(note,att)}>
+      onClick={()=>onConfirm(note,atts)}>
       Confirmar Conclusao
     </button>
   </div>;
@@ -1327,7 +1348,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[request.status]||0;
 
   const isMandSaved=dept=>{
-    const cell=(matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][request.triage&&request.triage.criticality])||"";
+    const cell=(matrix&&matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][request.triage&&request.triage.criticality])||"";
     if(cell==="mandatory")return true;
     if(request.triage&&request.triage.flagReg&&dept==="Assuntos Regulatorios")return true;
     if(request.triage&&request.triage.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
@@ -1407,11 +1428,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     let r={...request,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
   };
 
-  const concludeAction=(acId,note,att)=>{
+  const concludeAction=(acId,note,atts)=>{
     if(!note||!note.trim())return;
     const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:note};
     let newAtts=request.attachments||[];
-    if(att)newAtts=[...newAtts,{...att,stage:"conclusao-"+acId}];
+    const lista=Array.isArray(atts)?atts:(atts?[atts]:[]);
+    if(lista.length>0)newAtts=[...newAtts,...lista.map(a=>({...a,stage:"conclusao-"+acId}))];
     const actions=(request.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
     const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
     let r={...request,actions,attachments:newAtts};
@@ -1421,6 +1443,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
 
   const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
+  const removeAttachment=att=>upd({attachments:(request.attachments||[]).filter(a=>a.id!==att.id)},"anexo","Anexo removido","Removido por: "+currentUser.name+" | Nome: "+att.name);
 
   // ── Excluir acao durante plano ──
   const doRemoveAcPlano=(ac)=>{
@@ -1603,6 +1626,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ HEADER BAR ══ */}
     {(()=>{
       const [sgqOpen,setSgqOpen]=useState(false);
+      const [sgqSub,setSgqSub]=useState(null); // 'reatrib_ev'|'reatrib_ac'|'reabrir_ev'|'reabrir_ac'
+      const toggleSub=k=>setSgqSub(p=>p===k?null:k);
       const sgqRef=React.useRef(null);
       React.useEffect(()=>{
         if(!sgqOpen)return;
@@ -1628,114 +1653,134 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           <button style={{...Sg.btn("primary"),fontSize:12,padding:"6px 14px",display:"flex",alignItems:"center",gap:6}} onClick={()=>setSgqOpen(o=>!o)}>
             ⚙ Acoes SGQ <span style={{fontSize:10,opacity:.7}}>{sgqOpen?"▲":"▼"}</span>
           </button>
-          {sgqOpen&&<div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:260,padding:"6px 0",overflow:"hidden"}}>
-            {/* Reabrir fase */}
-            <div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir fase</div>
-            {phases.filter(p=>canReopen(p.key)).map(p=>(
-              <button key={p.key} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
+          {sgqOpen&&(()=>{
+            // ── helpers de item e separador ──────────────────────────────────
+            const MI=({onClick,color,icon,label})=>(
+              <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:color||C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
                 onMouseEnter={e=>e.currentTarget.style.background=C.surface}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReopenPhase(p);}}>
-                <span style={{color:C.warning}}>↩</span> {p.label}
+                onClick={()=>{setSgqOpen(false);setSgqSub(null);onClick();}}>
+                <span>{icon}</span>{label}
               </button>
-            ))}
-            {phases.filter(p=>canReopen(p.key)).length===0&&<div style={{padding:"6px 14px",fontSize:12,color:C.muted,fontStyle:"italic"}}>Nenhuma fase anterior disponivel</div>}
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/>
-            {/* Acoes de fluxo */}
-            {request.status==="revisao"&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
-            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.purple,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              onClick={()=>{setSgqOpen(false);setShowAp2(true);}}>
-              <span>✓</span> Aprovar avaliacoes — iniciar plano
-            </button>
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {request.status==="plano"&&(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:.5}}>Fluxo</div>
-            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.success,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              onClick={()=>{setSgqOpen(false);setShowAp3(true);}}>
-              <span>▶</span> Liberar para execucao
-            </button>
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+            );
+            const Sep=()=><div style={{height:1,background:C.border,margin:"4px 0"}}/>;
+            const SectionLabel=({label,color})=><div style={{padding:"6px 14px 3px",fontSize:10,fontWeight:700,color:color||C.muted,textTransform:"uppercase",letterSpacing:.5}}>{label}</div>;
+            // Colapsavel: cabeçalho clicável + lista de subitens recuados
+            const Collapsible=({id,icon,label,count,color,items,renderItem})=>{
+              if(!items||items.length===0)return null;
+              const open=sgqSub===id;
+              return <><button style={{width:"100%",background:open?C.surface:"transparent",border:"none",cursor:"pointer",padding:"7px 14px",textAlign:"left",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"space-between"}}
+                onClick={e=>{e.stopPropagation();toggleSub(id);}}>
+                <span style={{fontSize:12,fontWeight:700,color:color||C.muted,textTransform:"uppercase",letterSpacing:.4,display:"flex",alignItems:"center",gap:6}}>{icon} {label} <span style={{fontWeight:400,opacity:.7}}>({count})</span></span>
+                <span style={{fontSize:9,color:color||C.muted,opacity:.8}}>{open?"▲":"▼"}</span>
+              </button>
+              {open&&items.map(it=>renderItem(it))}</>;
+            };
+            // ── dados por status ─────────────────────────────────────────────
+            const st=request.status;
+            const phasesBack=phases.filter(p=>canReopen(p.key));
+            const acsMov=(request.actions||[]).filter(a=>!["cancelada","concluida"].includes(a.status));
+            const acsConc=(request.actions||[]).filter(a=>a.status==="concluida");
+            const evsDone=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
+            const evsPend=aa.filter(d=>!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at));
+            const notFinal=!["concluida","cancelada"].includes(st);
+            return <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:270,maxHeight:"80vh",overflowY:"auto",padding:"6px 0"}}>
 
-            {/* Editar avaliacao inicial */}
-            {request.triage&&<><div style={{height:1,background:C.border,margin:"6px 0"}}/>
-            <div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Avaliacao inicial</div>
-            <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-              onClick={()=>{setSgqOpen(false);setEditTriagem(true);setTriageDrawer(true);}}>
-              <span style={{color:C.accent}}>✏</span> Editar Avaliacao Inicial
-            </button>
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
+              {/* ── FLUXO PRINCIPAL — ação do próximo passo ── */}
+              {st==="aberta"&&request.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
+                <SectionLabel label="Proximo passo" color={C.accent}/>
+                <MI onClick={()=>setTriageDrawer(true)} color={C.accent} icon="→" label="Aprovar Avaliacao Inicial"/>
+                <Sep/>
+              </>}
+              {st==="revisao"&&<>
+                <SectionLabel label="Proximo passo" color={C.purple}/>
+                <MI onClick={()=>setShowAp2(true)} color={C.purple} icon="✓" label="Aprovar avaliacoes — iniciar plano"/>
+                <Sep/>
+              </>}
+              {st==="plano"&&(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&<>
+                <SectionLabel label="Proximo passo" color={C.success}/>
+                <MI onClick={()=>setShowAp3(true)} color={C.success} icon="▶" label="Liberar para execucao"/>
+                <Sep/>
+              </>}
 
-            {/* Reatribuir avaliacao */}
-            {aa.length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reatribuir avaliacao</div>
-            {aa.map(dept=>(
-              <button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>
-                <span style={{color:C.accent}}>👤</span> {dept}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {/* Reatribuir acao */}
-            {(request.actions||[]).filter(a=>!["cancelada"].includes(a.status)).length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reatribuir acao</div>
-            {(request.actions||[]).filter(a=>!["cancelada"].includes(a.status)).map(ac=>(
-              <button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReassignAc(ac);setReassignAcUser("");}}>
-                <span style={{color:C.accent}}>👤</span> {ac.id} — {ac.desc.slice(0,30)}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {/* Reabrir avaliacao especifica */}
-            {aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir avaliacao</div>
-            {aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).map(dept=>(
-              <button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReopenEval(dept);}}>
-                <span style={{color:C.warning}}>↺</span> {dept}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {/* Reabrir acao especifica */}
-            {(request.actions||[]).filter(a=>a.status==="concluida").length>0&&<><div style={{padding:"6px 14px 4px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5}}>Reabrir acao</div>
-            {(request.actions||[]).filter(a=>a.status==="concluida").map(ac=>(
-              <button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReopenAc(ac);}}>
-                <span style={{color:C.warning}}>↺</span> {ac.id} — {ac.desc.slice(0,30)}
-              </button>
-            ))}
-            <div style={{height:1,background:C.border,margin:"6px 0"}}/></>}
-            {/* Rejeitar / Cancelar */}
-            {!["concluida","cancelada"].includes(request.status)&&<>
-              {prevSt&&!["aberta"].includes(request.status)&&<button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setRegress(true);}}>
-                <span>←</span> Retornar fase anterior
-              </button>}
-              <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.danger,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setReject(true);}}>
-                <span>✕</span> Rejeitar SA
-              </button>
-              <button style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"8px 14px",textAlign:"left",fontSize:13,color:C.danger,fontFamily:"inherit",display:"flex",alignItems:"center",gap:8}}
-                onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                onClick={()=>{setSgqOpen(false);setShowCancel(true);}}>
-                <span>⊘</span> Cancelar SA
-              </button>
-            </>}
-          </div>}
+              {/* ── EDITAR TRIAGEM — só quando status ainda é aberta/avaliacao ── */}
+              {request.triage&&["aberta","avaliacao"].includes(st)&&<>
+                <MI onClick={()=>{setEditTriagem(true);setTriageDrawer(true);}} icon="✏" label="Editar Avaliacao Inicial"/>
+                <Sep/>
+              </>}
+
+              {/* ── REATRIBUIR AVALIACAO — só faz sentido durante avaliacao/revisao ── */}
+              {["avaliacao","revisao"].includes(st)&&<Collapsible
+                id="reatrib_ev" icon="👤" label="Reatribuir avaliacao" count={evsPend.length} color={C.accent}
+                items={evsPend}
+                renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>
+                  <span style={{color:C.accent,fontSize:10}}>▸</span>{dept}
+                </button>}
+              />}
+
+              {/* ── REABRIR AVALIACAO — só durante avaliacao/revisao se há concluídas ── */}
+              {["avaliacao","revisao"].includes(st)&&<Collapsible
+                id="reabrir_ev" icon="↺" label="Reabrir avaliacao" count={evsDone.length} color={C.warning}
+                items={evsDone}
+                renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReopenEval(dept);}}>
+                  <span style={{fontSize:10}}>▸</span>{dept}
+                </button>}
+              />}
+
+              {/* ── REATRIBUIR ACAO — durante plano e execucao ── */}
+              {["plano","execucao"].includes(st)&&<Collapsible
+                id="reatrib_ac" icon="👤" label="Reatribuir acao" count={acsMov.length} color={C.accent}
+                items={acsMov}
+                renderItem={ac=><button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReassignAc(ac);setReassignAcUser("");}}>
+                  <span style={{color:C.accent,fontSize:10}}>▸</span>{ac.id} — {ac.desc.slice(0,28)}
+                </button>}
+              />}
+
+              {/* ── REABRIR ACAO — só durante execucao, se há concluídas ── */}
+              {st==="execucao"&&<Collapsible
+                id="reabrir_ac" icon="↺" label="Reabrir acao" count={acsConc.length} color={C.warning}
+                items={acsConc}
+                renderItem={ac=><button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReopenAc(ac);}}>
+                  <span style={{fontSize:10}}>▸</span>{ac.id} — {ac.desc.slice(0,28)}
+                </button>}
+              />}
+
+              {/* ── REABRIR FASE — sempre disponível se há fases anteriores ── */}
+              {phasesBack.length>0&&<>
+                <Sep/>
+                <Collapsible
+                  id="reabrir_fase" icon="↩" label="Reabrir fase anterior" count={phasesBack.length} color={C.warning}
+                  items={phasesBack}
+                  renderItem={p=><button key={p.key} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
+                    onMouseEnter={e=>e.currentTarget.style.background=C.surface}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                    onClick={()=>{setSgqOpen(false);setSgqSub(null);setReopenPhase(p);}}>
+                    <span style={{fontSize:10}}>▸</span>{p.label}
+                  </button>}
+                />
+              </>}
+
+              {/* ── RETORNAR / REJEITAR / CANCELAR — sempre (enquanto ativo) ── */}
+              {notFinal&&<>
+                <Sep/>
+                {prevSt&&st!=="aberta"&&<MI onClick={()=>setRegress(true)} color={C.warning} icon="←" label="Retornar fase anterior"/>}
+                <MI onClick={()=>setReject(true)} color={C.danger} icon="✕" label="Rejeitar SA"/>
+                <MI onClick={()=>setShowCancel(true)} color={C.danger} icon="⊘" label="Cancelar SA"/>
+              </>}
+            </div>;
+          })()}
         </div>}
       </div>;
     })()}
@@ -1823,7 +1868,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>}
       {/* Anexos */}
       <FieldCard label="Anexos da Solicitacao" wide>
-        <AttachmentsPanel attachments={request.attachments||[]} onAdd={addAttachment} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+        <AttachmentsPanel attachments={request.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
       </FieldCard>
     </SecCard>
 
@@ -2193,7 +2238,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ TRIAGE DRAWER ══ */}
     {triageDrawer&&<TaskDrawer open={true} onClose={()=>setTriageDrawer(false)} title={editTriagem?"Editar Avaliacao Inicial":"Avaliacao Inicial da Mudanca"} subtitle={editTriagem?"Alteracoes ficam registradas no historico":null} C={C}>
       {editTriagem&&<div style={{marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33",fontSize:13,color:C.warning}}>Editando — areas removidas terao suas avaliacoes apagadas.</div>}
-      <TriagePanel request={request} matrix={matrix} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t,editTriagem);setTriageDrawer(false);setEditTriagem(false);}} C={C}/>
+      <TriagePanel request={request} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t,editTriagem);setTriageDrawer(false);setEditTriagem(false);}} C={C}/>
       <button style={{...Sg.btn(),marginTop:12,fontSize:12}} onClick={()=>{setTriageDrawer(false);setEditTriagem(false);}}>Cancelar</button>
     </TaskDrawer>}
 
@@ -2206,13 +2251,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const u=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[dept]));
         const isMe=u&&u.id===currentUser.id;
         const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(request.status);
+        // Avaliacao concluida = somente leitura para todos. Para alterar, usar "Reabrir avaliacao" no menu SGQ.
         return <TaskDrawer open={true} onClose={closeDrawer} title={dept} subtitle={(done?"Concluida por "+ev.byName+" em "+fmt(ev.at):"Avaliacao pendente")+(u?" · Responsavel: "+u.name:"")} C={C}>
-          {done&&!isMe&&!isAdmin
-            ?<EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
-            :<EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
+          {done
+            ?<><EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
+              {isAdmin&&<div style={{marginTop:14,padding:"10px 14px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:8,fontSize:12,color:C.warning}}>
+                Para editar esta avaliacao, use <strong>Acoes SGQ → Reabrir avaliacao</strong>.
+              </div>}</>
+            :<EvalForm dept={dept} existing={ev} readOnly={false}
               allUsers={allUsers} deptQuestions={deptQuestions}
               assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]}
-              isAdmin={isAdmin}
+              isAdmin={isAdmin} currentUser={currentUser}
               onChangeOwner={(d,id)=>{
                 const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[d]));
                 const newU=allUsers.find(u=>u.id===id);
@@ -2346,8 +2395,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           {/* Form conclusao */}
           {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
 
-          {/* Acoes admin/canPlan */}
-          {isAdmin&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {/* Acoes admin/canPlan — somente se acao NAO estiver concluida/cancelada */}
+          {["concluida","cancelada"].includes(ac.status)
+            ?isAdmin&&<div style={{marginTop:14,padding:"10px 14px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:8,fontSize:12,color:C.warning}}>
+                Para reabrir esta acao, use <strong>Acoes SGQ → Reabrir acao</strong>.
+              </div>
+            :<>{isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao (SGQ)</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {request.status==="plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
@@ -2360,7 +2413,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
             </div>
           </div>}
-          {canPlan&&request.status==="plano"&&!["concluida","cancelada"].includes(ac.status)&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {canPlan&&request.status==="plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
@@ -2369,7 +2422,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               }}>✏ Editar</button>
               <button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>
             </div>
-          </div>}
+          </div>}</>}
 
           {isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>⏱ Pedir extensao de prazo</button>
@@ -2620,7 +2673,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
       return <EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
         allUsers={allUsers} deptQuestions={deptQuestions}
         assignedUserId={r.triage&&r.triage.assignments&&r.triage.assignments[dept]}
-        isAdmin={isAdmin}
+        isAdmin={isAdmin} currentUser={currentUser}
         onChangeOwner={(d,id)=>{
           const newU=allUsers.find(u=>u.id===id);
           const r2={...r,triage:{...r.triage,assignments:{...r.triage.assignments,[d]:id}}};
@@ -4668,7 +4721,23 @@ const loadAll = async () => {
     ]);
     if (us) setUR(us);
     if (rs) setRR(rs);
-    try { const mx = await apiGet('/api/config/matrix'); if (mx) setMR(mx); } catch {}
+    try {
+      const mx = await apiGet('/api/config/matrix');
+      if (mx) {
+        // Merge com mkMatrix() para garantir que todos os tipos e areas existam
+        const base = mkMatrix();
+        const merged = {...base};
+        Object.keys(base).forEach(t => {
+          if(mx[t]) {
+            merged[t] = {...base[t]};
+            Object.keys(base[t]).forEach(d => {
+              if(mx[t][d]) merged[t][d] = {...base[t][d], ...mx[t][d]};
+            });
+          }
+        });
+        setMR(merged);
+      }
+    } catch {}
     try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};})); } catch {}
     try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
     try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
