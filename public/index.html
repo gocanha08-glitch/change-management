@@ -4624,8 +4624,8 @@ function App() {
   const { C, theme, setTheme } = useTheme();
   const [loggedIn, setLI] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('dashboard');
-  const [selId, setSel] = useState(null);
+  const [view, setView] = useState(()=>{try{const p=new URLSearchParams(window.location.search);return p.get('view')||'dashboard';}catch{return 'dashboard';}});
+  const [selId, setSel] = useState(()=>{try{const p=new URLSearchParams(window.location.search);return p.get('id')||null;}catch{return null;}});
   const [initialTab, setInitialTab] = useState(null);
   const [focusDept, setFocusDept] = useState(null);
   const [focusAcId, setFocusAcId] = useState(null);
