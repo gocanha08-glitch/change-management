@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.1.5";
+const APP_VERSION = "10.1.6";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -1297,7 +1297,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       return;
     }
     if(focusAcId){
-      const ac=(request.actions||[]).find(a=>a.id===focusAcId);
+      const ac=(localReq.actions||[]).find(a=>a.id===focusAcId);
       if(ac){setTimeout(()=>openAcDrawer(ac),100);return;}
     }
     if(focusDept){
@@ -1316,6 +1316,32 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   // ── Task Drawer state ──
   const [drawer,setDrawer]=useState(null); // {type:'eval'|'action'|'plan', dept?, ac?}
   const [drawerEditing,setDrawerEditing]=useState(false);
+
+  // ── Proteção contra auto-refresh: só sincroniza o request externo quando
+  //    nenhum drawer/modal está aberto (evita perder dados em edição) ─────────
+  const [localReq,setLocalReq]=useState(request);
+  const busyRef=React.useRef(false);
+  React.useEffect(()=>{
+    // Detectar se há alguma coisa aberta (drawer, modal, textarea com foco)
+    const anyOpen=!!(
+      drawer||drawerEditing||showReject||showRegress||showCancel||
+      showAp2||showAp3||reopenPhase||reassignEval||reassignAc||
+      reopenEval||reopenAc||addAcExec||extTarget||adminDlTarget||
+      triageDrawer||showAddAc||editAc||confirmRemoveAc||removeAcExec
+    );
+    busyRef.current=anyOpen;
+    if(!anyOpen){
+      // Só sincroniza se o servidor tem versão mais nova (mais eventos no log)
+      const serverLog=(localReq.log||[]).length;
+      const localLog=(localReq.log||[]).length;
+      if(serverLog>localLog||localReq.id!==localReq.id){
+        setLocalReq(request);
+      }
+    }
+  },[request,drawer,drawerEditing,showReject,showRegress,showCancel,
+     showAp2,showAp3,reopenPhase,reassignEval,reassignAc,
+     reopenEval,reopenAc,addAcExec,extTarget,adminDlTarget,
+     triageDrawer,showAddAc,editAc,confirmRemoveAc,removeAcExec]);
   const [drawerEditVals,setDrawerEditVals]=useState({});
   const openEvalDrawer=(dept)=>setDrawer({type:"eval",dept});
   const openAcDrawer=(ac)=>{setDrawer({type:"action",ac});setDrawerEditing(false);setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});};
@@ -1336,39 +1362,39 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
   // ── Derived ──────────────────────────────────────────────────────
   const isAdmin=hasPerm(currentUser,'config.prazos');
-  const cr=crits.find(c=>c.v===(request.triage&&request.triage.criticality));
-  const st=REQ_ST[request.status]||{};
+  const cr=crits.find(c=>c.v===(localReq.triage&&localReq.triage.criticality));
+  const st=REQ_ST[localReq.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
-  const aa=(request.triage&&request.triage.assignedAreas)||[];
-  const doneEv=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at).length;
-  const canPlan=isAdmin||(parseInt(request.planResponsible)===parseInt(currentUser.id));
-  const pendExt=(request.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
-  const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
-  const allActsDone=(request.actions||[]).length>0&&(request.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
-  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[request.status]||0;
+  const aa=(localReq.triage&&localReq.triage.assignedAreas)||[];
+  const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
+  const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
+  const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
+  const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[localReq.status];
+  const allActsDone=(localReq.actions||[]).length>0&&(localReq.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
+  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
 
   const isMandSaved=dept=>{
-    const cell=(matrix&&matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][request.triage&&request.triage.criticality])||"";
+    const cell=(matrix&&matrix[localReq.type]&&matrix[localReq.type][dept]&&matrix[localReq.type][dept][localReq.triage&&localReq.triage.criticality])||"";
     if(cell==="mandatory")return true;
-    if(request.triage&&request.triage.flagReg&&dept==="Assuntos Regulatorios")return true;
-    if(request.triage&&request.triage.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
+    if(localReq.triage&&localReq.triage.flagReg&&dept==="Assuntos Regulatorios")return true;
+    if(localReq.triage&&localReq.triage.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
     return false;
   };
 
   // ── Actions ──────────────────────────────────────────────────────
-  const upd=(patch,type,ev,detail)=>{let r={...request,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);onUpdate(r);};
+  const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r);};
 
   const saveTriage=(triage,isEdit)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
-    const oldCrit=request.triage&&request.triage.criticality;
-    const oldAreas=request.triage&&request.triage.assignedAreas||[];
+    const oldCrit=localReq.triage&&localReq.triage.criticality;
+    const oldAreas=localReq.triage&&localReq.triage.assignedAreas||[];
     const newAreas=triage.assignedAreas;
     const removedAreas=oldAreas.filter(a=>!newAreas.includes(a));
     // Only reset evaluations for areas that were removed
     const newEvs=isEdit
-      ? Object.fromEntries(Object.entries(request.evaluations||{}).filter(([k])=>newAreas.includes(k)))
+      ? Object.fromEntries(Object.entries(localReq.evaluations||{}).filter(([k])=>newAreas.includes(k)))
       : {};
-    const newSD={...(request.stageDeadlines||{}),avaliacao:isEdit?(request.stageDeadlines&&request.stageDeadlines.avaliacao||addDays(todayStr(),pd.avaliacao.days)):addDays(todayStr(),pd.avaliacao.days)};
+    const newSD={...(localReq.stageDeadlines||{}),avaliacao:isEdit?(localReq.stageDeadlines&&localReq.stageDeadlines.avaliacao||addDays(todayStr(),pd.avaliacao.days)):addDays(todayStr(),pd.avaliacao.days)};
     let detail="Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+")"+" | Areas: "+triage.assignedAreas.join(", ");
     if(isEdit){
       if(oldCrit!==triage.criticality)detail+=" | Criticidade alterada: "+oldCrit+" → "+triage.criticality;
@@ -1376,15 +1402,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       const addedAreas=newAreas.filter(a=>!oldAreas.includes(a));
       if(addedAreas.length>0)detail+=" | Areas adicionadas: "+addedAreas.join(", ");
     }
-    let r={...request,triage,status:isEdit?request.status:"avaliacao",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
+    let r={...localReq,triage,status:isEdit?localReq.status:"avaliacao",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
     r=mkLog(r,currentUser.name,"triagem",isEdit?"Avaliacao inicial editada pelo SGQ":"Triagem aprovada",detail);
     onUpdate(r);setEditTriagem(false);
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
-    const evs={...request.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+    const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
     const allDone=aa.every(d=>evs[d]&&evs[d].at);
-    let r={...request,evaluations:evs,status:allDone?"revisao":"avaliacao"};
+    let r={...localReq,evaluations:evs,status:allDone?"revisao":"avaliacao"};
     const simN=(answers||[]).filter(a=>a.a==="S").length;
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
@@ -1393,80 +1419,80 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   };
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
-    const evs={...(request.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
-    onUpdate(mkLog({...request,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
+    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
+    onUpdate(mkLog({...localReq,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
     setEvalOpen(null);
   };
 
   const ap2=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const planDl=customDate||addDays(todayStr(),pd.plano.days);
-    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...request.stageDeadlines,plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
+    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...localReq.stageDeadlines,plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
   };
 
   const ap3=()=>{
-    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString()},"aprovacao","Plano aprovado — Execucao iniciada","Liberado por: "+currentUser.name+" | "+((request.actions||[]).length)+" acoes");
+    upd({status:"execucao",ap3By:currentUser.id,ap3ByName:currentUser.name,ap3At:new Date().toISOString()},"aprovacao","Plano aprovado — Execucao iniciada","Liberado por: "+currentUser.name+" | "+((localReq.actions||[]).length)+" acoes");
   };
 
   const _scrollRef=React.useRef(0);
   const updScroll=(patch,type,ev,detail)=>{
     _scrollRef.current=window.scrollY;
-    const r2={...request,...patch};
+    const r2={...localReq,...patch};
     const r3=ev?mkLog(r2,currentUser.name,type,ev,detail):r2;
     onUpdate(r3);
     requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,_scrollRef.current)));
   };
   const addAction=()=>{
-    const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
+    const id="AC-"+String((localReq.actions&&localReq.actions.length||0)+1).padStart(3,"0");
     const respU=allUsers.find(u=>u.id===parseInt(nAc.responsible));
-    updScroll({actions:[...(request.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
+    updScroll({actions:[...(localReq.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
     setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
   };
 
   const updAc=(aid,ch,ev,detail)=>{
-    const actions=(request.actions||[]).map(a=>a.id===aid?{...a,...ch}:a);
-    let r={...request,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
+    const actions=(localReq.actions||[]).map(a=>a.id===aid?{...a,...ch}:a);
+    let r={...localReq,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
   };
 
   const concludeAction=(acId,note,atts)=>{
     if(!note||!note.trim())return;
     const patch={status:"concluida",doneAt:new Date().toISOString(),doneNote:note};
-    let newAtts=request.attachments||[];
+    let newAtts=localReq.attachments||[];
     const lista=Array.isArray(atts)?atts:(atts?[atts]:[]);
     if(lista.length>0)newAtts=[...newAtts,...lista.map(a=>({...a,stage:"conclusao-"+acId}))];
-    const actions=(request.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
+    const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,...patch}:a);
     const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
-    let r={...request,actions,attachments:newAtts};
+    let r={...localReq,actions,attachments:newAtts};
     r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+note.slice(0,80));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
     onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));
   };
 
-  const addAttachment=att=>upd({attachments:[...(request.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
-  const removeAttachment=att=>upd({attachments:(request.attachments||[]).filter(a=>a.id!==att.id)},"anexo","Anexo removido","Removido por: "+currentUser.name+" | Nome: "+att.name);
+  const addAttachment=att=>upd({attachments:[...(localReq.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
+  const removeAttachment=att=>upd({attachments:(localReq.attachments||[]).filter(a=>a.id!==att.id)},"anexo","Anexo removido","Removido por: "+currentUser.name+" | Nome: "+att.name);
 
   // ── Excluir acao durante plano ──
   const doRemoveAcPlano=(ac)=>{
-    const actions=(request.actions||[]).filter(a=>a.id!==ac.id);
-    const r=mkLog({...request,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
+    const actions=(localReq.actions||[]).filter(a=>a.id!==ac.id);
+    const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
     onUpdate(r);setConfirmRemoveAc(null);
   };
 
   // ── Remover acao durante execucao (SGQ, com motivo) ──
   const doRemoveAcExec=(ac,motive)=>{
-    const actions=(request.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
-    const r=mkLog({...request,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
+    const actions=(localReq.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
+    const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
     onUpdate(r);setRemoveAcExec(null);
   };
 
   // ── Acrescentar acao durante execucao (SGQ, com motivo) ──
   const doAddAcExec=()=>{
-    const id="AC-"+String((request.actions&&request.actions.length||0)+1).padStart(3,"0");
+    const id="AC-"+String((localReq.actions&&localReq.actions.length||0)+1).padStart(3,"0");
     const respU=allUsers.find(u=>u.id===parseInt(nAcExec.responsible));
     const newAc={...nAcExec,id,status:"pendente",responsible:parseInt(nAcExec.responsible),createdBy:currentUser.id};
     delete newAc.motive;
-    const actions=[...(request.actions||[]),newAc];
-    const r=mkLog({...request,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
+    const actions=[...(localReq.actions||[]),newAc];
+    const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
     onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
   };
 
@@ -1482,73 +1508,73 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const patch=patchMap[toPhase];
     if(!patch)return;
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao:"Avaliacao Inicial",revisao:"Avaliacoes de Impacto",plano:"Plano de Acao",execucao:"Execucao"};
-    let r={...request,...patch};
-    r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[request.status]&&REQ_ST[request.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
+    let r={...localReq,...patch};
+    r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
     onUpdate(r);setReopenPhase(null);
   };
 
   // ── Cancelar SA ──
   const cancelSA=(motive)=>{
-    let r={...request,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
+    let r={...localReq,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
     r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive);
     onUpdate(r);setShowCancel(false);
   };
 
   // ── Reabrir avaliacao ──
   const doReopenEval=(dept,motive)=>{
-    const evs={...request.evaluations};
+    const evs={...localReq.evaluations};
     const prev=evs[dept];
     delete evs[dept];
-    const wasAllDone=aa.every(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
-    let r={...request,evaluations:evs,status:wasAllDone?"avaliacao":request.status};
+    const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
+    let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
     onUpdate(r);setReopenEval(null);
   };
 
   // ── Reatribuir avaliacao ──
   const doReassignEval=(dept,newUserId,motive)=>{
-    const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[dept]));
+    const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
-    const r=mkLog({...request,triage:{...request.triage,assignments:{...request.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
     onUpdate(r);setReassignEval(null);setReassignEvalUser("");
   };
 
   // ── Reabrir acao ──
   const doReopenAc=(acId,motive)=>{
-    const ac=(request.actions||[]).find(a=>a.id===acId);
-    const actions=(request.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
-    let r={...request,actions,status:request.status==="concluida"?"execucao":request.status};
+    const ac=(localReq.actions||[]).find(a=>a.id===acId);
+    const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
+    let r={...localReq,actions,status:localReq.status==="concluida"?"execucao":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Acao reaberta","ID: "+acId+" | Motivo: "+motive+(ac&&ac.doneNote?" | Conclusao anterior: "+ac.doneNote.slice(0,60):""));
     onUpdate(r);setReopenAc(null);
   };
 
   // ── Reatribuir acao ──
   const doReassignAc=(acId,newUserId,motive)=>{
-    const ac=(request.actions||[]).find(a=>a.id===acId);
+    const ac=(localReq.actions||[]).find(a=>a.id===acId);
     const oldU=allUsers.find(u=>u.id===ac.responsible);
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
-    const actions=(request.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
-    const r=mkLog({...request,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
+    const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
     onUpdate(r);setReassignAc(null);setReassignAcUser("");
   };
 
   const concludeSA=(note)=>{
     if(!note||!note.trim())return;
-    let r={...request,status:"concluida",closedAt:new Date().toISOString(),verifyNote:note,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
+    let r={...localReq,status:"concluida",closedAt:new Date().toISOString(),verifyNote:note,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
     r=mkLog(r,currentUser.name,"conclusao","SA encerrada e verificada pelo SGQ","Verificado por: "+currentUser.name+" | "+note.slice(0,100));onUpdate(r);
   };
 
   const rejeitar=()=>{
-    let r={...request,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
-      rejections:[...(request.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:request.status}]};
+    let r={...localReq,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
+      rejections:[...(localReq.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:localReq.status}]};
     r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada e devolvida para abertura","Rejeitado por: "+currentUser.name+" | Motivo: "+rejectNote);
     onUpdate(r);setReject(false);setRN("");onBack();
   };
 
   const regredir=()=>{
-    const prev={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[request.status];
+    const prev={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[localReq.status];
     if(!prev)return;
-    let r={...request,status:prev};
+    let r={...localReq,status:prev};
     r=mkLog(r,currentUser.name,"retorno","SA retornada para fase anterior","De: "+st.label+" → Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" | Motivo: "+regressNote+" | Por: "+currentUser.name);
     onUpdate(r);setRegress(false);setGN("");
   };
@@ -1556,28 +1582,28 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const requestExtension=(newDate,reason)=>{
     if(!extTarget)return;
     const ext={id:"EXT-"+Date.now(),targetType:extTarget.type,targetKey:extTarget.key,targetLabel:extTarget.label,currentDate:extTarget.currentDate,newDate,reason,status:"pending",requestedBy:currentUser.id,requestedByName:currentUser.name,requestedAt:new Date().toISOString()};
-    let r={...request,deadlineExtensions:[...(request.deadlineExtensions||[]),ext]};
+    let r={...localReq,deadlineExtensions:[...(localReq.deadlineExtensions||[]),ext]};
     r=mkLog(r,currentUser.name,"extensao","Extensao solicitada",extTarget.label+" | Novo: "+fmtD(newDate));
     onUpdate(r);setExtTarget(null);
   };
 
   const applyAdminDl=(newDate)=>{
     if(!adminDlTarget)return;
-    let r={...request};
-    if(adminDlTarget.type==="eval"){const dl={...request.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+    let r={...localReq};
+    if(adminDlTarget.type==="eval"){const dl={...localReq.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
     else{const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);r={...r,actions};}
     r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | De: "+fmtD(adminDlTarget.currentDate)+" → Para: "+fmtD(newDate));
     onUpdate(r);setAdminDlTarget(null);
   };
 
   const decideExt=(ext,approved,note)=>{
-    const exts=(request.deadlineExtensions||[]).map(e=>{
+    const exts=(localReq.deadlineExtensions||[]).map(e=>{
       if(e.id!==ext.id)return e;
       return {...e,status:approved?"approved":"rejected",decidedBy:currentUser.id,decidedByName:currentUser.name,decidedAt:new Date().toISOString(),decisionNote:note||""};
     });
-    let r={...request,deadlineExtensions:exts};
+    let r={...localReq,deadlineExtensions:exts};
     if(approved){
-      if(ext.targetType==="eval"){const dl={...request.triage.deadlines,[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+      if(ext.targetType==="eval"){const dl={...localReq.triage.deadlines,[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
       else{const actions=r.actions.map(a=>a.id===ext.targetKey?{...a,deadline:ext.newDate}:a);r={...r,actions};}
       r=mkLog(r,currentUser.name,"extensao","Extensao aprovada",ext.targetLabel+" -> "+fmtD(ext.newDate));
     }else{r=mkLog(r,currentUser.name,"extensao","Extensao rejeitada",ext.targetLabel);}
@@ -1616,9 +1642,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const Td=({children,colSpan,muted,style:sx})=><td colSpan={colSpan} style={{padding:"12px 16px",borderBottom:"1px solid "+C.border+"55",fontSize:13,color:muted?C.muted:C.text,verticalAlign:"top",lineHeight:1.5,...sx}}>{children}</td>;
 
   const allAtts=[
-    ...(request.attachments||[]).map(a=>({...a,_src:"Solicitacao",_by:request.createdByName})),
-    ...aa.flatMap(d=>{const ev=request.evaluations&&request.evaluations[d];return(ev&&ev.attachments||[]).map(a=>({...a,_src:"Avaliacao - "+d,_by:ev.byName}));}),
-    ...(request.actions||[]).filter(a=>a.doneAtt).map(a=>({...a.doneAtt,_src:"Acao "+a.id,_by:a.responsible})),
+    ...(localReq.attachments||[]).map(a=>({...a,_src:"Solicitacao",_by:localReq.createdByName})),
+    ...aa.flatMap(d=>{const ev=localReq.evaluations&&localReq.evaluations[d];return(ev&&ev.attachments||[]).map(a=>({...a,_src:"Avaliacao - "+d,_by:ev.byName}));}),
+    ...(localReq.actions||[]).filter(a=>a.doneAtt).map(a=>({...a.doneAtt,_src:"Acao "+a.id,_by:a.responsible})),
   ];
 
   return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
@@ -1644,7 +1670,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       ];
       const canReopen=(toPhase)=>{
         const order={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5};
-        return order[request.status]>order[toPhase];
+        return order[localReq.status]>order[toPhase];
       };
       return <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         <button style={{...Sg.btn(),padding:"4px 10px",fontSize:12}} onClick={onBack}>← Voltar</button>
@@ -1677,17 +1703,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               {open&&items.map(it=>renderItem(it))}</>;
             };
             // ── dados por status ─────────────────────────────────────────────
-            const st=request.status;
+            const st=localReq.status;
             const phasesBack=phases.filter(p=>canReopen(p.key));
-            const acsMov=(request.actions||[]).filter(a=>!["cancelada","concluida"].includes(a.status));
-            const acsConc=(request.actions||[]).filter(a=>a.status==="concluida");
-            const evsDone=aa.filter(d=>request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
-            const evsPend=aa.filter(d=>!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at));
+            const acsMov=(localReq.actions||[]).filter(a=>!["cancelada","concluida"].includes(a.status));
+            const acsConc=(localReq.actions||[]).filter(a=>a.status==="concluida");
+            const evsDone=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
+            const evsPend=aa.filter(d=>!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at));
             const notFinal=!["concluida","cancelada"].includes(st);
             return <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:270,maxHeight:"80vh",overflowY:"auto",padding:"6px 0"}}>
 
               {/* ── FLUXO PRINCIPAL — ação do próximo passo ── */}
-              {st==="aberta"&&request.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
+              {st==="aberta"&&localReq.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
                 <SectionLabel label="Proximo passo" color={C.accent}/>
                 <MI onClick={()=>setTriageDrawer(true)} color={C.accent} icon="→" label="Aprovar Avaliacao Inicial"/>
                 <Sep/>
@@ -1697,14 +1723,14 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 <MI onClick={()=>setShowAp2(true)} color={C.purple} icon="✓" label="Aprovar avaliacoes — iniciar plano"/>
                 <Sep/>
               </>}
-              {st==="plano"&&(isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id))&&<>
+              {st==="plano"&&(isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id))&&<>
                 <SectionLabel label="Proximo passo" color={C.success}/>
                 <MI onClick={()=>setShowAp3(true)} color={C.success} icon="▶" label="Liberar para execucao"/>
                 <Sep/>
               </>}
 
               {/* ── EDITAR TRIAGEM — só quando status ainda é aberta/avaliacao ── */}
-              {request.triage&&["aberta","avaliacao"].includes(st)&&<>
+              {localReq.triage&&["aberta","avaliacao"].includes(st)&&<>
                 <MI onClick={()=>{setEditTriagem(true);setTriageDrawer(true);}} icon="✏" label="Editar Avaliacao Inicial"/>
                 <Sep/>
               </>}
@@ -1716,7 +1742,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
                   onMouseEnter={e=>e.currentTarget.style.background=C.surface}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReassignEval({dept,currentUserId:request.triage&&request.triage.assignments&&request.triage.assignments[dept]});setReassignEvalUser("");}}>
+                  onClick={()=>{setSgqOpen(false);setSgqSub(null);setReassignEval({dept,currentUserId:localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]});setReassignEvalUser("");}}>
                   <span style={{color:C.accent,fontSize:10}}>▸</span>{dept}
                 </button>}
               />}
@@ -1806,7 +1832,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           {l:"Plano de Acao",        done:statusIdx>=5||allActsDone, active:statusIdx===3||statusIdx===4},
           {l:"Conclusao",            done:statusIdx===5, active:statusIdx===4||allActsDone},
         ].map((s,i)=>{
-          const col=s.done?C.success:s.waiting?C.warning:s.active?(REQ_ST[request.status]&&REQ_ST[request.status].color||C.accent):C.border;
+          const col=s.done?C.success:s.waiting?C.warning:s.active?(REQ_ST[localReq.status]&&REQ_ST[localReq.status].color||C.accent):C.border;
           return <div key={i} style={{position:"relative",zIndex:1,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
             <div style={{width:36,height:36,borderRadius:"50%",margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",background:s.done?col:s.active||s.waiting?C.surface:C.surface,border:"3px solid "+col,fontWeight:800,fontSize:13,color:s.done?"#fff":col,boxShadow:"0 0 0 4px "+C.card}}>
               {s.done?"✓":i+1}
@@ -1823,7 +1849,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
     {isAdmin&&pendExt>0&&<div style={{marginBottom:14,padding:"11px 18px",borderRadius:10,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:14,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} pendente{pendExt!==1?"s":""}</span>
-      <ExtensionsTab request={request} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
+      <ExtensionsTab request={localReq} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
     </div>}
 
     {/* ══════════════════════════════════════════════════════════
@@ -1832,43 +1858,44 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     <SecCard id="solicitacao" title="Dados da Solicitacao">
       {/* Grid 3 cols: numero, data, solicitante */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
-        <FieldCard label="Numero do Controle" value={request.id}/>
-        <FieldCard label="Data de Abertura" value={fmtD(request.createdAt&&request.createdAt.slice(0,10))}/>
-        <FieldCard label="Solicitante" value={request.createdByName}/>
+        <FieldCard label="Numero do Controle" value={localReq.id}/>
+        <FieldCard label="Data de Abertura" value={fmtD(localReq.createdAt&&localReq.createdAt.slice(0,10))}/>
+        <FieldCard label="Solicitante" value={localReq.createdByName}/>
       </div>
       {/* Grid 3 cols: tipo, area solicitante, status */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
-        <FieldCard label="Tipo de Mudanca" value={request.type}/>
-        <FieldCard label="Area Solicitante" value={request.area||"—"}/>
+        <FieldCard label="Tipo de Mudanca" value={localReq.type}/>
+        <FieldCard label="Area Solicitante" value={localReq.area||"—"}/>
         <FieldCard label="Status Atual"><Badge label={st.label} color={st.color||C.muted}/></FieldCard>
       </div>
       {/* Titulo wide */}
       <div style={{marginBottom:14}}>
-        <FieldCard label="Titulo da Mudanca" value={request.title} wide/>
+        <FieldCard label="Titulo da Mudanca" value={localReq.title} wide/>
       </div>
       {/* Descricao */}
       <div style={{marginBottom:14}}>
         <FieldCard label="Descricao da Mudanca" wide>
-          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.description}</div>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.description}</div>
         </FieldCard>
       </div>
       {/* Justificativa */}
-      {request.justification&&<div style={{marginBottom:14}}>
+      {localReq.justification&&<div style={{marginBottom:14}}>
         <FieldCard label="Justificativa / Motivo" wide>
-          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.justification}</div>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.justification}</div>
         </FieldCard>
       </div>}
       {/* Rejeicoes */}
-      {(request.rejections||[]).length>0&&<div style={{marginBottom:14}}>
+      {(localReq.rejections||[]).length>0&&<div style={{marginBottom:14}}>
         <FieldCard label="Rejeicoes Anteriores" wide>
-          {request.rejections.map((r,i)=><div key={i} style={{fontSize:13,padding:"7px 12px",background:C.danger+"08",borderRadius:7,marginBottom:4,borderLeft:"3px solid "+C.danger+"55"}}>
+          {localReq.rejections.map((r,i)=><div key={i} style={{fontSize:13,padding:"7px 12px",background:C.danger+"08",borderRadius:7,marginBottom:4,borderLeft:"3px solid "+C.danger+"55"}}>
             <strong style={{color:C.danger}}>{r.byName} — {fmt(r.at)}:</strong> <span style={{color:C.muted}}>{r.note}</span>
           </div>)}
         </FieldCard>
       </div>}
       {/* Anexos */}
       <FieldCard label="Anexos da Solicitacao" wide>
-        <AttachmentsPanel attachments={request.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={false} stage={request.status} currentUser={currentUser} C={C}/>
+        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={!["aberta","avaliacao"].includes(localReq.status)&&!isAdmin} stage={localReq.status} currentUser={currentUser} C={C}/>
+        {!["aberta","avaliacao"].includes(localReq.status)&&!isAdmin&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Solicite ao SGQ para adicionar anexos nesta etapa.</div>}
       </FieldCard>
     </SecCard>
 
@@ -1876,7 +1903,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         2. AVALIACAO INICIAL
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="triagem" title="Avaliacao Inicial da Mudanca">
-      {!request.triage||editTriagem
+      {!localReq.triage||editTriagem
         ?isAdmin
           ?<div>
             <button style={{...Sg.btn("primary"),fontSize:13,padding:"8px 18px"}} onClick={()=>setTriageDrawer(true)}>
@@ -1891,13 +1918,13 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               {cr&&<span style={{fontSize:15,fontWeight:700,color:cr.color}}>{cr.v} — {cr.label}</span>}
               {cr&&cr.desc&&<div style={{fontSize:11,color:C.muted,marginTop:4,lineHeight:1.5}}>{cr.desc}</div>}
             </FieldCard>
-            <FieldCard label="Avaliado por" value={request.ap1ByName}/>
-            <FieldCard label="Data da Avaliacao" value={fmt(request.ap1At)}/>
+            <FieldCard label="Avaliado por" value={localReq.ap1ByName}/>
+            <FieldCard label="Data da Avaliacao" value={fmt(localReq.ap1At)}/>
           </div>
           {/* Grid 2: justificativa + areas */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <FieldCard label="Motivo da Classificacao" wide>
-              <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.triage.justification||"—"}</div>
+              <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.triage.justification||"—"}</div>
               <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
 
               </div>
@@ -1906,7 +1933,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             <FieldCard label="Areas Definidas para Avaliacao de Impacto" wide>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
                 {aa.map(d=>{
-                  const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
+                  const done=!!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
                   const mand=isMandSaved(d);
                   return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
                     {done&&<span style={{color:C.success}}>✓</span>}{d}
@@ -1923,7 +1950,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         3. AVALIACOES DE IMPACTO
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="avaliacoes" title={"Avaliacoes de Impacto"+(aa.length>0?" ("+doneEv+"/"+aa.length+")":"")}>
-      {!request.triage
+      {!localReq.triage
         ?<div style={{fontSize:14,color:C.muted}}>Aguardando triagem.</div>
         :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -1939,12 +1966,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </thead>
             <tbody>
               {aa.map((dept,di)=>{
-                const ev=request.evaluations&&request.evaluations[dept];
+                const ev=localReq.evaluations&&localReq.evaluations[dept];
                 const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
-                const u=getU(request.triage&&request.triage.assignments&&request.triage.assignments[dept]);
-                const dl=request.triage&&request.triage.deadlines&&request.triage.deadlines[dept];
+                const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
+                const dl=localReq.triage&&localReq.triage.deadlines&&localReq.triage.deadlines[dept];
                 const isMe=u&&u.id===currentUser.id;
-                const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(request.status);
+                const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(localReq.status);
                 const isExp=!!evalOpen[dept];
                 const ov=isOD(dl,done?"concluida":"");
                 const stColor=done?C.success:draft?C.accent:ov?C.danger:C.muted;
@@ -1978,42 +2005,42 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══════════════════════════════════════════════════════════
         4. PLANO DE ACAO
     ══════════════════════════════════════════════════════════ */}
-    <SecCard id="plano" title={"Plano de Acao"+(request.actions&&request.actions.length?" ("+request.actions.length+" acoes)":"")}>
+    <SecCard id="plano" title={"Plano de Acao"+(localReq.actions&&localReq.actions.length?" ("+localReq.actions.length+" acoes)":"")}>
       {(()=>{
-        const inPlano=request.status==="plano";
-        const canSeePlano=isAdmin||parseInt(request.planResponsible)===parseInt(currentUser.id);
-        if(!["plano","execucao","concluida"].includes(request.status))
+        const inPlano=localReq.status==="plano";
+        const canSeePlano=isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id);
+        if(!["plano","execucao","concluida"].includes(localReq.status))
           return <div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes de impacto.</div>;
         if(inPlano&&!canSeePlano)
           return <div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>O plano esta sendo montado. Voce tera acesso apos a liberacao para execucao.</div>;
         return <div>
           <div style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:canPlan&&request.status==="plano"?12:0}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:canPlan&&localReq.status==="plano"?12:0}}>
               <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
-                  <div style={{fontSize:13,fontWeight:600,color:request.planResponsibleName?C.text:C.muted}}>{request.planResponsibleName||"Nao definido"}</div>
+                  <div style={{fontSize:13,fontWeight:600,color:localReq.planResponsibleName?C.text:C.muted}}>{localReq.planResponsibleName||"Nao definido"}</div>
                 </div>
-                {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
+                {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
                   const u=allUsers.find(x=>x.id===parseInt(v));
-                  const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
+                  const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
                   onUpdate(r);
                 }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
-                {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
+                {canPlan&&localReq.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+                {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
               </div>
             </div>
-            {canPlan&&request.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+            {canPlan&&localReq.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
-                <div style={{fontSize:12,color:C.muted,marginTop:2}}>{(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""} adicionada{(request.actions||[]).length!==1?"s":""}. Quando o plano estiver pronto, libere para execucao.</div>
+                <div style={{fontSize:12,color:C.muted,marginTop:2}}>{(localReq.actions||[]).length} acao{(localReq.actions||[]).length!==1?"es":""} adicionada{(localReq.actions||[]).length!==1?"s":""}. Quando o plano estiver pronto, libere para execucao.</div>
               </div>
               <button style={{...Sg.btn("success"),fontSize:13,padding:"8px 18px"}} onClick={()=>setShowAp3(true)}>▶ Liberar para Execucao</button>
             </div>}
           </div>
-          {(request.actions||[]).length===0
+          {(localReq.actions||[]).length===0
             ?<div style={{fontSize:14,color:C.muted}}>Nenhuma acao cadastrada ainda.</div>
             :<div style={{border:"1px solid "+C.border,borderRadius:12,overflow:"hidden"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -2031,12 +2058,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                   </tr>
                 </thead>
                 <tbody>
-                  {(request.actions||[]).map((ac,ai)=>{
+                  {(localReq.actions||[]).map((ac,ai)=>{
                     const ov=isOD(ac.deadline,ac.status);
                     const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
                     const resp=getU(ac.responsible);
                     const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
-                    const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+                    const canAct=isMine&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
                     const isExp=expandedAc[ac.id];
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
@@ -2065,15 +2092,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         5. CONCLUSAO
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="conclusao" title="Conclusao da Mudanca">
-      {request.status==="concluida"
+      {localReq.status==="concluida"
         ?<div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
-            <FieldCard label="Responsavel pela Conclusao" value={request.verifiedByName}/>
-            <FieldCard label="Data da Conclusao" value={fmt(request.closedAt)}/>
+            <FieldCard label="Responsavel pela Conclusao" value={localReq.verifiedByName}/>
+            <FieldCard label="Data da Conclusao" value={fmt(localReq.closedAt)}/>
             <FieldCard label="Status Final"><Pill label="Mudanca encerrada" color={C.success}/></FieldCard>
           </div>
           <FieldCard label="Avaliacao Final" wide>
-            <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{request.verifyNote||"—"}</div>
+            <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.verifyNote||"—"}</div>
           </FieldCard>
         </div>
         :isAdmin&&allActsDone
@@ -2113,7 +2140,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead><tr><Th w="160px">Data / Hora</Th><Th w="140px">Por</Th><Th w="100px">Tipo</Th><Th>Evento</Th><Th>Detalhe</Th></tr></thead>
           <tbody>
-            {(request.log||[]).slice().reverse().map((e,i)=>{
+            {(localReq.log||[]).slice().reverse().map((e,i)=>{
               const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
               return <tr key={i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
                 <Td muted><span style={{fontSize:13}}>{fmt(e.at)}</span></Td>
@@ -2123,7 +2150,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 <Td muted><span style={{fontSize:13}}>{e.detail||"—"}</span></Td>
               </tr>;
             })}
-            {!(request.log||[]).length&&<tr><td colSpan={5} style={{padding:"20px",color:C.muted,fontSize:14,textAlign:"center"}}>Nenhum evento registrado.</td></tr>}
+            {!(localReq.log||[]).length&&<tr><td colSpan={5} style={{padding:"20px",color:C.muted,fontSize:14,textAlign:"center"}}>Nenhum evento registrado.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -2238,7 +2265,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ TRIAGE DRAWER ══ */}
     {triageDrawer&&<TaskDrawer open={true} onClose={()=>setTriageDrawer(false)} title={editTriagem?"Editar Avaliacao Inicial":"Avaliacao Inicial da Mudanca"} subtitle={editTriagem?"Alteracoes ficam registradas no historico":null} C={C}>
       {editTriagem&&<div style={{marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33",fontSize:13,color:C.warning}}>Editando — areas removidas terao suas avaliacoes apagadas.</div>}
-      <TriagePanel request={request} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t,editTriagem);setTriageDrawer(false);setEditTriagem(false);}} C={C}/>
+      <TriagePanel request={localReq} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{saveTriage(t,editTriagem);setTriageDrawer(false);setEditTriagem(false);}} C={C}/>
       <button style={{...Sg.btn(),marginTop:12,fontSize:12}} onClick={()=>{setTriageDrawer(false);setEditTriagem(false);}}>Cancelar</button>
     </TaskDrawer>}
 
@@ -2246,11 +2273,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {drawer&&(()=>{
       if(drawer.type==="eval"){
         const dept=drawer.dept;
-        const ev=request.evaluations&&request.evaluations[dept];
+        const ev=localReq.evaluations&&localReq.evaluations[dept];
         const done=!!(ev&&ev.at);
-        const u=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[dept]));
+        const u=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
         const isMe=u&&u.id===currentUser.id;
-        const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(request.status);
+        const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(localReq.status);
         // Avaliacao concluida = somente leitura para todos. Para alterar, usar "Reabrir avaliacao" no menu SGQ.
         return <TaskDrawer open={true} onClose={closeDrawer} title={dept} subtitle={(done?"Concluida por "+ev.byName+" em "+fmt(ev.at):"Avaliacao pendente")+(u?" · Responsavel: "+u.name:"")} C={C}>
           {done
@@ -2260,12 +2287,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               </div>}</>
             :<EvalForm dept={dept} existing={ev} readOnly={false}
               allUsers={allUsers} deptQuestions={deptQuestions}
-              assignedUserId={request.triage&&request.triage.assignments&&request.triage.assignments[dept]}
+              assignedUserId={localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]}
               isAdmin={isAdmin} currentUser={currentUser}
               onChangeOwner={(d,id)=>{
-                const oldU=allUsers.find(u=>u.id===(request.triage&&request.triage.assignments&&request.triage.assignments[d]));
+                const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[d]));
                 const newU=allUsers.find(u=>u.id===id);
-                const r={...request,triage:{...request.triage,assignments:{...request.triage.assignments,[d]:id}}};
+                const r={...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[d]:id}}};
                 onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
               }}
               onClose={closeDrawer}
@@ -2275,14 +2302,14 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         </TaskDrawer>;
       }
       if(drawer.type==="plan"){
-        const acts=request.actions||[];
-        const actsVisible=request.status==="execucao"?acts:acts; // all during plano
+        const acts=localReq.actions||[];
+        const actsVisible=localReq.status==="execucao"?acts:acts; // all during plano
         return <TaskDrawer open={true} onClose={closeDrawer}
           title="Plano de Acao"
-          subtitle={(acts.length+" acao"+(acts.length!==1?"es":""))+" · "+(request.status==="plano"?"Em montagem":"Em execucao")}
+          subtitle={(acts.length+" acao"+(acts.length!==1?"es":""))+" · "+(localReq.status==="plano"?"Em montagem":"Em execucao")}
           C={C}>
           {/* Banner liberar */}
-          {canPlan&&request.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          {canPlan&&localReq.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
               <div style={{fontSize:12,color:C.muted,marginTop:2}}>{acts.length} acao{acts.length!==1?"es":""} adicionada{acts.length!==1?"s":""}.</div>
@@ -2291,15 +2318,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </div>}
           {/* Responsavel + add */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
-            <div style={{fontSize:13,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{request.planResponsibleName||"Nao definido"}</strong></div>
+            <div style={{fontSize:13,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{localReq.planResponsibleName||"Nao definido"}</strong></div>
             <div style={{display:"flex",gap:8}}>
-              {isAdmin&&<Sel value={request.planResponsible||""} onChange={v=>{
+              {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
                 const u=allUsers.find(x=>x.id===parseInt(v));
-                const r=mkLog({...request,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(request.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
+                const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
                 onUpdate(r);
               }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
-              {canPlan&&request.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
-              {isAdmin&&request.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
+              {canPlan&&localReq.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+              {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
             </div>
           </div>
           {/* Lista de acoes */}
@@ -2326,7 +2353,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted}}>📅 {fmtD(ac.deadline)}</span>
                     {ac.obs&&<span>📝 {ac.obs.slice(0,40)}{ac.obs.length>40?"...":""}</span>}
                   </div>
-                  {canPlan&&request.status==="plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
+                  {canPlan&&localReq.status==="plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
                     <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setEditAc(ac)}>Editar</button>
                     <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>setConfirmRemoveAc(ac)}>Excluir</button>
                   </div>}
@@ -2337,10 +2364,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       }
 
       if(drawer.type==="action"){
-        const ac=(request.actions||[]).find(a=>a.id===drawer.ac.id)||drawer.ac;
+        const ac=(localReq.actions||[]).find(a=>a.id===drawer.ac.id)||drawer.ac;
         const resp=allUsers.find(u=>u.id===parseInt(ac.responsible));
         const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
-        const canAct=isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+        const canAct=isMine&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
         const ov=isOD(ac.deadline,ac.status);
         const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
         if(drawerEditing) return <TaskDrawer open={true} onClose={()=>setDrawerEditing(false)} title={"Editar: "+ac.id} C={C}>
@@ -2393,7 +2420,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </div>}
 
           {/* Form conclusao */}
-          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={request} currentUser={currentUser} C={C} Sg={Sg}/>}
+          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{concludeAction(ac.id,note,att);closeDrawer();}} request={localReq} currentUser={currentUser} C={C} Sg={Sg}/>}
 
           {/* Acoes admin/canPlan — somente se acao NAO estiver concluida/cancelada */}
           {["concluida","cancelada"].includes(ac.status)
@@ -2403,17 +2430,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             :<>{isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao (SGQ)</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {request.status==="plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
+              {localReq.status==="plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
                 setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
                 setDrawerEditing(true);
               }}>✏ Editar</button>}
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>
-              {request.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
-              {request.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
+              {localReq.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
+              {localReq.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
             </div>
           </div>}
-          {canPlan&&request.status==="plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {canPlan&&localReq.status==="plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
@@ -2424,7 +2451,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             </div>
           </div>}</>}
 
-          {isMine&&request.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
+          {isMine&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status)&&<div style={{marginTop:12}}>
             <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setExtTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>⏱ Pedir extensao de prazo</button>
           </div>}
         </TaskDrawer>;
@@ -2453,7 +2480,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
     {/* Liberar para execucao */}
     {showAp3&&<Modal open={showAp3} onClose={()=>setShowAp3(false)} title="Liberar para Execucao" width={400}>
-      <div style={{fontSize:13,color:C.muted,marginBottom:18}}>O plano tem <strong style={{color:C.text}}>{(request.actions||[]).length} acao{(request.actions||[]).length!==1?"es":""}</strong>. Ao confirmar, as acoes serao liberadas para execucao pelos responsaveis.</div>
+      <div style={{fontSize:13,color:C.muted,marginBottom:18}}>O plano tem <strong style={{color:C.text}}>{(localReq.actions||[]).length} acao{(localReq.actions||[]).length!==1?"es":""}</strong>. Ao confirmar, as acoes serao liberadas para execucao pelos responsaveis.</div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp3(false)}>Cancelar</button>
         <button style={Sg.btn("success")} onClick={()=>{ap3(null);setShowAp3(false);}}>Confirmar</button>
@@ -2463,7 +2490,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* Cancelar SA */}
     <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={cancelSA}
       title="Cancelar SA" confirmLabel="Confirmar Cancelamento" confirmStyle="danger"
-      description={"SA "+request.id+" sera cancelada permanentemente. Esta acao nao pode ser desfeita."}
+      description={"SA "+localReq.id+" sera cancelada permanentemente. Esta acao nao pode ser desfeita."}
       C={C} Sg={Sg}/>
 
     {/* Reabrir avaliacao */}
@@ -2546,7 +2573,7 @@ function ExtReqForm({onClose,onSubmit,currentDeadline,C,Sg,isAdmin}){
 
 // Extensions tab
 function ExtensionsTab({request,currentUser,allUsers,isAdmin,onDecide,onAdminChange,C,Sg}){
-  const all=request.deadlineExtensions||[];
+  const all=localReq.deadlineExtensions||[];
   const pending=all.filter(e=>e.status==="pending");
   const decided=all.filter(e=>e.status!=="pending");
   const EItem=({ext})=>{
