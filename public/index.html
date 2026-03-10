@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.2.2";
+const APP_VERSION = "10.2.4";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -1875,7 +1875,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       {/* Descricao */}
       <div style={{marginBottom:14}}>
         <FieldCard label="Descricao da Mudanca" wide>
-          <div style={{fontSize:14,color:C.text,lineHeight:1.6,wordBreak:"break-word",overflowWrap:"anywhere"}}>{localReq.description}</div>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6,wordBreak:"break-word",overflowWrap:"anywhere",maxHeight:480,overflowY:"auto",paddingRight:4}}>{localReq.description}</div>
         </FieldCard>
       </div>
       {/* Justificativa */}
@@ -2936,8 +2936,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
             return {r:item,type:item.type,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</div>,
-              <span style={{fontSize:11,color:C.muted,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{item.r.description||"—"}</span>,
+              <div style={{fontSize:12,fontWeight:600,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</div>,
+              <span style={{fontSize:11,color:C.muted,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.description||"—"}</span>,
               <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.type}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={item.urg} dl={item.deadline}/>,
@@ -2962,7 +2962,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
             return {r:item,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.dept}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={item.urg} dl={item.dl}/>,
@@ -2989,7 +2989,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
               return {r,cells:[
                 <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
                 <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{r.title}</span>,
-                <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+                <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
                 <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
                 cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>,
                 <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} ação{(r.actions||[]).length!==1?"ões":""}</div>,
@@ -3010,7 +3010,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
             return {r:item,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
               <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{item.a.id}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.a.desc}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
@@ -3038,7 +3038,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             return {r,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
               <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{r.title}</span>,
-              <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+              <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
               <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={urg} dl={dl}/>,
@@ -3206,13 +3206,13 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
           return {r,cells:[
             <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
             <div>
-              <div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{r.title}</div>
+              <div style={{fontSize:12,fontWeight:600,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{r.title}</div>
               <div style={{display:"flex",gap:3,marginTop:2}}>
                 {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
                 {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
               </div>
             </div>,
-            <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+            <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
             <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
             <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>,
             <div>
@@ -3396,9 +3396,9 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
             const doneByUser=done&&a.doneByName?a.doneByName:(done&&a.resp?a.resp.name:null);
             return {r:a,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{a.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{a.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{a.r.title}</span>,
               <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{a.id}</span>,
-              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
+              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
               <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
               <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <Badge label={stLabel} color={stColor}/>,
@@ -3450,7 +3450,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
             const stLabel=e.done?"Concluída":ov?"Atrasada":"Pendente";
             return {r:e,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{e.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{e.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{e.r.title}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.dept}</span>,
               <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>,
               <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
