@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.2.6";
+const APP_VERSION = "10.2.7";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -4758,7 +4758,20 @@ function App() {
     const token = sessionStorage.getItem('cm_token');
     const userStr = sessionStorage.getItem('cm_user');
     if (token && userStr) {
-      try { setLI(JSON.parse(userStr)); } catch {}
+      try {
+        const u = JSON.parse(userStr);
+        setLI(u);
+        // Se sessão antiga não tem groups/permissions, buscar do servidor
+        if (!u.groups && !u.roles) {
+          apiGet('/api/users/me').then(fresh => {
+            if (fresh && !fresh.error) {
+              const updated = {...u, groups: fresh.groups||[], groupIds: fresh.groupIds||[], permissions: fresh.permissions||[]};
+              sessionStorage.setItem('cm_user', JSON.stringify(updated));
+              setLI(updated);
+            }
+          }).catch(()=>{});
+        }
+      } catch {}
     }
     setLoading(false);
   }, []);
@@ -4993,7 +5006,7 @@ const loadAll = async () => {
         </div>
         <div style={{fontSize:8,color:C.muted,letterSpacing:.2,display:'flex',alignItems:'center',gap:4}}>
           <div title="Dados atualizados automaticamente a cada 30s" className="refresh-dot" style={{width:5,height:5,borderRadius:'50%',background:C.success,flexShrink:0}}/>
-          v{APP_VERSION} · {(loggedIn.roles&&loggedIn.roles.length>0)?loggedIn.roles.map(r=>r.name).join(', '):loggedIn.role.toUpperCase()}
+          v{APP_VERSION} · {(()=>{const g=loggedIn.roles||loggedIn.groups||[];return g.length>0?g.map(r=>r.name).join(', '):loggedIn.role.toUpperCase();})()}
         </div>
       </div>
       <div style={{flex:1,padding:'6px 0'}}>
