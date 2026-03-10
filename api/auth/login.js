@@ -27,7 +27,7 @@ module.exports = async (req, res) => {
     // Buscar grupos e permissions via user_roles + roles
     let permissions = [];
     let groupIds = [];
-    let roles = []; // [{id, name}] para exibição no badge
+    let groups = []; // [{id, name}] para exibição no badge
     try {
       const roleRows = await sql`
         SELECT r.id, r.name, r.permissions
@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
         ORDER BY r.name
       `;
       groupIds = roleRows.map(r => r.id);
-      roles = roleRows.map(r => ({ id: r.id, name: r.name }));
+      groups = roleRows.map(r => ({ id: r.id, name: r.name }));
       const allPerms = roleRows.flatMap(r => Array.isArray(r.permissions) ? r.permissions : []);
       permissions = [...new Set(allPerms)];
     } catch (e) {
@@ -53,7 +53,7 @@ module.exports = async (req, res) => {
       evalDepts: user.eval_depts || [],
       permissions,
       groupIds,
-      roles  // usado no badge do sidebar
+      groups  // usado no badge do sidebar
     };
 
     const token = signToken(user);
