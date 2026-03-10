@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.2.5";
+const APP_VERSION = "10.2.6";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -827,7 +827,7 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
   const missing=ans.filter(a=>needsJ(a.a)&&!(a.just&&a.just.trim())).length;
   const unanswered=ans.filter(a=>!a.a).length;
   const canSave=unanswered===0&&missing===0;
-  const evOpts=allUsers.filter(u=>u.active&&u.role==="evaluator"&&(u.evalDepts||[]).includes(dept));
+  const evOpts=allUsers.filter(u=>u.active&&(u.evalDepts||[]).includes(dept));
   const aUser=allUsers.find(u=>u.id===assignedUserId);
 
 
@@ -963,7 +963,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     });
   };
 
-  const evFor=dept=>allUsers.filter(u=>u.active&&hasPerm(u,'avaliacao.revisar')&&(u.evalDepts||[]).includes(dept));
+  const evFor=dept=>allUsers.filter(u=>u.active&&(u.evalDepts||[]).length>0&&(u.evalDepts||[]).includes(dept));
   const allSet=areas.length>0&&areas.every(a=>assigns[a]&&dls[a]);
   const canSave=crit&&just.trim()&&areas.length>0&&allSet;
 
