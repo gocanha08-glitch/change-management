@@ -3441,21 +3441,22 @@ function AuditLog({requests,sysLog}){
       <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{vis.length} evento{vis.length!==1?"s":""}</span>
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-      <div style={{display:"grid",gridTemplateColumns:"130px 110px 90px 80px 1fr",background:C.surface,padding:"6px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
-        {["Data/Hora","Usuario","SA","Tipo","Evento / Detalhe"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted}}>{h}</div>)}
-      </div>
-      <div style={{maxHeight:"calc(100vh - 230px)",overflow:"auto"}}>
-        {vis.map((e,i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"130px 110px 90px 80px 1fr",padding:"7px 12px",borderBottom:"1px solid "+C.border+"18",gap:8,background:i%2===0?"transparent":C.surface+"44",alignItems:"start"}}>
-            <span style={{color:C.muted,fontSize:10.5}}>{fmt(e.at)}</span>
-            <span style={{color:C.dim,fontSize:11}}>{e.by}</span>
-            <span style={{color:C.accent,fontSize:11}}>{e.reqId||"—"}</span>
-            <span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:700,background:(tc[e.type]||C.muted)+"22",color:tc[e.type]||C.muted}}>{e.type||"—"}</span>
+      <ResizableTable
+        storageKey="tbl_audit"
+        cols={[140,130,100,90,400]}
+        headers={["Data/Hora","Usuario","SA","Tipo","Evento / Detalhe"]}
+        C={C}
+        rows={vis.map((e,i)=>({
+          cells:[
+            <span style={{color:C.muted,fontSize:10.5}}>{fmt(e.at)}</span>,
+            <span style={{color:C.dim,fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.by}</span>,
+            <span style={{color:C.accent,fontSize:11}}>{e.reqId||"—"}</span>,
+            <span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:700,background:(tc[e.type]||C.muted)+"22",color:tc[e.type]||C.muted,whiteSpace:"nowrap"}}>{e.type||"—"}</span>,
             <div><div style={{color:C.text,fontSize:11.5}}>{e.event}</div>{e.detail&&<div style={{color:C.muted,fontSize:10.5,marginTop:1}}>{e.detail}</div>}</div>
-          </div>
-        ))}
-        {vis.length===0&&<div style={{textAlign:"center",padding:26,color:C.muted}}>Nenhum evento.</div>}
-      </div>
+          ]
+        }))}
+      />
+      {vis.length===0&&<div style={{textAlign:"center",padding:26,color:C.muted}}>Nenhum evento.</div>}
     </div>
   </div>;
 }
@@ -3915,28 +3916,31 @@ const saveEdit=async()=>{
         <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{vis.length} usuario{vis.length!==1?"s":""}</span>
       </div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 160px 130px 110px 160px",background:C.surface,padding:"5px 13px",borderBottom:"1px solid "+C.border,gap:8}}>
-          {["Nome / Email","Area","Perfil","Status","Acoes"].map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.5}}>{h}</div>)}
-        </div>
-        {vis.map((u,i)=>(
-          <div key={u.id} style={{display:"grid",gridTemplateColumns:"1fr 160px 130px 110px 160px",padding:"8px 13px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44",opacity:u.active?1:.6}}>
-            <div style={{display:"flex",alignItems:"center",gap:9}}>
-              <Av user={{...u,role:u.role}} size={30}/>
-              <div>
-                <div style={{fontSize:12,fontWeight:600,color:C.text}}>{u.name}</div>
-                <div style={{fontSize:10,color:C.muted}}>{u.email}</div>
+        <ResizableTable
+          storageKey="tbl_users"
+          cols={[280,160,160,100,170]}
+          headers={["Nome / Email","Area","Grupos","Status","Acoes"]}
+          C={C}
+          rows={vis.map((u,i)=>({
+            cells:[
+              <div style={{display:"flex",alignItems:"center",gap:9,opacity:u.active?1:.5}}>
+                <Av user={u} size={30}/>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                  <div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email}</div>
+                </div>
+              </div>,
+              <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{u.area||"—"}</span>,
+              <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(u.groups&&u.groups.length>0)?u.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||"#6366F1"}/>):<Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>}</div>,
+              <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>,
+              <div style={{display:"flex",gap:5}}>
+                <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async(e)=>{e.stopPropagation();let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e2){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>
+                {u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();setCD(u);}}>Desativar</button>}
+                {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();reactivate(u.id);}}>Reativar</button>}
               </div>
-            </div>
-            <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.area||"—"}</span>
-            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(u.groups&&u.groups.length>0)?u.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||"#6366F1"}/>):<Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>}</div>
-            <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>
-            <div style={{display:"flex",gap:5}}>
-              <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async()=>{let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>
-              {u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={()=>setCD(u)}>Desativar</button>}
-              {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={()=>reactivate(u.id)}>Reativar</button>}
-            </div>
-          </div>
-        ))}
+            ]
+          }))}
+        />
         {vis.length===0&&<div style={{textAlign:"center",padding:28,color:C.muted}}>Nenhum usuario encontrado.</div>}
       </div>
     </>}
