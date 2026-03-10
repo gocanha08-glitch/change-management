@@ -3923,7 +3923,7 @@ const saveEdit=async()=>{
               </div>
             </div>
             <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.area||"—"}</span>
-            <Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>
+            <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(u.groups&&u.groups.length>0)?u.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||"#6366F1"}/>):<Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>}</div>
             <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>
             <div style={{display:"flex",gap:5}}>
               <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async()=>{let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>
