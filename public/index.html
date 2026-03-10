@@ -4642,7 +4642,7 @@ const go=async()=>{
         <Av user={currentUser} size={44}/>
         <div>
           <div style={{fontSize:14,fontWeight:700,color:C.text}}>{currentUser.name}</div>
-          <Badge label={ROLES[currentUser.role]&&ROLES[currentUser.role].label} color={RC[currentUser.role]||C.muted}/>
+          <Badge label={(currentUser.groups&&currentUser.groups[0]&&currentUser.groups[0].name)||ROLES[currentUser.role]?.label} color={(currentUser.groups&&currentUser.groups[0]&&PERFIS[currentUser.groups[0].name.toLowerCase()]?.color)||RC[currentUser.role]||C.muted}/>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{currentUser.email}</div>
         </div>
       </div>
@@ -5025,7 +5025,7 @@ const loadAll = async () => {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:10,color:C.dim,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{loggedIn.name}</div>
-            <div style={{fontSize:9,color:C.muted}}>{loggedIn.role}</div>
+            <div style={{fontSize:9,color:C.muted}}>{(loggedIn.groups&&loggedIn.groups.length>0&&loggedIn.groups.map(g=>g.name).join(', '))||loggedIn.role}</div>
           </div>
         </div>
         <button onClick={logout} style={{fontSize:10,color:C.muted,background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0}}>Sair</button>
