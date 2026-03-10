@@ -1,5 +1,8 @@
 {
   "outputDirectory": "public",
+  "routes": [
+    { "src": "/api/users/me", "dest": "/api/users/me.js" }
+  ],
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
