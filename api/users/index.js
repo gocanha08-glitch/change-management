@@ -119,10 +119,18 @@ module.exports = async (req, res) => {
     }
 
     // Single user update
-    const { id, name, email, area, role, evalDepts, active, _np } = body;
+    const { id, name, email, area, role, evalDepts, active, _np, groupIds } = body;
     if (!id) return res.status(400).json({ error: 'ID obrigatorio' });
 
     try {
+      // Salvar grupos se fornecidos
+      if (groupIds !== undefined) {
+        await sql`DELETE FROM user_roles WHERE user_id = ${id}`;
+        for (const gid of (groupIds || [])) {
+          await sql`INSERT INTO user_roles (user_id, role_id) VALUES (${id}, ${gid}) ON CONFLICT DO NOTHING`;
+        }
+      }
+
       if (_np) {
         const pwdErr = validatePassword(_np, { name, email });
         if (pwdErr) return res.status(400).json({ error: pwdErr });
