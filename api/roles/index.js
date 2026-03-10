@@ -10,8 +10,7 @@ module.exports = async (req, res) => {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   // Autenticação
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  const user = verifyToken(token);
+  const user = verifyToken(req);
   if (!user) return res.status(401).json({ error: 'Nao autenticado' });
 
   // Apenas quem tem grupos.gerenciar pode mexer nos grupos
