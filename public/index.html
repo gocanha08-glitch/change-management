@@ -1,6 +1,3 @@
-
-
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -3475,19 +3472,27 @@ const PERFIS={
   geral:{label:"Geral",   color:"#2DD4BF", desc:"Colaborador — abre SAs, executa acoes, avalia se liberado"},
 };
 
-  function UserForm({u,onChange,pwdLabel,pwdRequired,pwdErr,onPwdChange,C,Sg}){
+  function UserForm({u,onChange,pwdLabel,pwdRequired,pwdErr,onPwdChange,C,Sg,allGroups}){
   const {C:Ctx}=useTheme();const CC=C||Ctx;const inp={width:"100%",padding:"7px 10px",borderRadius:7,border:"1px solid "+CC.border,background:CC.surface,color:CC.text,fontSize:13,fontFamily:"inherit"};
   pwdLabel=pwdLabel||"Senha *";
   if(pwdRequired===undefined)pwdRequired=true;
+  const userGroupIds=(u.groupIds||[]);
   return <div style={{display:"flex",flexDirection:"column",gap:10}}>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
       <div><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Nome *</label><input value={u.name} onChange={e=>onChange({...u,name:e.target.value})} placeholder="Nome completo" style={inp}/></div>
       <div><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>E-mail *</label><input value={u.email||""} onChange={e=>onChange({...u,email:e.target.value})} placeholder="usuario@empresa.com" style={inp}/></div>
-      <div><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Area / Departamento</label><input autoComplete="off" value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={inp}/></div>
-      <div><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Perfil *</label>
-        <select value={u.role} onChange={e=>onChange({...u,role:e.target.value,evalDepts:e.target.value==="geral"?[]:u.evalDepts})} style={inp}>
-          {Object.entries(PERFIS).map(([k,v])=><option key={k} value={k}>{v.label} — {v.desc.slice(0,40)}...</option>)}
-        </select>
+      <div style={{gridColumn:"1/-1"}}><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Area / Departamento</label><input autoComplete="off" value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={inp}/></div>
+      <div style={{gridColumn:"1/-1"}}>
+        <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:6}}>Grupos *</label>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+          {(allGroups||[]).map(g=>{const sel=userGroupIds.includes(g.id);return(
+            <label key={g.id} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:6,border:"1px solid "+(sel?"#2563EB":CC.border),background:sel?"#EFF6FF":CC.bg,cursor:"pointer"}}>
+              <input type="checkbox" checked={sel} onChange={()=>onChange({...u,groupIds:sel?userGroupIds.filter(x=>x!==g.id):[...userGroupIds,g.id]})} style={{accentColor:"#2563EB"}}/>
+              <span style={{fontSize:12,color:sel?"#1D4ED8":CC.text,fontWeight:sel?700:400}}>{g.name}</span>
+            </label>
+          );})}
+        </div>
+        {(allGroups||[]).length===0&&<div style={{fontSize:12,color:CC.muted}}>Carregando grupos...</div>}
       </div>
       <div style={{gridColumn:"1/-1"}}>
         <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>{pwdLabel}</label>
@@ -3756,9 +3761,15 @@ function UserManager({users,currentUser,onSave,addSysLog}){
   const [search,setSQ]=useState("");
   const [filterRole,setFR]=useState("");
   const [filterActive,setFA]=useState("active");
-  const [confirmDel,setCD]=useState(null); // user to delete
+  const [confirmDel,setCD]=useState(null);
+  const [allGroups,setAllGroups]=useState([]);
 
-  const blank={name:"",role:"geral",area:"",email:"",pwd:"",active:true,evalDepts:[]};
+  // Carregar grupos disponíveis
+  React.useEffect(()=>{
+    apiGet('/api/roles').then(r=>{if(r)setAllGroups(r);}).catch(()=>{});
+  },[]);
+
+  const blank={name:"",role:"geral",area:"",email:"",pwd:"",active:true,evalDepts:[],groupIds:[]};
   const [nU,setNU]=useState({...blank});
 
   const save=(list,action,detail)=>{
@@ -3784,10 +3795,10 @@ const saveEdit=async()=>{
       const res=await apiPut('/api/users', {
         id: u.id, name: u.name, email: u.email, area: u.area||'',
         role: u.role, evalDepts: u.evalDepts||[], active: u.active!==false,
-        _np: u._np||undefined
+        _np: u._np||undefined,
+        groupIds: u.groupIds||[]
       });
       if(res&&res.error){setPE(res.error);return;}
-      // Remover _np/pwd antes de atualizar estado local (evita reenvio acidental)
       const uClean={...u,_np:undefined,pwd:undefined};
       const newList=lu.map(x=>x.id===u.id?uClean:x);
       setLU(newList);
@@ -3915,7 +3926,7 @@ const saveEdit=async()=>{
             <Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>
             <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>
             <div style={{display:"flex",gap:5}}>
-              <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={()=>{setEd({...u,_np:""});setPE("");}}>Editar</button>
+              <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async()=>{let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>
               {u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={()=>setCD(u)}>Desativar</button>}
               {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={()=>reactivate(u.id)}>Reativar</button>}
             </div>
@@ -3928,7 +3939,7 @@ const saveEdit=async()=>{
     {/* NOVO USUARIO */}
     {tab==="novo"&&<div style={{...Sg.card({maxWidth:680})}}>
       <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:14}}>Novo Usuario</div>
-      <UserForm u={nU} onChange={u=>setNU(u)} pwdLabel="Senha inicial *" pwdRequired={true} pwdErr={pwdErr} onPwdChange={v=>{setNU({...nU,pwd:v});setPE("");}} C={C} Sg={Sg}/>
+      <UserForm u={nU} onChange={u=>setNU(u)} pwdLabel="Senha inicial *" pwdRequired={true} pwdErr={pwdErr} onPwdChange={v=>{setNU({...nU,pwd:v});setPE("");}} C={C} Sg={Sg} allGroups={allGroups}/>
       {pwdErr&&!nU.pwd&&<div style={{fontSize:11,color:C.danger,marginTop:4}}>{pwdErr}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
         <button style={Sg.btn()} onClick={()=>{setNU({...blank});setPE("");setTab("lista");}}>Cancelar</button>
@@ -3979,7 +3990,7 @@ const saveEdit=async()=>{
     {/* EDIT MODAL */}
     <Modal open={!!editing} onClose={()=>{setEd(null);setPE("");}} title="Editar Usuario" width={600}>
       {editing&&<div>
-        <UserForm u={{...editing,pwd:editing._np||""}} onChange={u=>setEd({...editing,...u,_np:u.pwd,pwd:editing.pwd})} pwdLabel="Nova senha (vazio = manter)" pwdRequired={false} pwdErr={pwdErr} onPwdChange={v=>{setEd({...editing,_np:v});setPE("");}} C={C} Sg={Sg}/>
+        <UserForm u={{...editing,pwd:editing._np||""}} onChange={u=>setEd({...editing,...u,_np:u.pwd,pwd:editing.pwd})} pwdLabel="Nova senha (vazio = manter)" pwdRequired={false} pwdErr={pwdErr} onPwdChange={v=>{setEd({...editing,_np:v});setPE("");}} C={C} Sg={Sg} allGroups={allGroups}/>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:14,paddingTop:12,borderTop:"1px solid "+C.border}}>
           <button style={Sg.btn()} onClick={()=>{setEd(null);setPE("");}}>Cancelar</button>
           <button style={Sg.btn("primary")} onClick={saveEdit}>Salvar</button>
