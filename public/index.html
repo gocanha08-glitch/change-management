@@ -3484,9 +3484,9 @@ const PERFIS={
       <div style={{gridColumn:"1/-1"}}><label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Area / Departamento</label><input autoComplete="off" value={u.area||""} onChange={e=>onChange({...u,area:e.target.value})} placeholder="Ex: Producao, TI..." style={inp}/></div>
       <div style={{gridColumn:"1/-1"}}>
         <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:6}}>Grupos *</label>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,maxHeight:130,overflowY:"auto",padding:6,border:"1px solid "+CC.border,borderRadius:8,background:CC.bg}}>
           {(allGroups||[]).map(g=>{const sel=userGroupIds.includes(g.id);return(
-            <label key={g.id} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,border:"1px solid "+(sel?"#2563EB":CC.border),background:sel?"#EFF6FF":CC.bg,cursor:"pointer",whiteSpace:"nowrap"}}>
+            <label key={g.id} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,border:"1px solid "+(sel?"#2563EB":CC.border),background:sel?"#EFF6FF":CC.bg,cursor:"pointer"}}>
               <input type="checkbox" checked={sel} onChange={()=>onChange({...u,groupIds:sel?userGroupIds.filter(x=>x!==g.id):[...userGroupIds,g.id]})} style={{accentColor:"#2563EB"}}/>
               <span style={{fontSize:12,color:sel?"#1D4ED8":CC.text,fontWeight:sel?700:400}}>{g.name}</span>
             </label>
