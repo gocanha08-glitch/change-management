@@ -14,7 +14,6 @@ module.exports = async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email e senha obrigatorios' });
 
   try {
-    // Buscar usuário
     const rows = await sql`
       SELECT id, name, email, area, role, pwd_hash, eval_depts, active
       FROM users WHERE email = ${email.toLowerCase().trim()} LIMIT 1
@@ -25,18 +24,20 @@ module.exports = async (req, res) => {
     const valid = await bcrypt.compare(password, user.pwd_hash);
     if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
 
-    // Buscar grupos e permissions do usuário via user_roles + roles
+    // Buscar grupos e permissions via user_roles + roles
     let permissions = [];
     let groupIds = [];
+    let roles = []; // [{id, name}] para exibição no badge
     try {
       const roleRows = await sql`
-        SELECT r.id, r.permissions
+        SELECT r.id, r.name, r.permissions
         FROM roles r
         JOIN user_roles ur ON ur.role_id = r.id
         WHERE ur.user_id = ${user.id}
+        ORDER BY r.name
       `;
       groupIds = roleRows.map(r => r.id);
-      // Flatten e deduplica todas as permissions dos grupos
+      roles = roleRows.map(r => ({ id: r.id, name: r.name }));
       const allPerms = roleRows.flatMap(r => Array.isArray(r.permissions) ? r.permissions : []);
       permissions = [...new Set(allPerms)];
     } catch (e) {
@@ -51,7 +52,8 @@ module.exports = async (req, res) => {
       role: user.role,
       evalDepts: user.eval_depts || [],
       permissions,
-      groupIds
+      groupIds,
+      roles  // usado no badge do sidebar
     };
 
     const token = signToken(user);
