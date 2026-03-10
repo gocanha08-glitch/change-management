@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.1.7";
+const APP_VERSION = "10.1.8";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -1894,7 +1894,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>}
       {/* Anexos */}
       <FieldCard label="Anexos da Solicitacao" wide>
-        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} onRemove={removeAttachment} isAdmin={isAdmin} readOnly={!["aberta","avaliacao"].includes(localReq.status)} stage={localReq.status} currentUser={currentUser} C={C}/>
+        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} readOnly={!["aberta","avaliacao"].includes(localReq.status)} stage={localReq.status} currentUser={currentUser} C={C}/>
         {!["aberta","avaliacao"].includes(localReq.status)&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Fase encerrada — use a secao "Anexos do Registro" abaixo para gerenciar.</div>}
       </FieldCard>
     </SecCard>
@@ -3744,10 +3744,9 @@ function GroupManager({currentUser,C:Cprop}){
         <div>
           <label style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.5,display:"block",marginBottom:4}}>NOME DO GRUPO *</label>
           <input value={editing.name} onChange={e=>setEditing({...editing,name:e.target.value})}
-            disabled={editing.is_system}
             placeholder="Ex: Auditor, TI, Aprovador..."
-            style={{width:"100%",padding:"8px 12px",borderRadius:7,border:"1px solid "+C.border,background:editing.is_system?C.surface2||C.surface:C.surface,color:C.text,fontSize:14,fontFamily:"inherit"}}/>
-          {editing.is_system&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>Nome de grupo do sistema não pode ser alterado</div>}
+            style={{width:"100%",padding:"8px 12px",borderRadius:7,border:"1px solid "+C.border,background:C.surface,color:C.text,fontSize:14,fontFamily:"inherit"}}/>
+          {editing.is_system&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>Grupo padrão do sistema — edições afetam todos os usuários deste grupo</div>}
         </div>
         <div>
           <label style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.5,display:"block",marginBottom:4}}>DESCRIÇÃO</label>
