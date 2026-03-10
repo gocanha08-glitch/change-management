@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.1.8";
+const APP_VERSION = "10.2.0";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -3100,14 +3100,10 @@ function ResizableTable({cols:initialCols,headers,rows,onRowClick,C,storageKey})
     return ()=>ro.disconnect();
   },[]);
   const tplStr=React.useMemo(()=>{
-    const total=cols.reduce((a,b)=>a+b,0);
-    const extra=containerW>total?containerW-total:0;
-    if(extra<=0)return cols.map(w=>w+"px").join(" ");
-    const maxW=Math.max(...cols);
-    const flexIdxs=cols.map((w,i)=>w>=maxW*0.45?i:-1).filter(i=>i>=0);
-    const flexTotal=flexIdxs.reduce((s,i)=>s+cols[i],0);
-    return cols.map((w,i)=>flexIdxs.includes(i)?Math.round(w+extra*(w/flexTotal))+"px":w+"px").join(" ");
-  },[cols,containerW]);
+    // Cada coluna tem tamanho exato e independente.
+    // Nenhuma redistribuição — só scroll horizontal se necessário.
+    return cols.map(w=>w+"px").join(" ");
+  },[cols]);
   const totalW=cols.reduce((a,b)=>a+b,0);
 
   return <div ref={containerRef} style={{overflowX:"auto",width:"100%"}}>
@@ -3820,7 +3816,7 @@ function GroupManager({currentUser,C:Cprop}){
         </div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>openEdit(g)} style={{padding:"6px 14px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.text,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Editar</button>
-          {!g.is_system&&<button onClick={()=>setConfirmDel(g)} style={{padding:"6px 14px",borderRadius:6,border:"none",background:"#FEE2E2",color:"#DC2626",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Excluir</button>}
+          <button onClick={()=>setConfirmDel(g)} style={{padding:"6px 14px",borderRadius:6,border:"none",background:"#FEE2E2",color:"#DC2626",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Excluir</button>
         </div>
       </div>)}
     </div>
