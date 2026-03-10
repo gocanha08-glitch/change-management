@@ -23,10 +23,24 @@ module.exports = async (req, res) => {
         SELECT id, name, email, area, role, eval_depts, active, created_at
         FROM users ORDER BY name
       `;
+      // Buscar grupos de todos os usuários em uma query só
+      const userRoles = await sql`
+        SELECT ur.user_id, r.id, r.name
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        ORDER BY r.name
+      `;
+      // Agrupar por user_id
+      const groupsByUser = {};
+      for (const ur of userRoles) {
+        if (!groupsByUser[ur.user_id]) groupsByUser[ur.user_id] = [];
+        groupsByUser[ur.user_id].push({ id: ur.id, name: ur.name });
+      }
       return res.json(rows.map(u => ({
         id: u.id, name: u.name, email: u.email, area: u.area,
         role: u.role, evalDepts: u.eval_depts || [], active: u.active,
-        createdAt: u.created_at
+        createdAt: u.created_at,
+        groups: groupsByUser[u.id] || []
       })));
     } catch (err) {
       return res.status(500).json({ error: 'Erro ao buscar usuarios' });
