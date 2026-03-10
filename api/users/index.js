@@ -22,10 +22,29 @@ module.exports = async (req, res) => {
         SELECT id, name, email, area, role, eval_depts, active, created_at
         FROM users ORDER BY name
       `;
+      // Buscar grupos de todos os usuários de uma vez
+      const userRoleRows = await sql`
+        SELECT ur.user_id, r.id, r.name, r.permissions
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        ORDER BY r.name
+      `;
+      // Agrupar por user_id
+      const groupsByUser = {};
+      const permsByUser = {};
+      for (const ur of userRoleRows) {
+        if (!groupsByUser[ur.user_id]) groupsByUser[ur.user_id] = [];
+        if (!permsByUser[ur.user_id]) permsByUser[ur.user_id] = new Set();
+        groupsByUser[ur.user_id].push({ id: ur.id, name: ur.name });
+        (Array.isArray(ur.permissions) ? ur.permissions : []).forEach(p => permsByUser[ur.user_id].add(p));
+      }
       return res.json(rows.map(u => ({
         id: u.id, name: u.name, email: u.email, area: u.area,
         role: u.role, evalDepts: u.eval_depts || [], active: u.active,
-        createdAt: u.created_at
+        createdAt: u.created_at,
+        groups: groupsByUser[u.id] || [],
+        groupIds: (groupsByUser[u.id] || []).map(g => g.id),
+        permissions: [...(permsByUser[u.id] || [])]
       })));
     } catch (err) {
       return res.status(500).json({ error: 'Erro ao buscar usuarios' });
