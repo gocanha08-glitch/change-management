@@ -4633,7 +4633,7 @@ const go=async()=>{
   const themeOpts=[{v:"dark",l:"Escuro"},{v:"light",l:"Claro"}];
 
   return <div style={{padding:"18px 22px",maxWidth:700}}>
-    <h1 style={{margin:"0 0 16px",fontSize:18,color:C.text,fontWeight:700}}>Configuracoes</h1>
+    <h1 style={{margin:"0 0 16px",fontSize:18,color:C.text,fontWeight:700}}>Meu Perfil</h1>
 
     {/* User + theme card */}
     <div style={Sg.card()}>
@@ -4981,7 +4981,7 @@ const loadAll = async () => {
     {id:"indicators", label:"Indicadores",   badge:0},
     ...(hasPerm(loggedIn,'crits')          ?[{id:"crits",     label:"Criticidade",  badge:0}]:[]),
     ...(hasPerm(loggedIn,'perguntas')      ?[{id:"perguntas", label:"Perguntas",    badge:0}]:[]),
-    {id:"settings",   label:"Configuracoes", badge:isAdmin?(pendExt||0):0},
+    {id:"settings",   label:"Meu Perfil", badge:isAdmin?(pendExt||0):0},
     ...(hasPerm(loggedIn,'matrix')         ?[{id:"matrix",    label:"Matriz",       badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'grupos.gerenciar')?[{id:"grupos",   label:"Grupos",       badge:0,adm:true}]:[]),
