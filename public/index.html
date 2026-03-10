@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.2.0";
+const APP_VERSION = "10.2.2";
 const APP_DATE = "2026-03-10";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -1618,7 +1618,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     background:C.card,minHeight:wide?undefined:72
   }}>
     <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.6,marginBottom:6}}>{label}</div>
-    {value!==undefined&&<div style={{fontSize:15,fontWeight:600,color:C.text,lineHeight:1.35}}>{value}</div>}
+    {value!==undefined&&<div style={{fontSize:15,fontWeight:600,color:C.text,lineHeight:1.35,wordBreak:"break-word",overflowWrap:"anywhere"}}>{value}</div>}
     {children}
   </div>;
 
@@ -1875,7 +1875,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       {/* Descricao */}
       <div style={{marginBottom:14}}>
         <FieldCard label="Descricao da Mudanca" wide>
-          <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.description}</div>
+          <div style={{fontSize:14,color:C.text,lineHeight:1.6,wordBreak:"break-word",overflowWrap:"anywhere"}}>{localReq.description}</div>
         </FieldCard>
       </div>
       {/* Justificativa */}
@@ -2920,8 +2920,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_aprov_cols_v4"
-          cols={[105,185,255,135,42,88,120,180]}
+          storageKey="cm_dash_aprov_cols_v5"
+          cols={[105,220,300,135,42,88,120,180]}
           headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
           C={C}
           onRowClick={row=>{
@@ -2936,8 +2936,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
             return {r:item,type:item.type,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.r.title}</div>,
-              <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.description||"—"}</span>,
+              <div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</div>,
+              <span style={{fontSize:11,color:C.muted,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{item.r.description||"—"}</span>,
               <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.type}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={item.urg} dl={item.deadline}/>,
@@ -2954,15 +2954,15 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>ANALISES PENDENTES ({analises.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_analises_cols_v2"
-          cols={[110,230,380,44,95,120]}
+          storageKey="cm_dash_analises_cols_v3"
+          cols={[110,260,380,44,95,120]}
           headers={["SA","Título SA","Área","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(analises).map(item=>{
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
             return {r:item,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.dept}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={item.urg} dl={item.dl}/>,
@@ -2979,8 +2979,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
         <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
           <ResizableTable
-            storageKey="cm_dash_planos_cols_v3"
-            cols={[105,185,290,135,44,130,115]}
+            storageKey="cm_dash_planos_cols_v4"
+            cols={[105,220,320,135,44,130,115]}
             headers={["ID","Titulo","Descricao","Tipo","Crit.","Acoes no Plano","Acao"]}
             onRowClick={row=>onNav("detail",row.r.id,"plano")}
             C={C}
@@ -2988,9 +2988,9 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
               const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
               return {r,cells:[
                 <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
-                <span style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.title}</span>,
-                <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.description||"—"}</span>,
-                <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+                <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{r.title}</span>,
+                <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+                <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
                 cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>,
                 <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} ação{(r.actions||[]).length!==1?"ões":""}</div>,
                 <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onNav("detail",r.id,"plano");}}>Ver Plano</button>
@@ -3002,15 +3002,15 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_acoes_cols_v2"
-          cols={[110,185,78,310,44,95,120]}
+          storageKey="cm_dash_acoes_cols_v3"
+          cols={[110,220,78,350,44,95,120]}
           headers={["SA","Título SA","ID Ação","Descrição Ação","Crit.","Prazo","Ação"]}
           C={C}
           rows={sortU(acoes).map(item=>{
             const cr=getCrit(item.r.triage&&item.r.triage.criticality);
             return {r:item,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{item.r.title}</span>,
               <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{item.a.id}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.a.desc}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
@@ -3027,8 +3027,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:6}}>MINHAS SOLICITACOES ({minhasSAs.length})</div>
       <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
         <ResizableTable
-          storageKey="cm_dash_minhas_cols_v2"
-          cols={[105,180,300,130,44,90,170,60]}
+          storageKey="cm_dash_minhas_cols_v3"
+          cols={[105,220,340,130,44,90,170,60]}
           headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Status",""]}
           onRowClick={row=>onNav("detail",row.r.id)}
           C={C}
@@ -3037,9 +3037,9 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             const dl=getPhaseDeadline(r);const urg=urgCls(dl,"");
             return {r,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
-              <span style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.title}</span>,
-              <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.description||"—"}</span>,
-              <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+              <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{r.title}</span>,
+              <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+              <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
               <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <UrgChip urg={urg} dl={dl}/>,
               <Badge label={st.label} color={st.color||C.muted}/>,
@@ -3193,8 +3193,8 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
     </div>
     <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
       <ResizableTable
-        storageKey="cm_changes_cols_v4"
-        cols={[95,145,200,115,38,185,82,90]}
+        storageKey="cm_changes_cols_v5"
+        cols={[95,200,260,115,38,185,82,90]}
         headers={["ID","Título","Descrição","Tipo","Crit.","Status","Abertura","Prazo Etapa"]}
         onRowClick={row=>onOpen(row.r.id)}
         C={C}
@@ -3206,14 +3206,14 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
           return {r,cells:[
             <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
             <div>
-              <div style={{fontSize:12,fontWeight:600,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.title}</div>
+              <div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{r.title}</div>
               <div style={{display:"flex",gap:3,marginTop:2}}>
                 {ovAc>0&&<Badge label={ovAc+" atras."} color={C.danger}/>}
                 {pendExt>0&&<Badge label="Ext." color={C.warning}/>}
               </div>
             </div>,
-            <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.description||"—"}</span>,
-            <span style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+            <span style={{fontSize:11,color:C.dim,display:"block",wordBreak:"break-word",lineHeight:1.3,marginTop:2}}>{r.description||"—"}</span>,
+            <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
             <div>{cr?<span style={{fontSize:14,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted,fontSize:12}}>—</span>}</div>,
             <div>
               <Badge label={st.label||""} color={st.color||C.muted}/>
@@ -3396,9 +3396,9 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
             const doneByUser=done&&a.doneByName?a.doneByName:(done&&a.resp?a.resp.name:null);
             return {r:a,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{a.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{a.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{a.r.title}</span>,
               <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{a.id}</span>,
-              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
+              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,wordBreak:"break-word",lineHeight:1.3}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
               <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
               <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
               <Badge label={stLabel} color={stColor}/>,
@@ -3450,7 +3450,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
             const stLabel=e.done?"Concluída":ov?"Atrasada":"Pendente";
             return {r:e,cells:[
               <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{e.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.r.title}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3}}>{e.r.title}</span>,
               <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.dept}</span>,
               <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>,
               <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
