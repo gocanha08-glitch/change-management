@@ -3799,9 +3799,14 @@ const saveEdit=async()=>{
         groupIds: u.groupIds||[]
       });
       if(res&&res.error){setPE(res.error);return;}
-      const uClean={...u,_np:undefined,pwd:undefined};
-      const newList=lu.map(x=>x.id===u.id?uClean:x);
-      setLU(newList);
+      // Recarregar lista do servidor para refletir grupos atualizados
+      try {
+        const fresh = await apiGet('/api/users');
+        if(fresh) setLU(fresh);
+      } catch(e) {
+        const uClean={...u,_np:undefined,pwd:undefined,groups:(allGroups||[]).filter(g=>(u.groupIds||[]).includes(g.id))};
+        setLU(lu.map(x=>x.id===u.id?uClean:x));
+      }
       setEd(null);setPE("");
     } catch(err){ setPE(err.message||'Erro ao salvar'); }
   };
