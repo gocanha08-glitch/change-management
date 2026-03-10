@@ -2919,9 +2919,8 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
         <h1 style={{fontSize:18,margin:"0 0 3px",color:C.text,fontWeight:700}}>
           {h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}, {nome}
         </h1>
-       <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:7}}>
+       <div style={{fontSize:11,color:C.muted}}>
           {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
-          <Badge label={(currentUser.groups&&currentUser.groups[0]&&currentUser.groups[0].name)||ROLES[currentUser.role]?.label} color={(currentUser.groups&&currentUser.groups[0]&&PERFIS[currentUser.groups[0].name.toLowerCase()]?.color)||RC[currentUser.role]||C.muted}/>
         </div>
       </div>
       <button style={{...Sg.btn("primary"),padding:"8px 16px",fontSize:13}} onClick={onNew}>+ Nova Solicitacao</button>
