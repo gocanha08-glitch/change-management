@@ -5024,7 +5024,7 @@ const loadAll = async () => {
           </div>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:10,color:C.dim,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:600}}>{loggedIn.name}</div>
-            <div style={{fontSize:9,color:C.muted}}>{(loggedIn.groups&&loggedIn.groups.length>0&&loggedIn.groups.map(g=>g.name).join(', '))||loggedIn.role}</div>
+            <div style={{fontSize:9,color:C.muted}}>{loggedIn.email}</div>
           </div>
         </div>
         <button onClick={logout} style={{fontSize:10,color:C.muted,background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0}}>Sair</button>
