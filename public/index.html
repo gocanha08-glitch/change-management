@@ -4641,8 +4641,16 @@ const go=async()=>{
         <Av user={currentUser} size={44}/>
         <div>
           <div style={{fontSize:14,fontWeight:700,color:C.text}}>{currentUser.name}</div>
-          <Badge label={(currentUser.groups&&currentUser.groups[0]&&currentUser.groups[0].name)||ROLES[currentUser.role]?.label} color={(currentUser.groups&&currentUser.groups[0]&&PERFIS[currentUser.groups[0].name.toLowerCase()]?.color)||RC[currentUser.role]||C.muted}/>
+          <div style={{fontSize:14,fontWeight:700,color:C.text}}>{currentUser.name}</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{currentUser.email}</div>
+        </div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:8,letterSpacing:.7}}>GRUPOS / PERMISSÕES</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {(currentUser.groups&&currentUser.groups.length>0)
+            ?currentUser.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||C.accent}/>)
+            :<span style={{fontSize:12,color:C.muted}}>Nenhum grupo atribuído</span>}
         </div>
       </div>
       <div style={{marginBottom:16}}>
