@@ -1,6 +1,7 @@
 // api/requests/index.js — GET list, POST create
 const { sql } = require('../../lib/db');
 const { requireAuth } = require('../../lib/auth');
+const { hasPermission } = require('../../lib/permissions');
 
 const CORS = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -15,7 +16,9 @@ module.exports = async (req, res) => {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  // GET — list all requests (or filtered by user for geral role)
+  const perms = user.permissions || [];
+
+  // GET — listar SAs
   if (req.method === 'GET') {
     try {
       const rows = await sql`SELECT data FROM requests ORDER BY created_at DESC`;
@@ -26,18 +29,27 @@ module.exports = async (req, res) => {
     }
   }
 
-  // POST — create new request
+  // POST — criar nova SA
   if (req.method === 'POST') {
+    // Qualquer usuário autenticado com sa.criar pode abrir SA
+    if (!hasPermission(perms, 'sa.criar')) {
+      return res.status(403).json({ error: 'Sem permissão para criar SA' });
+    }
+
     try {
       const sa = req.body;
       if (!sa || !sa.id) return res.status(400).json({ error: 'Dados invalidos' });
+
+      // SA criada sempre começa como 'aberta'
+      sa.status = 'aberta';
+      sa.createdBy = user.id;
 
       await sql`
         INSERT INTO requests (id, data, status, created_by, created_at, updated_at)
         VALUES (
           ${sa.id},
           ${JSON.stringify(sa)},
-          ${sa.status || 'aberta'},
+          'aberta',
           ${user.id},
           now(), now()
         )
