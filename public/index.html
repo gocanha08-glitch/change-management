@@ -26,8 +26,8 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.2.7";
-const APP_DATE = "2026-03-10";
+const APP_VERSION = "10.3.0";
+const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
 const hasPermission = (user, perm) => {
@@ -46,11 +46,11 @@ const DEFAULT_CRITS = [
 
 // Prazos padrão POR ETAPA DO PROCESSO (em dias corridos a partir do inicio da etapa)
 const DEFAULT_PHASE_DEADLINES = {
-  triagem:   {days:3,  label:"Triagem",              desc:"Prazo para o admin realizar a triagem apos abertura"},
-  avaliacao: {days:7,  label:"Avaliacao por area",    desc:"Prazo padrao para cada avaliador concluir sua analise"},
-  revisao:   {days:2,  label:"Revisao SGQ (Aprov. 2)",desc:"Prazo para admin revisar e aprovar avaliacoes"},
-  plano:     {days:5,  label:"Montagem do Plano",     desc:"Prazo para montar o plano de acoes apos aprovacao"},
-  execucao:  {days:30, label:"Execucao",              desc:"Prazo padrao para conclusao de acoes"},
+  avaliacao_inicial: {days:3,  label:"Avaliacao Inicial",     desc:"Prazo para o SGQ realizar a avaliacao inicial apos abertura"},
+  avaliacao_areas:   {days:7,  label:"Avaliacao das Areas",    desc:"Prazo padrao para cada avaliador concluir sua analise"},
+  aprovacao_plano:   {days:2,  label:"Aprovacao do Plano",     desc:"Prazo para SGQ revisar e aprovar avaliacoes"},
+  montagem_plano:    {days:5,  label:"Montagem do Plano",      desc:"Prazo para montar o plano de acoes apos aprovacao"},
+  execucao:          {days:30, label:"Execucao",               desc:"Prazo padrao para conclusao de acoes"},
 };
 
 const CHANGE_TYPES=[
@@ -130,7 +130,7 @@ const mkSeed=(phaseDl)=>{
   return [
     {id:"SA-001/2025",title:"Atualizacao sistema ERP",type:"Software (nao relacionado a produto)",
      description:"Migracao do ERP legado para novo sistema cloud-based",justification:"Suporte ao sistema atual encerra em Dez/2025",
-     status:"revisao",planResponsible:1,planResponsibleName:"Ana Paula Silva",
+     status:"avaliacao_areas",planResponsible:1,planResponsibleName:"Ana Paula Silva",
      triage:{criticality:"C3",flagReg:false,flagProd:false,justification:"Mudanca de infraestrutura critica",
        classifiedBy:1,classifiedByName:"Ana Paula Silva",classifiedAt:"2025-01-11T10:00:00",
        assignedAreas:["Sistema de Gestao da Qualidade (SGQ)","Tecnologia da Informacao (TI)","Financeiro","PCP","Compras"],
@@ -146,11 +146,11 @@ const mkSeed=(phaseDl)=>{
        "Compras":{answers:[{q:"Impacta compras em andamento?",a:"N",just:"Sem impacto"},{q:"Ha necessidade de ajustar prazos?",a:"N/A",just:"Nao aplicavel"},{q:"Ha necessidade de notificar fornecedores?",a:"S",just:""}],obs:"",by:2,byName:"Fernanda Lima",at:"2025-01-16T11:30:00"},
      },
      actions:[],attachments:[],deadlineExtensions:[],
-     stageDeadlines:{triagem:addDays("2025-01-10",pd.triagem.days),avaliacao:addDays("2025-01-11",pd.avaliacao.days),revisao:null,plano:null,execucao:null},
+     stageDeadlines:{avaliacao_inicial:addDays("2025-01-10",pd.avaliacao_inicial.days),avaliacao_areas:addDays("2025-01-11",pd.avaliacao_areas.days),aprovacao_plano:null,montagem_plano:null,execucao:null},
      ap1By:1,ap1ByName:"Ana Paula Silva",ap1At:"2025-01-11T10:00:00",
      log:[
        {at:"2025-01-10T09:00:00",by:"Mariana Costa",type:"criacao",event:"SA criada",detail:"Tipo: Software"},
-       {at:"2025-01-11T10:00:00",by:"Ana Paula Silva",type:"triagem",event:"Triagem aprovada",detail:"Criticidade: C3 | 5 areas"},
+       {at:"2025-01-11T10:00:00",by:"Ana Paula Silva",type:"avaliacao_inicial",event:"Avaliacao inicial realizada",detail:"Criticidade: C3 | 5 areas"},
        {at:"2025-01-16T12:00:00",by:"Sistema",type:"sistema",event:"Todas as avaliacoes concluidas",detail:"Aguarda Aprovacao 2"},
      ],
      createdBy:7,createdByName:"Mariana Costa",createdAt:"2025-01-10T09:00:00"},
@@ -158,7 +158,7 @@ const mkSeed=(phaseDl)=>{
      description:"Redesign da embalagem primaria para adequacao UDI conforme RDC 751/2022",
      justification:"Requisito regulatorio ANVISA com prazo em Junho/2025",
      status:"aberta",triage:null,evaluations:{},actions:[],attachments:[],deadlineExtensions:[],
-     stageDeadlines:{triagem:addDays("2025-01-20",pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},
+     stageDeadlines:{avaliacao_inicial:addDays("2025-01-20",pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},
      log:[{at:"2025-01-20T10:00:00",by:"Mariana Costa",type:"criacao",event:"SA criada",detail:"Tipo: Alteracao de Produto"}],
      createdBy:7,createdByName:"Mariana Costa",createdAt:"2025-01-20T10:00:00"},
   ];
@@ -224,13 +224,14 @@ const mkLog=(req,by,type,event,detail)=>({...req,log:[...(req.log||[]),{at:new D
 const RC={admin:"#EF4444",evaluator:"#4F8EF7",geral:"#2DD4BF"};
 const ROLES={admin:{label:"Admin / SGQ"},evaluator:{label:"Avaliador"},geral:{label:"Geral"}};
 const REQ_ST={
-  aberta:   {label:"Aguarda Aval. Inicial", color:"#F97316",step:1},
-  avaliacao:{label:"Em Avaliacao",      color:"#F59E0B",step:2},
-  revisao:  {label:"Aguarda Aprovacao", color:"#8B5CF6",step:3},
-  plano:    {label:"Montagem do Plano de Acao", color:"#06B6D4",step:4},
-  execucao: {label:"Em Execucao",       color:"#4F8EF7",step:5},
-  concluida:{label:"Concluida",         color:"#2DD4BF",step:6},
-  cancelada:{label:"Cancelada",         color:"#EF4444",step:0},
+  aberta:            {label:"Aguarda Aval. Inicial",    color:"#F97316",step:1},
+  avaliacao_inicial: {label:"Avaliacao Inicial",        color:"#F59E0B",step:2},
+  avaliacao_areas:   {label:"Avaliacao das Areas",      color:"#FBBF24",step:3},
+  montagem_plano:    {label:"Montagem do Plano de Acao",color:"#06B6D4",step:4},
+  aprovacao_plano:   {label:"Aguarda Aprovacao",        color:"#8B5CF6",step:5},
+  execucao:          {label:"Em Execucao",              color:"#4F8EF7",step:6},
+  concluida:         {label:"Concluida",                color:"#2DD4BF",step:7},
+  cancelada:         {label:"Cancelada",                color:"#EF4444",step:0},
 };
 const validatePwd=(p,user={})=>{
   if(!p||typeof p!=="string")return"Senha obrigatoria";
@@ -442,8 +443,8 @@ function Stepper({request,C}){
     },
   ];
 
-  const stIdx={aberta:0,avaliacao:1,revisao:1,plano:2,execucao:3,concluida:4,cancelada:-1}[status]||0;
-  const gw=i=>(i===0&&status==="aberta")||(i===1&&status==="revisao")||(i===2&&status==="plano");
+  const stIdx={aberta:0,avaliacao_inicial:1,avaliacao_areas:1,montagem_plano:2,aprovacao_plano:2,execucao:3,concluida:4,cancelada:-1}[status]||0;
+  const gw=i=>(i===0&&status==="avaliacao_inicial")||(i===1&&(status==="aprovacao_plano"||status==="avaliacao_areas"))||(i===2&&(status==="montagem_plano"||status==="aprovacao_plano"));
 
   return <div style={{display:"flex",alignItems:"stretch",gap:0,marginBottom:16,overflowX:"auto"}}>
     {steps.map((st,i)=>{
@@ -498,17 +499,17 @@ function Stepper({request,C}){
 function getPhaseDeadline(r){
   if(["concluida","cancelada"].includes(r.status))return null;
   const sd=r.stageDeadlines||{};
-  if(r.status==="avaliacao"&&r.triage){
+  if(r.status==="avaliacao_areas"&&r.triage){
     const dls=(r.triage.assignedAreas||[])
       .filter(d=>!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at))
       .map(d=>r.triage.deadlines&&r.triage.deadlines[d])
       .filter(Boolean);
     if(dls.length)return dls.sort().reverse()[0];
-    return sd.avaliacao||null;
+    return sd.avaliacao_areas||null;
   }
-  // revisao: stageDeadlines.revisao so eh preenchido apos ap2 — usa maior prazo de aval como referencia
-  if(r.status==="revisao"){
-    if(sd.revisao)return sd.revisao;
+  // aprovacao_plano: usa maior prazo de aval como referencia
+  if(r.status==="aprovacao_plano"){
+    if(sd.aprovacao_plano)return sd.aprovacao_plano;
     if(r.triage){
       const dls=(r.triage.assignedAreas||[])
         .map(d=>r.triage.deadlines&&r.triage.deadlines[d]).filter(Boolean);
@@ -516,7 +517,7 @@ function getPhaseDeadline(r){
     }
     return null;
   }
-  const map={aberta:sd.triagem,plano:sd.plano,execucao:sd.execucao};
+  const map={aberta:sd.avaliacao_inicial,avaliacao_inicial:sd.avaliacao_inicial,montagem_plano:sd.montagem_plano,execucao:sd.execucao};
   return map[r.status]||null;
 }
 
@@ -929,7 +930,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   const [assigns,setAssigns]=useState((existing&&existing.assignments)||{});
   const [dls,setDls]=useState((existing&&existing.deadlines)||{});
 
-  const evalDays=(phaseDl&&phaseDl.avaliacao&&phaseDl.avaliacao.days)||7;
+  const evalDays=(phaseDl&&phaseDl.avaliacao_areas&&phaseDl.avaliacao_areas.days)||7;
 
   const getCell=(dept)=>{
     if(!crit||!matrix||!matrix[request.type]||!matrix[request.type][dept])return"";
@@ -1373,7 +1374,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
   const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
-  const prevSt={avaliacao:"aberta",revisao:"avaliacao",plano:"revisao",execucao:"plano"}[localReq.status];
+  const prevSt={avaliacao_inicial:"aberta",avaliacao_areas:"avaliacao_inicial",aprovacao_plano:"avaliacao_areas",montagem_plano:"aprovacao_plano",execucao:"montagem_plano"}[localReq.status];
   const allActsDone=(localReq.actions||[]).length>0&&(localReq.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
   const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
 
@@ -1398,7 +1399,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     const newEvs=isEdit
       ? Object.fromEntries(Object.entries(localReq.evaluations||{}).filter(([k])=>newAreas.includes(k)))
       : {};
-    const newSD={...(localReq.stageDeadlines||{}),avaliacao:isEdit?(localReq.stageDeadlines&&localReq.stageDeadlines.avaliacao||addDays(todayStr(),pd.avaliacao.days)):addDays(todayStr(),pd.avaliacao.days)};
+    const newSD={...(localReq.stageDeadlines||{}),avaliacao_areas:isEdit?(localReq.stageDeadlines&&localReq.stageDeadlines.avaliacao_areas||addDays(todayStr(),pd.avaliacao_areas.days)):addDays(todayStr(),pd.avaliacao_areas.days)};
     let detail="Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+")"+" | Areas: "+triage.assignedAreas.join(", ");
     if(isEdit){
       if(oldCrit!==triage.criticality)detail+=" | Criticidade alterada: "+oldCrit+" → "+triage.criticality;
@@ -1406,15 +1407,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       const addedAreas=newAreas.filter(a=>!oldAreas.includes(a));
       if(addedAreas.length>0)detail+=" | Areas adicionadas: "+addedAreas.join(", ");
     }
-    let r={...localReq,triage,status:isEdit?localReq.status:"avaliacao",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
-    r=mkLog(r,currentUser.name,"triagem",isEdit?"Avaliacao inicial editada pelo SGQ":"Triagem aprovada",detail);
+    let r={...localReq,triage,status:isEdit?localReq.status:"avaliacao_areas",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
+    r=mkLog(r,currentUser.name,"avaliacao_inicial",isEdit?"Avaliacao inicial editada pelo SGQ":"Avaliacao inicial realizada",detail);
     onUpdate(r);setEditTriagem(false);
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
     const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
     const allDone=aa.every(d=>evs[d]&&evs[d].at);
-    let r={...localReq,evaluations:evs,status:allDone?"revisao":"avaliacao"};
+    let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
     const simN=(answers||[]).filter(a=>a.a==="S").length;
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
@@ -1431,7 +1432,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const ap2=customDate=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const planDl=customDate||addDays(todayStr(),pd.plano.days);
-    upd({status:"plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...localReq.stageDeadlines,plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
+    upd({status:"montagem_plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),stageDeadlines:{...localReq.stageDeadlines,montagem_plano:planDl}},"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl));
   };
 
   const ap3=()=>{
@@ -1503,15 +1504,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   // ── Reabrir fase ──
   const doReopenPhase=(toPhase,motive)=>{
     const patchMap={
-      aberta:  {status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null},
-      avaliacao:{status:"avaliacao",evaluations:{},ap2By:null,ap2At:null,ap3By:null,ap3At:null},
-      revisao: {status:"revisao",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
-      plano:   {status:"plano",ap3By:null,ap3At:null},
-      execucao:{status:"execucao"},
+      aberta:            {status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      avaliacao_areas:   {status:"avaliacao_areas",evaluations:{},ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      aprovacao_plano:   {status:"aprovacao_plano",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      montagem_plano:    {status:"montagem_plano",ap3By:null,ap3At:null},
+      execucao:          {status:"execucao"},
     };
     const patch=patchMap[toPhase];
     if(!patch)return;
-    const phaseLabels={aberta:"Solicitacao Aberta",avaliacao:"Avaliacao Inicial",revisao:"Avaliacoes de Impacto",plano:"Plano de Acao",execucao:"Execucao"};
+    const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
     let r={...localReq,...patch};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
     onUpdate(r);setReopenPhase(null);
@@ -1720,30 +1721,30 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             return <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:270,maxHeight:"80vh",overflowY:"auto",padding:"6px 0"}}>
 
               {/* ── FLUXO PRINCIPAL — ação do próximo passo ── */}
-              {st==="aberta"&&localReq.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
+              {(st==="aberta"||st==="avaliacao_inicial")&&localReq.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
                 <SectionLabel label="Proximo passo" color={C.accent}/>
                 <MI onClick={()=>setTriageDrawer(true)} color={C.accent} icon="→" label="Aprovar Avaliacao Inicial"/>
                 <Sep/>
               </>}
-              {st==="revisao"&&<>
+              {st==="aprovacao_plano"&&<>
                 <SectionLabel label="Proximo passo" color={C.purple}/>
                 <MI onClick={()=>setShowAp2(true)} color={C.purple} icon="✓" label="Aprovar avaliacoes — iniciar plano"/>
                 <Sep/>
               </>}
-              {st==="plano"&&(isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id))&&<>
+              {st==="montagem_plano"&&(isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id))&&<>
                 <SectionLabel label="Proximo passo" color={C.success}/>
                 <MI onClick={()=>setShowAp3(true)} color={C.success} icon="▶" label="Liberar para execucao"/>
                 <Sep/>
               </>}
 
               {/* ── EDITAR TRIAGEM — só quando status ainda é aberta/avaliacao ── */}
-              {localReq.triage&&["aberta","avaliacao"].includes(st)&&<>
+              {localReq.triage&&["aberta","avaliacao_inicial","avaliacao_areas"].includes(st)&&<>
                 <MI onClick={()=>{setEditTriagem(true);setTriageDrawer(true);}} icon="✏" label="Editar Avaliacao Inicial"/>
                 <Sep/>
               </>}
 
               {/* ── REATRIBUIR AVALIACAO — só faz sentido durante avaliacao/revisao ── */}
-              {["avaliacao","revisao"].includes(st)&&<Collapsible
+              {["avaliacao_areas","aprovacao_plano"].includes(st)&&<Collapsible
                 id="reatrib_ev" icon="👤" label="Reatribuir avaliacao" count={evsPend.length} color={C.accent}
                 items={evsPend}
                 renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
@@ -1755,7 +1756,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               />}
 
               {/* ── REABRIR AVALIACAO — só durante avaliacao/revisao se há concluídas ── */}
-              {["avaliacao","revisao"].includes(st)&&<Collapsible
+              {["avaliacao_areas","aprovacao_plano"].includes(st)&&<Collapsible
                 id="reabrir_ev" icon="↺" label="Reabrir avaliacao" count={evsDone.length} color={C.warning}
                 items={evsDone}
                 renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.warning,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
@@ -1767,7 +1768,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
               />}
 
               {/* ── REATRIBUIR ACAO — durante plano e execucao ── */}
-              {["plano","execucao"].includes(st)&&<Collapsible
+              {["montagem_plano","execucao"].includes(st)&&<Collapsible
                 id="reatrib_ac" icon="👤" label="Reatribuir acao" count={acsMov.length} color={C.accent}
                 items={acsMov}
                 renderItem={ac=><button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
@@ -1834,7 +1835,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         <div style={{position:"absolute",top:16,left:"10%",right:"10%",height:4,background:C.border,borderRadius:4,zIndex:0}}/>
         {[
           {l:"Solicitacao Aberta",   done:statusIdx>=1, active:statusIdx===0},
-          {l:"Avaliacao Inicial",    done:statusIdx>=3, active:statusIdx===1||statusIdx===2, waiting:statusIdx===2},
+          {l:"Aval. Inicial",    done:statusIdx>=3, active:statusIdx===1||statusIdx===2, waiting:statusIdx===2},
           {l:"Avaliacoes de Impacto",done:statusIdx>=3&&doneEv===aa.length&&aa.length>0, active:statusIdx===1||statusIdx===2, pend:aa.length>0&&doneEv<aa.length?aa.length-doneEv:0},
           {l:"Plano de Acao",        done:statusIdx>=5||allActsDone, active:statusIdx===3||statusIdx===4},
           {l:"Conclusao",            done:statusIdx===5, active:statusIdx===4||allActsDone},
@@ -1920,8 +1921,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       </div>}
       {/* Anexos */}
       <FieldCard label="Anexos da Solicitacao" wide>
-        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} readOnly={!["aberta","avaliacao"].includes(localReq.status)} stage={localReq.status} currentUser={currentUser} C={C}/>
-        {!["aberta","avaliacao"].includes(localReq.status)&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Fase encerrada — use a secao "Anexos do Registro" abaixo para gerenciar.</div>}
+        <AttachmentsPanel attachments={localReq.attachments||[]} onAdd={addAttachment} readOnly={!["aberta","avaliacao_inicial","avaliacao_areas"].includes(localReq.status)} stage={localReq.status} currentUser={currentUser} C={C}/>
+        {!["aberta","avaliacao_inicial","avaliacao_areas"].includes(localReq.status)&&<div style={{fontSize:11,color:C.muted,marginTop:4,fontStyle:"italic"}}>Fase encerrada — use a secao "Anexos do Registro" abaixo para gerenciar.</div>}
       </FieldCard>
     </SecCard>
 
@@ -1997,7 +1998,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
                 const dl=localReq.triage&&localReq.triage.deadlines&&localReq.triage.deadlines[dept];
                 const isMe=u&&u.id===currentUser.id;
-                const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(localReq.status);
+                const canAct=(isMe||isAdmin)&&["avaliacao_areas","aprovacao_plano"].includes(localReq.status);
                 const isExp=!!evalOpen[dept];
                 const ov=isOD(dl,done?"concluida":"");
                 const stColor=done?C.success:draft?C.accent:ov?C.danger:C.muted;
@@ -2033,15 +2034,15 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="plano" title={"Plano de Acao"+(localReq.actions&&localReq.actions.length?" ("+localReq.actions.length+" acoes)":"")}>
       {(()=>{
-        const inPlano=localReq.status==="plano";
+        const inPlano=localReq.status==="montagem_plano";
         const canSeePlano=isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id);
-        if(!["plano","execucao","concluida"].includes(localReq.status))
+        if(!["montagem_plano","execucao","concluida"].includes(localReq.status))
           return <div style={{fontSize:14,color:C.muted}}>Disponivel apos aprovacao das avaliacoes de impacto.</div>;
         if(inPlano&&!canSeePlano)
           return <div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>O plano esta sendo montado. Voce tera acesso apos a liberacao para execucao.</div>;
         return <div>
           <div style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:canPlan&&localReq.status==="plano"?12:0}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:canPlan&&localReq.status==="montagem_plano"?12:0}}>
               <div style={{border:"1px solid "+C.border,borderRadius:10,padding:"10px 16px",background:C.card,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
                 <div>
                   <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
@@ -2054,11 +2055,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {canPlan&&localReq.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+                {canPlan&&localReq.status==="montagem_plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
                 {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
               </div>
             </div>
-            {canPlan&&localReq.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+            {canPlan&&localReq.status==="montagem_plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
                 <div style={{fontSize:12,color:C.muted,marginTop:2}}>{(localReq.actions||[]).length} acao{(localReq.actions||[]).length!==1?"es":""} adicionada{(localReq.actions||[]).length!==1?"s":""}. Quando o plano estiver pronto, libere para execucao.</div>
@@ -2174,7 +2175,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           <thead><tr><Th w="160px">Data / Hora</Th><Th w="140px">Por</Th><Th w="100px">Tipo</Th><Th>Evento</Th><Th>Detalhe</Th></tr></thead>
           <tbody>
             {(localReq.log||[]).slice().reverse().map((e,i)=>{
-              const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
+              const tc={avaliacao_inicial:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
               return <tr key={i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
                 <Td muted><span style={{fontSize:13}}>{fmt(e.at)}</span></Td>
                 <Td muted><span style={{fontSize:13}}>{e.by}</span></Td>
@@ -2310,7 +2311,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const done=!!(ev&&ev.at);
         const u=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
         const isMe=u&&u.id===currentUser.id;
-        const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(localReq.status);
+        const canAct=(isMe||isAdmin)&&["avaliacao_areas","aprovacao_plano"].includes(localReq.status);
         // Avaliacao concluida = somente leitura para todos. Para alterar, usar "Reabrir avaliacao" no menu SGQ.
         return <TaskDrawer open={true} onClose={closeDrawer} title={dept} subtitle={(done?"Concluida por "+ev.byName+" em "+fmt(ev.at):"Avaliacao pendente")+(u?" · Responsavel: "+u.name:"")} C={C}>
           {done
@@ -2339,10 +2340,10 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const actsVisible=localReq.status==="execucao"?acts:acts; // all during plano
         return <TaskDrawer open={true} onClose={closeDrawer}
           title="Plano de Acao"
-          subtitle={(acts.length+" acao"+(acts.length!==1?"es":""))+" · "+(localReq.status==="plano"?"Em montagem":"Em execucao")}
+          subtitle={(acts.length+" acao"+(acts.length!==1?"es":""))+" · "+(localReq.status==="montagem_plano"?"Em montagem":"Em execucao")}
           C={C}>
           {/* Banner liberar */}
-          {canPlan&&localReq.status==="plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          {canPlan&&localReq.status==="montagem_plano"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:C.success}}>Plano em montagem</div>
               <div style={{fontSize:12,color:C.muted,marginTop:2}}>{acts.length} acao{acts.length!==1?"es":""} adicionada{acts.length!==1?"s":""}.</div>
@@ -2358,7 +2359,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                 const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
                 onUpdate(r);
               }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
-              {canPlan&&localReq.status==="plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
+              {canPlan&&localReq.status==="montagem_plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
               {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
             </div>
           </div>
@@ -2386,7 +2387,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     <span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted}}>📅 {fmtD(ac.deadline)}</span>
                     {ac.obs&&<span>📝 {ac.obs.slice(0,40)}{ac.obs.length>40?"...":""}</span>}
                   </div>
-                  {canPlan&&localReq.status==="plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
+                  {canPlan&&localReq.status==="montagem_plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
                     <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setEditAc(ac)}>Editar</button>
                     <button style={{...Sg.btn("danger"),fontSize:11,padding:"3px 8px"}} onClick={()=>setConfirmRemoveAc(ac)}>Excluir</button>
                   </div>}
@@ -2463,17 +2464,17 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             :<>{isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao (SGQ)</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {localReq.status==="plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
+              {localReq.status==="montagem_plano"&&<button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
                 setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
                 setDrawerEditing(true);
               }}>✏ Editar</button>}
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>
-              {localReq.status==="plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
+              {localReq.status==="montagem_plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
               {localReq.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
             </div>
           </div>}
-          {canPlan&&localReq.status==="plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
+          {canPlan&&localReq.status==="montagem_plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Gerenciar acao</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{
@@ -2504,7 +2505,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {showAp2&&<Modal open={showAp2} onClose={()=>setShowAp2(false)} title="Aprovar Avaliacoes — Iniciar Plano" width={420}>
       <div style={{fontSize:13,color:C.muted,marginBottom:14}}>Confirme o prazo para montagem do plano de acoes.</div>
       <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo para o Plano *</label>
-      <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
+      <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.montagem_plano&&phaseDl.montagem_plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp2(false)}>Cancelar</button>
         <button style={Sg.btn("success")} onClick={()=>{ap2(ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5));setShowAp2(false);}}>Confirmar</button>
@@ -2681,7 +2682,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
   const buildTasks=()=>{
     const tasks=[];
     requests.forEach(r=>{
-      if(["avaliacao","revisao"].includes(r.status)){
+      if(["avaliacao_areas","aprovacao_plano"].includes(r.status)){
         const aa=(r.triage&&r.triage.assignedAreas)||[];
         aa.forEach(dept=>{
           const assignedId=r.triage&&r.triage.assignments&&r.triage.assignments[dept];
@@ -2718,7 +2719,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
       const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
       const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
       const isAdmin=hasPerm(currentUser,'triagem.aprovar');
-      const canAct=(isMe||isAdmin)&&["avaliacao","revisao"].includes(r.status);
+      const canAct=(isMe||isAdmin)&&["avaliacao_areas","aprovacao_plano"].includes(r.status);
       const saveEval=(dept,answers,obs,atts)=>{
         const ev2={answers,obs,atts:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()};
         const newEvs={...(r.evaluations||{}),[dept]:ev2};
@@ -2849,10 +2850,10 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   const getCrit=v=>crits.find(c=>c.v===v);
 
   const aprovSGQ=isAdmin?[
-    ...requests.filter(r=>r.status==="aberta").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aval. Inicial",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>r.status==="revisao").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>r.status==="plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>r.status==="plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="aberta"||r.status==="avaliacao_inicial").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aval. Inicial",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="aprovacao_plano").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="montagem_plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="montagem_plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
   ]:[];
 
   const pendExt=isAdmin?requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")):[];
@@ -2860,7 +2861,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   // Analises — prazo específico da área do avaliador
   const analises=[];
   requests.forEach(r=>{
-    if(r.status!=="avaliacao"||!r.triage)return;
+    if(!(["avaliacao_areas","aprovacao_plano"].includes(r.status))||!r.triage)return;
     (r.triage.assignedAreas||[]).forEach(dept=>{
       if(r.triage.assignments&&r.triage.assignments[dept]!==currentUser.id)return;
       if(r.evaluations&&r.evaluations[dept]&&r.evaluations[dept].at)return;
@@ -2880,7 +2881,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
   
   // SAs aguardando aprovacao do plano (responsavel pelo plano ou admin)
   const planosAguardando=requests.filter(r=>
-    r.status==="plano"&&
+    r.status==="montagem_plano"&&
     parseInt(r.planResponsible)===parseInt(currentUser.id)
   );
 
@@ -3649,6 +3650,12 @@ const ALL_PERMS_META = [
     {id:"matrix",     label:"Matriz de impacto"},
     {id:"users",      label:"Usuários"},
     {id:"log",        label:"Auditoria"},
+  ]},
+  {section:"Acoes de SA", items:[
+    {id:"sa.avaliacao_inicial", label:"Realizar avaliacao inicial (SGQ)"},
+    {id:"sa.aprovacao_plano",   label:"Aprovar plano de acao (SGQ)"},
+    {id:"sa.concluir",         label:"Concluir SA (SGQ)"},
+    {id:"sa.cancelar",         label:"Cancelar SA (SGQ)"},
   ]},
   {section:"Solicitações de Alteração", items:[
     {id:"sa.criar",      label:"Criar nova SA"},
