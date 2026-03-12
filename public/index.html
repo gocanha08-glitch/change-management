@@ -692,7 +692,7 @@ function AttachmentsPanel({attachments,onAdd,onRemove,readOnly,stage,currentUser
 // CRIT EDITOR — admin cria/edita/remove niveis livremente
 // ================================================================
 function CritEditor({crits,currentUser,onSave}){
-  const isAdmin=hasPerm(currentUser,'triagem.aprovar');
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const {C}=useTheme();const Sg=mkSg(C);
   const [local,setLocal]=useState(()=>crits.map(c=>({...c})));
   const [saved,setSaved]=useState(false);
@@ -1366,7 +1366,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const togSec=id=>setOpenSec(o=>({...o,[id]:!o[id]}));
 
   // ── Derived ──────────────────────────────────────────────────────
-  const isAdmin=hasPerm(currentUser,'config.prazos');
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const cr=crits.find(c=>c.v===(localReq.triage&&localReq.triage.criticality));
   const st=REQ_ST[localReq.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
@@ -1721,7 +1721,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
             return <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.card,border:"1px solid "+C.border,borderRadius:10,boxShadow:"0 8px 32px #0006",zIndex:200,minWidth:270,maxHeight:"80vh",overflowY:"auto",padding:"6px 0"}}>
 
               {/* ── FLUXO PRINCIPAL — ação do próximo passo ── */}
-              {(st==="aberta"||st==="avaliacao_inicial")&&localReq.triage&&hasPerm(currentUser,"triagem.aprovar")&&<>
+              {(st==="aberta"||st==="avaliacao_inicial")&&localReq.triage&&hasPerm(currentUser,"sa.avaliacao_inicial")&&<>
                 <SectionLabel label="Proximo passo" color={C.accent}/>
                 <MI onClick={()=>setTriageDrawer(true)} color={C.accent} icon="→" label="Aprovar Avaliacao Inicial"/>
                 <Sep/>
@@ -2718,7 +2718,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
       const done=!!(ev&&ev.at);
       const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
       const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
-      const isAdmin=hasPerm(currentUser,'triagem.aprovar');
+      const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
       const canAct=(isMe||isAdmin)&&["avaliacao_areas","aprovacao_plano"].includes(r.status);
       const saveEval=(dept,answers,obs,atts)=>{
         const ev2={answers,obs,atts:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()};
@@ -2845,7 +2845,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
 // ================================================================
 function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenAction,onNew}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const isAdmin=hasPerm(currentUser,'grupos.gerenciar');
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const h=new Date().getHours(),nome=currentUser.name.split(" ")[0];
   const getCrit=v=>crits.find(c=>c.v===v);
 
@@ -3651,37 +3651,13 @@ const ALL_PERMS_META = [
     {id:"users",      label:"Usuários"},
     {id:"log",        label:"Auditoria"},
   ]},
-  {section:"Acoes de SA", items:[
-    {id:"sa.avaliacao_inicial", label:"Realizar avaliacao inicial (SGQ)"},
-    {id:"sa.aprovacao_plano",   label:"Aprovar plano de acao (SGQ)"},
+  {section:"Solicitações de Alteração (SA)", items:[
+    {id:"sa.criar",            label:"Abrir nova SA"},
+    {id:"sa.ver_todas",        label:"Ver SAs de todas as áreas"},
+    {id:"sa.avaliacao_inicial",label:"Realizar avaliação inicial (SGQ)"},
+    {id:"sa.aprovacao_plano",  label:"Aprovar plano de ação (SGQ)"},
     {id:"sa.concluir",         label:"Concluir SA (SGQ)"},
     {id:"sa.cancelar",         label:"Cancelar SA (SGQ)"},
-  ]},
-  {section:"Solicitações de Alteração", items:[
-    {id:"sa.criar",      label:"Criar nova SA"},
-    {id:"sa.cancelar",   label:"Cancelar SA"},
-    {id:"sa.ver_todas",  label:"Ver SAs de todas as áreas"},
-    {id:"sa.anexar",     label:"Anexar arquivos"},
-  ]},
-  {section:"Triagem", items:[
-    {id:"triagem.executar", label:"Executar triagem (criticidade, áreas, prazos)"},
-    {id:"triagem.aprovar",  label:"Aprovar triagem"},
-  ]},
-  {section:"Avaliação de Impacto", items:[
-    {id:"avaliacao.responder",   label:"Responder avaliação da área"},
-    {id:"avaliacao.revisar",     label:"Revisar e aprovar avaliações (AP1/AP2)"},
-    {id:"avaliacao.reatribuir",  label:"Reatribuir avaliador"},
-  ]},
-  {section:"Plano de Ação", items:[
-    {id:"plano.montar",        label:"Montar plano de ação"},
-    {id:"plano.aprovar",       label:"Aprovar plano (AP3)"},
-    {id:"plano.atribuir_resp", label:"Atribuir responsável pelo plano"},
-  ]},
-  {section:"Execução", items:[
-    {id:"acao.concluir",      label:"Concluir ação"},
-    {id:"acao.solicitar_ext", label:"Solicitar extensão de prazo"},
-    {id:"prazo.aprovar_ext",  label:"Aprovar/rejeitar extensão de prazo"},
-    {id:"prazo.alterar_direto",label:"Alterar prazo diretamente"},
   ]},
   {section:"Configurações do Sistema", items:[
     {id:"config.criticidades", label:"Editar criticidades"},
@@ -4489,7 +4465,7 @@ function IndicatorsPage({requests,allUsers,crits}){
 // ================================================================
 function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const isAdmin=hasPerm(currentUser,'triagem.aprovar');
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const [selDept,setSD]=useState(ALL_DEPTS[0]);
   const [localQ,setLQ]=useState(()=>{
     const base={};
@@ -4615,7 +4591,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
 // SETTINGS PAGE — includes phase deadlines editor + theme + pwd
 // ================================================================
 function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,setTheme}){
-  const isAdmin=hasPerm(currentUser,'config.prazos');
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const {C}=useTheme();const Sg=mkSg(C);
   const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
   const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
@@ -4909,7 +4885,7 @@ const loadAll = async () => {
   };
 
   // ---- Derived ----
-  const isAdmin = loggedIn && (hasPerm(loggedIn,'triagem.aprovar') || hasPerm(loggedIn,'avaliacao.revisar'));
+  const isAdmin = loggedIn && hasPerm(loggedIn,'sa.avaliacao_inicial');
   const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
   const selected = requests.find(r => r.id === selId);
 
@@ -4983,7 +4959,7 @@ const loadAll = async () => {
   }, [loggedIn]);
 
   // ---- Nav items ----
-  const pendAps = isAdmin ? requests.filter(r=>['aberta','revisao'].includes(r.status)).length : 0;
+  const pendAps = isAdmin ? requests.filter(r=>['aberta','avaliacao_inicial','aprovacao_plano'].includes(r.status)).length : 0;
   const pendEv  = loggedIn ? requests.filter(r=>r.status==='avaliacao'&&(r.triage&&r.triage.assignedAreas||[]).some(d=>{const asgn=r.triage&&r.triage.assignments&&r.triage.assignments[d];return asgn===loggedIn.id&&!(r.evaluations&&r.evaluations[d]&&r.evaluations[d].at);})).length : 0;
   const pendAcs = loggedIn ? requests.filter(r=>(r.actions||[]).some(a=>a.responsible===loggedIn.id&&!['concluida','cancelada'].includes(a.status))).length : 0;
   const pendExt = isAdmin ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
@@ -5067,7 +5043,7 @@ const loadAll = async () => {
       {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
-      {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{triagem:addDays(todayStr(),pd.triagem.days),avaliacao:null,revisao:null,plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
+      {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
       {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
