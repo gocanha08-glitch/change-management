@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.5";
+const APP_VERSION = "10.3.6";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -3640,10 +3640,10 @@ const PERFIS={
 // ══════════════════════════════════════════════════════════════
 const ALL_PERMS_META = [
   {section:"Telas administrativas", items:[
-    {id:"indicators", label:"Indicadores"},
-    {id:"users",      label:"Usuários"},
-    {id:"grupos.gerenciar", label:"Grupos"},
-    {id:"auditoria.ver",    label:"Auditoria"},
+    {id:"indicators",    label:"Indicadores"},
+    {id:"users",         label:"Usuários"},
+    {id:"grupos.ver",    label:"Grupos (visualizar)"},
+    {id:"auditoria.ver", label:"Auditoria"},
   ]},
   {section:"Solicitações de Alteração (SA)", items:[
     {id:"sa.criar",            label:"Abrir nova SA"},
@@ -3660,6 +3660,7 @@ const ALL_PERMS_META = [
     {id:"config.prazos",       label:"Editar prazos por etapa"},
     {id:"usuarios.gerenciar",  label:"Gerenciar usuários"},
     {id:"usuarios.importar",   label:"Importar usuários via Excel"},
+    {id:"grupos.gerenciar",    label:"Gerenciar grupos"},
   ]},
 ];
 
@@ -4804,6 +4805,33 @@ const loadAll = async () => {
     return null; // no error
   };
 
+  // Atualiza permissões do usuário em segundo plano a cada 2 minutos
+  // Assim mudanças de grupo refletem sem precisar de logout
+  useEffect(() => {
+    if (!loggedIn) return;
+    const refreshPerms = async () => {
+      try {
+        const fresh = await apiGet('/api/users/me');
+        if (fresh && fresh.id) {
+          setLI(prev => {
+            if (!prev || prev.id !== fresh.id) return prev;
+            const updated = {
+              ...prev,
+              permissions: fresh.permissions,
+              groups: fresh.groups,
+              groupIds: fresh.groupIds
+            };
+            sessionStorage.setItem('cm_user', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      } catch(e) { /* silencioso — nao interrompe o usuario */ }
+    };
+    refreshPerms(); // roda imediatamente ao logar
+    const t = setInterval(refreshPerms, 2 * 60 * 1000); // a cada 2 minutos
+    return () => clearInterval(t);
+  }, [loggedIn?.id]);
+
   const logout = () => {
     sessionStorage.removeItem('cm_token');
     sessionStorage.removeItem('cm_user');
@@ -4966,7 +4994,7 @@ const loadAll = async () => {
     {id:"settings",   label:"Meu Perfil", badge:isAdmin?(pendExt||0):0},
     {id:"matrix",    label:"Matriz",       badge:0},
     ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
-    ...(hasPerm(loggedIn,'grupos.gerenciar')?[{id:"grupos",   label:"Grupos",       badge:0,adm:true}]:[]),
+    ...((hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))?[{id:"grupos", label:"Grupos", badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'auditoria.ver')  ?[{id:"log",       label:"Auditoria",    badge:0,adm:true}]:[]),
   ];
 
@@ -5043,7 +5071,7 @@ const loadAll = async () => {
       {view==='users'     &&hasPerm(loggedIn,'usuarios.gerenciar')&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
-      {view==='grupos'    &&isSuperAdmin&&<GroupManager currentUser={loggedIn} C={C}/>}
+      {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C}/>}
     </div>
   </div>;
 }
