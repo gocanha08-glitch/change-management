@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.7";
+const APP_VERSION = "10.3.8";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -3664,7 +3664,7 @@ const ALL_PERMS_META = [
   ]},
 ];
 
-function GroupManager({currentUser,C:Cprop}){
+function GroupManager({currentUser,C:Cprop,canManage=false}){
   const {C:Ctx}=useTheme();const C=Cprop||Ctx;const Sg=mkSg(C);
   const [groups,setGroups]=React.useState([]);
   const [loading,setLoading]=React.useState(true);
@@ -3797,7 +3797,7 @@ function GroupManager({currentUser,C:Cprop}){
         <h2 style={{margin:0,fontSize:20,fontWeight:700,color:C.text}}>Grupos e Permissões</h2>
         <div style={{fontSize:12,color:C.muted,marginTop:4}}>{groups.length} grupos cadastrados</div>
       </div>
-      <button onClick={openNew} style={{padding:"8px 18px",borderRadius:7,border:"none",background:"#2563EB",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+ Novo Grupo</button>
+      {canManage&&<button onClick={openNew} style={{padding:"8px 18px",borderRadius:7,border:"none",background:"#2563EB",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+ Novo Grupo</button>}
     </div>
 
     {err&&<div style={{marginBottom:16,padding:"8px 12px",borderRadius:7,background:"#FEE2E2",color:"#DC2626",fontSize:12}}>{err}</div>}
@@ -3813,10 +3813,10 @@ function GroupManager({currentUser,C:Cprop}){
           {g.description&&<div style={{fontSize:12,color:C.muted,marginBottom:6}}>{g.description}</div>}
           <div style={{fontSize:11,color:C.muted}}>{Array.isArray(g.permissions)?g.permissions.length:0} permissões</div>
         </div>
-        <div style={{display:"flex",gap:8}}>
+        {canManage&&<div style={{display:"flex",gap:8}}>
           <button onClick={()=>openEdit(g)} style={{padding:"6px 14px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.text,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Editar</button>
           <button onClick={()=>setConfirmDel(g)} style={{padding:"6px 14px",borderRadius:6,border:"none",background:"#FEE2E2",color:"#DC2626",cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>Excluir</button>
-        </div>
+        </div>}
       </div>)}
     </div>
 
@@ -4498,7 +4498,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const isModified=JSON.stringify(qs)!==JSON.stringify(defaultQs);
 
   return <div style={{padding:"18px 22px",maxWidth:860}}>
-    {!isAdmin&&<div style={{marginBottom:12,padding:"10px 16px",background:C.accent+"11",border:"1px solid "+C.accent+"33",borderRadius:8,fontSize:13,color:C.muted}}>Visualizacao apenas — somente SGQ pode editar.</div>}
+    {!isAdmin&&<div style={{marginBottom:12,padding:"10px 16px",background:C.accent+"11",border:"1px solid "+C.accent+"33",borderRadius:8,fontSize:13,color:C.muted}}>Visualizacao apenas — sem permissao para editar.</div>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:10}}>
       <div>
         <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Perguntas de Avaliacao</h1>
@@ -5071,7 +5071,7 @@ const loadAll = async () => {
       {view==='users'     &&(hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar'))&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} canManage={hasPerm(loggedIn,'usuarios.gerenciar')} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
-      {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C}/>}
+      {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C} canManage={hasPerm(loggedIn,'grupos.gerenciar')}/>}
     </div>
   </div>;
 }
