@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.6";
+const APP_VERSION = "10.3.7";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -3830,7 +3830,7 @@ function GroupManager({currentUser,C:Cprop}){
   </div>;
 }
 
-function UserManager({users,currentUser,onSave,addSysLog}){
+function UserManager({users,currentUser,onSave,addSysLog,canManage=false}){
   const {C}=useTheme();const Sg=mkSg(C);
   const [lu,setLU]=useState(()=>users.map(u=>({...u})));
   const [tab,setTab]=useState("lista"); // lista | novo | import
@@ -3966,8 +3966,8 @@ const saveEdit=async()=>{
       </div>
       <div style={{display:"flex",gap:7}}>
         <button style={{...Sg.btn(tab==="lista"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("lista")}>Lista</button>
-        <button style={{...Sg.btn(tab==="novo"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("novo")}>+ Novo</button>
-        <button style={{...Sg.btn(tab==="import"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("import")}>↑ Importar Excel</button>
+        {canManage&&<button style={{...Sg.btn(tab==="novo"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("novo")}>+ Novo</button>}
+        {canManage&&hasPerm(currentUser,'usuarios.importar')&&<button style={{...Sg.btn(tab==="import"?"primary":""),fontSize:12,padding:"5px 12px"}} onClick={()=>setTab("import")}>↑ Importar Excel</button>}
       </div>
     </div>
 
@@ -4015,8 +4015,8 @@ const saveEdit=async()=>{
               <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(u.groups&&u.groups.length>0)?u.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||"#6366F1"}/>):<Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>}</div>,
               <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>,
               <div style={{display:"flex",gap:5}}>
-                <button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async(e)=>{e.stopPropagation();let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e2){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>
-                {u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();setCD(u);}}>Desativar</button>}
+                {canManage&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async(e)=>{e.stopPropagation();let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e2){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>}
+                {canManage&&u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();setCD(u);}}>Desativar</button>}
                 {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();reactivate(u.id);}}>Reativar</button>}
               </div>
             ]
@@ -5068,7 +5068,7 @@ const loadAll = async () => {
       {view==='matrix'    &&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
-      {view==='users'     &&hasPerm(loggedIn,'usuarios.gerenciar')&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
+      {view==='users'     &&(hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar'))&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} canManage={hasPerm(loggedIn,'usuarios.gerenciar')} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
       {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C}/>}
