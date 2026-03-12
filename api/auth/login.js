@@ -1,4 +1,4 @@
-// api/auth/login.js
+// api/auth/login.js — v10.3.2
 const { sql } = require('../../lib/db');
 const { signToken } = require('../../lib/auth');
 const bcrypt = require('bcryptjs');
@@ -24,10 +24,10 @@ module.exports = async (req, res) => {
     const valid = await bcrypt.compare(password, user.pwd_hash);
     if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
 
-    // Buscar grupos e permissions via user_roles + roles
+    // Buscar grupos e permissões atualizados do banco
     let permissions = [];
     let groupIds = [];
-    let groups = []; // [{id, name}] para exibição no badge
+    let groups = [];
     try {
       const roleRows = await sql`
         SELECT r.id, r.name, r.permissions
@@ -53,11 +53,13 @@ module.exports = async (req, res) => {
       evalDepts: user.eval_depts || [],
       permissions,
       groupIds,
-      groups  // usado no badge do sidebar
+      groups
     };
 
-    const token = signToken(user);
+    // ✅ signToken recebe userData com permissions incluídas
+    const token = signToken(userData);
     return res.json({ token, user: userData });
+
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: 'Erro interno' });
