@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.2";
+const APP_VERSION = "10.3.3";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -692,7 +692,7 @@ function AttachmentsPanel({attachments,onAdd,onRemove,readOnly,stage,currentUser
 // CRIT EDITOR — admin cria/edita/remove niveis livremente
 // ================================================================
 function CritEditor({crits,currentUser,onSave}){
-  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
+  const isAdmin=hasPerm(currentUser,'config.criticidades');
   const {C}=useTheme();const Sg=mkSg(C);
   const [local,setLocal]=useState(()=>crits.map(c=>({...c})));
   const [saved,setSaved]=useState(false);
@@ -4454,7 +4454,7 @@ function IndicatorsPage({requests,allUsers,crits}){
 // ================================================================
 function QuestionsEditor({deptQuestions,currentUser,onSave}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
+  const isAdmin=hasPerm(currentUser,'config.perguntas');
   const [selDept,setSD]=useState(ALL_DEPTS[0]);
   const [localQ,setLQ]=useState(()=>{
     const base={};
@@ -4580,7 +4580,7 @@ function QuestionsEditor({deptQuestions,currentUser,onSave}){
 // SETTINGS PAGE — includes phase deadlines editor + theme + pwd
 // ================================================================
 function Settings({currentUser,phaseDl,onChangePwd,onSavePhaseDl,onLogout,theme,setTheme}){
-  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
+  const isAdmin=hasPerm(currentUser,'config.prazos');
   const {C}=useTheme();const Sg=mkSg(C);
   const [cur,setCur]=useState("");const [n1,setN1]=useState("");const [n2,setN2]=useState("");
   const [msg,setMsg]=useState("");const [pwdErr,setPwdErr]=useState("");
@@ -5034,7 +5034,7 @@ const loadAll = async () => {
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
-      {view==='matrix'    &&isAdmin&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
+      {view==='matrix'    &&hasPerm(loggedIn,'config.matriz')&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
       {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
