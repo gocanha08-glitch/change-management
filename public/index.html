@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.0";
+const APP_VERSION = "10.3.2";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -2090,7 +2090,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
                     const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
                     const resp=getU(ac.responsible);
                     const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
-                    const canAct=isMine&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+                    const canAct=(isMine||isAdmin)&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
                     const isExp=expandedAc[ac.id];
                     const hasExpContent=canAct||((canPlan||isAdmin)&&!["concluida","cancelada"].includes(ac.status));
                     return <React.Fragment key={ac.id}>
@@ -2401,7 +2401,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
         const ac=(localReq.actions||[]).find(a=>a.id===drawer.ac.id)||drawer.ac;
         const resp=allUsers.find(u=>u.id===parseInt(ac.responsible));
         const isMine=parseInt(ac.responsible)===parseInt(currentUser.id);
-        const canAct=isMine&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
+        const canAct=(isMine||isAdmin)&&localReq.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
         const ov=isOD(ac.deadline,ac.status);
         const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
         if(drawerEditing) return <TaskDrawer open={true} onClose={()=>setDrawerEditing(false)} title={"Editar: "+ac.id} C={C}>
@@ -3638,38 +3638,27 @@ const PERFIS={
 // GROUP MANAGER — Gestão de grupos e permissões
 // ══════════════════════════════════════════════════════════════
 const ALL_PERMS_META = [
-  {section:"Telas", items:[
-    {id:"dashboard",  label:"Início / Dashboard"},
-    {id:"changes",    label:"Controles — lista de SAs"},
-    {id:"detail",     label:"Detalhe da SA"},
-    {id:"acoes",      label:"Tarefas pessoais"},
-    {id:"indicators", label:"Indicadores e gráficos"},
-    {id:"crits",      label:"Criticidade (C1–C4)"},
-    {id:"perguntas",  label:"Perguntas por área"},
-    {id:"settings",   label:"Configurações"},
-    {id:"matrix",     label:"Matriz de impacto"},
+  {section:"Telas administrativas", items:[
+    {id:"indicators", label:"Indicadores"},
     {id:"users",      label:"Usuários"},
-    {id:"log",        label:"Auditoria"},
+    {id:"grupos.gerenciar", label:"Grupos"},
+    {id:"auditoria.ver",    label:"Auditoria"},
   ]},
   {section:"Solicitações de Alteração (SA)", items:[
     {id:"sa.criar",            label:"Abrir nova SA"},
     {id:"sa.ver_todas",        label:"Ver SAs de todas as áreas"},
-    {id:"sa.avaliacao_inicial",label:"Realizar avaliação inicial (SGQ)"},
-    {id:"sa.aprovacao_plano",  label:"Aprovar plano de ação (SGQ)"},
-    {id:"sa.concluir",         label:"Concluir SA (SGQ)"},
-    {id:"sa.cancelar",         label:"Cancelar SA (SGQ)"},
+    {id:"sa.avaliacao_inicial",label:"Realizar avaliação inicial"},
+    {id:"sa.aprovacao_plano",  label:"Aprovar plano de ação"},
+    {id:"sa.concluir",         label:"Concluir SA"},
+    {id:"sa.cancelar",         label:"Cancelar SA"},
   ]},
   {section:"Configurações do Sistema", items:[
     {id:"config.criticidades", label:"Editar criticidades"},
-    {id:"config.perguntas",    label:"Editar perguntas"},
+    {id:"config.perguntas",    label:"Editar perguntas por área"},
     {id:"config.matriz",       label:"Editar matriz de impacto"},
     {id:"config.prazos",       label:"Editar prazos por etapa"},
-  ]},
-  {section:"Usuários e Grupos", items:[
-    {id:"usuarios.gerenciar", label:"Gerenciar usuários (criar, editar, desativar)"},
-    {id:"usuarios.importar",  label:"Importar usuários via Excel"},
-    {id:"grupos.gerenciar",   label:"Gerenciar grupos de permissão"},
-    {id:"auditoria.ver",      label:"Ver auditoria completa"},
+    {id:"usuarios.gerenciar",  label:"Gerenciar usuários"},
+    {id:"usuarios.importar",   label:"Importar usuários via Excel"},
   ]},
 ];
 
@@ -4969,10 +4958,10 @@ const loadAll = async () => {
     {id:"changes",    label:"Controles",     badge:0},
     {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs)||0},
     {id:"indicators", label:"Indicadores",   badge:0},
-    ...(hasPerm(loggedIn,'crits')          ?[{id:"crits",     label:"Criticidade",  badge:0}]:[]),
-    ...(hasPerm(loggedIn,'perguntas')      ?[{id:"perguntas", label:"Perguntas",    badge:0}]:[]),
+    {id:"crits",     label:"Criticidade",  badge:0},
+    {id:"perguntas", label:"Perguntas",    badge:0},
     {id:"settings",   label:"Meu Perfil", badge:isAdmin?(pendExt||0):0},
-    ...(hasPerm(loggedIn,'matrix')         ?[{id:"matrix",    label:"Matriz",       badge:0,adm:true}]:[]),
+    {id:"matrix",    label:"Matriz",       badge:0},
     ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'grupos.gerenciar')?[{id:"grupos",   label:"Grupos",       badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'auditoria.ver')  ?[{id:"log",       label:"Auditoria",    badge:0,adm:true}]:[]),
