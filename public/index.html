@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.3";
+const APP_VERSION = "10.3.5";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -728,7 +728,8 @@ function CritEditor({crits,currentUser,onSave}){
       </div>
       {isAdmin&&<div style={{display:"flex",gap:7}}>
         <button style={Sg.btn()} onClick={()=>setShowNew(v=>!v)}>+ Novo Nivel</button>
-        <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>
+        {isAdmin&&<button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>}
+      {!isAdmin&&<span style={{fontSize:12,color:'var(--muted)',padding:'6px 12px'}}>Visualização apenas — sem permissão para editar.</span>}
       </div>}
     </div>
 
@@ -3619,7 +3620,7 @@ const PERFIS={
 
   function DeptChk({user,onChange,C}){
   const {C:Ctx}=useTheme();const CC=C||Ctx;
-  if(!user.role||user.role==="geral")return null;
+  // Áreas de avaliação disponíveis para qualquer usuário
   return <div style={{marginTop:8}}>
     <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>Areas para avaliacao</label>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:3,maxHeight:150,overflowY:"auto",padding:4,border:"1px solid "+CC.border,borderRadius:7,background:CC.bg}}>
@@ -4106,6 +4107,7 @@ const saveEdit=async()=>{
 // ================================================================
 function MatrixEditor({matrix,crits,currentUser,onSave}){
   const {C}=useTheme();const Sg=mkSg(C);
+  const isAdmin=hasPerm(currentUser,'config.matriz');
   const [m,setM]=useState(()=>JSON.parse(JSON.stringify(matrix)));
   const [selType,setST]=useState(CHANGE_TYPES[0]);
   const [saved,setSaved]=useState(false);
@@ -4132,7 +4134,8 @@ function MatrixEditor({matrix,crits,currentUser,onSave}){
           Clique na celula para alternar: <span style={{color:C.warning,fontWeight:700}}>OBR</span> = obrigatorio (fixo na triagem) &nbsp;|&nbsp; <span style={{color:C.accent,fontWeight:700}}>OPC</span> = opcional (editavel) &nbsp;|&nbsp; <span style={{color:C.muted}}>—</span> = nao inclui
         </div>
       </div>
-      <button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>
+      {isAdmin&&<button style={{...Sg.btn(saved?"success":"primary"),minWidth:90}} onClick={save}>{saved?"Salvo!":"Salvar"}</button>}
+      {!isAdmin&&<span style={{fontSize:12,color:'var(--muted)',padding:'6px 12px'}}>Visualização apenas — sem permissão para editar.</span>}
     </div>
 
     <div style={{display:"flex",gap:5,marginBottom:11,flexWrap:"wrap"}}>
@@ -4154,7 +4157,7 @@ function MatrixEditor({matrix,crits,currentUser,onSave}){
             {crits.map(cr=>{
               const val=(m[selType]&&m[selType][dept]&&m[selType][dept][cr.v])||"";
               return <div key={cr.v} style={{display:"flex",alignItems:"center",justifyContent:"center",borderLeft:"1px solid "+C.border,borderTop:"1px solid "+C.border,background:di%2===0?C.card:C.surface}}>
-                <button onClick={()=>cycle(selType,dept,cr.v)}
+                <button onClick={()=>isAdmin&&cycle(selType,dept,cr.v)}
                   title={val===""?"Clique para adicionar como opcional":val==="optional"?"Opcional — clique para tornar obrigatorio":"Obrigatorio — clique para remover"}
                   style={{width:50,height:28,borderRadius:6,border:"2px solid "+cellBorder(val),background:cellBg(val),cursor:"pointer",fontSize:10,color:cellColor(val),fontWeight:700,fontFamily:"inherit",transition:"all .15s"}}>
                   {cellLabel(val)}
@@ -4597,7 +4600,7 @@ const go=async()=>{
     const err=validatePwd(n1);if(err){setPwdErr(err);return;}
     if(n1!==n2){setMsg("err:Senhas nao coincidem.");return;}
     try{
-      await apiPut('/api/users',{id:currentUser.id,name:currentUser.name,email:currentUser.email,area:currentUser.area||'',role:currentUser.role,evalDepts:currentUser.evalDepts||[],active:true,_curPwd:cur,_np:n1});
+      await apiPut('/api/users/me',{_curPwd:cur,_np:n1});
       setMsg("ok:Senha alterada com sucesso!");setCur("");setN1("");setN2("");setPwdErr("");
     }catch(e){setMsg("err:"+e.message);}
   };
@@ -4650,7 +4653,7 @@ const go=async()=>{
     </div>
 
     {/* Phase deadlines — only admin */}
-    {currentUser.role==="admin"&&<div style={{...Sg.card({marginTop:12})}}>
+    {hasPerm(currentUser,'config.prazos')&&<div style={{...Sg.card({marginTop:12})}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}>
         <div>
           <div style={{fontSize:13,fontWeight:700,color:C.text}}>Prazos Padrao por Etapa</div>
@@ -5034,10 +5037,10 @@ const loadAll = async () => {
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
-      {view==='matrix'    &&hasPerm(loggedIn,'config.matriz')&&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
+      {view==='matrix'    &&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
-      {view==='users'     &&isAdmin&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
+      {view==='users'     &&hasPerm(loggedIn,'usuarios.gerenciar')&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
       {view==='grupos'    &&isSuperAdmin&&<GroupManager currentUser={loggedIn} C={C}/>}
