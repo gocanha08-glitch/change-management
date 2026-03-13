@@ -39,6 +39,9 @@ module.exports = async (req, res) => {
     try {
       const sa = req.body;
       if (!sa || !sa.id) return res.status(400).json({ error: 'Dados invalidos' });
+      if (!sa.title || !sa.title.trim()) return res.status(400).json({ error: 'Titulo obrigatorio' });
+      if (!sa.description || !sa.description.trim()) return res.status(400).json({ error: 'Descricao obrigatoria' });
+      if (!sa.area || !sa.area.trim()) return res.status(400).json({ error: 'Area obrigatoria' });
 
       // SA criada sempre começa como 'aberta'
       sa.status = 'aberta';
