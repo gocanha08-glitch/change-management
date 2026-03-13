@@ -26,7 +26,7 @@ const {useState,useEffect,useMemo,useRef}=React;
 // ================================================================
 // CHANGE v10 — CONSTANTS & SEED DATA
 // ================================================================
-const APP_VERSION = "10.3.8";
+const APP_VERSION = "10.3.9";
 const APP_DATE = "2026-03-11";
 
 // ── Permissões ─────────────────────────────────────────────
@@ -700,7 +700,7 @@ function CritEditor({crits,currentUser,onSave}){
   const [nCrit,setNC]=useState({v:"",label:"",color:"#4F8EF7",desc:""});
   const [ncErr,setNcErr]=useState("");
 
-  const COLORS=["#2DD4BF","#F59E0B","#EF4444","#C026D3","#4F8EF7","#F97316","#8B5CF6","#06B6D4","#10B981","#F43F5E","#64748B","#FBBF24"];
+  const COLORS=["#2DD4BF","#4F8EF7","#F59E0B","#EF4444","#10B981","#8B5CF6"];
 
   const save=()=>{
     if(local.length===0){alert("Mantenha ao menos 1 nivel.");return;}
@@ -770,7 +770,7 @@ function CritEditor({crits,currentUser,onSave}){
               <label style={{...Sg.lbl,marginTop:7}}>Descricao</label>
               <input style={{...Sg.input(),opacity:isAdmin?1:.7}} value={cr.desc||""} readOnly={!isAdmin} onChange={e=>isAdmin&&upd(i,"desc",e.target.value)} placeholder="Descricao do impacto..."/>
             </div>
-            <div>
+            {isAdmin&&<div>
               <label style={Sg.lbl}>Cor</label>
               <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:6}}>
                 {COLORS.map(col=>(
@@ -781,7 +781,7 @@ function CritEditor({crits,currentUser,onSave}){
                 <input type="color" value={cr.color} onChange={e=>upd(i,"color",e.target.value)} style={{width:28,height:24,border:"none",borderRadius:3,cursor:"pointer",background:"transparent"}}/>
                 <span style={{fontSize:10,color:C.muted}}>Cor hex customizada</span>
               </div>
-            </div>
+            </div>}
             {isAdmin&&<div style={{display:"flex",flexDirection:"column",gap:5,alignItems:"center"}}>
               <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===0?.3:1}} onClick={()=>moveUp(i)} disabled={i===0} title="Mover para cima">^</button>
               <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px",opacity:i===local.length-1?.3:1}} onClick={()=>moveDown(i)} disabled={i===local.length-1} title="Mover para baixo">v</button>
