@@ -199,7 +199,8 @@ module.exports = async (req, res) => {
       }
 
       // Validar transição/permissão
-      const err = validateTransition(oldStatus, newStatus, user, currentSA);
+      // Usa newSA para ler planResponsible/assignments do body (frontend envia estado completo)
+      const err = validateTransition(oldStatus, newStatus, user, newSA);
       if (err) {
         const isForbidden = err.includes('permissão') || err.includes('vínculo');
         return res.status(isForbidden ? 403 : 400).json({ error: err });
