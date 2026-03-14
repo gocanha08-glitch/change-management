@@ -1,0 +1,14 @@
+const b = require('bcryptjs');
+const { Client } = require('pg');
+
+async function reset() {
+  const hash = await b.hash('User@123', 10);
+  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  await c.connect();
+  await c.query('UPDATE users SET pwd_hash = $1 WHERE email = $2', [hash, 'gocanha@vydence.com']);
+  console.log('Senha atualizada com sucesso!');
+  console.log('Hash:', hash);
+  await c.end();
+}
+
+reset().catch(console.error);
