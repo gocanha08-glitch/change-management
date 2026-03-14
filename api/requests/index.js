@@ -2,6 +2,7 @@
 const { sql } = require('../../lib/db');
 const { requireAuth } = require('../../lib/auth');
 const { hasPermission } = require('../../lib/permissions');
+const mailer = require('../../lib/email/mailer');
 
 const CORS = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -31,11 +32,9 @@ module.exports = async (req, res) => {
 
   // POST — criar nova SA
   if (req.method === 'POST') {
-    // Qualquer usuário autenticado com sa.criar pode abrir SA
     if (!hasPermission(perms, 'sa.criar')) {
       return res.status(403).json({ error: 'Sem permissão para criar SA' });
     }
-
     try {
       const sa = req.body;
       if (!sa || !sa.id) return res.status(400).json({ error: 'Dados invalidos' });
@@ -43,7 +42,6 @@ module.exports = async (req, res) => {
       if (!sa.description || !sa.description.trim()) return res.status(400).json({ error: 'Descricao obrigatoria' });
       if (!sa.area || !sa.area.trim()) return res.status(400).json({ error: 'Area obrigatoria' });
 
-      // SA criada sempre começa como 'aberta'
       sa.status = 'aberta';
       sa.createdBy = user.id;
 
@@ -57,6 +55,25 @@ module.exports = async (req, res) => {
           now(), now()
         )
       `;
+
+      // Buscar e-mails do SGQ para notificar
+      const sgqUsers = await sql`
+        SELECT u.email FROM users u
+        JOIN user_roles ur ON ur.user_id = u.id
+        JOIN roles r ON r.id = ur.role_id
+        WHERE r.name = 'SGQ' AND u.active = true
+      `;
+      const sgqEmails = sgqUsers.map(u => u.email);
+      if (sgqEmails.length > 0) {
+        mailer.novaSA({
+          saId: sa.id,
+          title: sa.title,
+          area: sa.area,
+          createdBy: sa.createdByName || user.name,
+          description: sa.description,
+        }, sgqEmails);
+      }
+
       return res.status(201).json({ ok: true, id: sa.id });
     } catch (err) {
       console.error('POST request error:', err);
