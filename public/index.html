@@ -1194,13 +1194,13 @@ function SignatureModal({open,onClose,onConfirm,title,description,confirmLabel,c
       onConfirm(data.signature,reason);
     }catch(e){setErr('Erro ao verificar senha');setLoading(false);}
   };
-  return <Modal open={open} onClose={onClose} title={title||"Assinatura Eletrônica"} width={460}>
+  return <Modal open={open} onClose={onClose} title={title||"Assinatura Eletronica"} width={460}>
     <div style={{padding:"10px 14px",background:C.accent+"0D",border:"1px solid "+C.accent+"33",borderRadius:8,marginBottom:14,fontSize:13,color:C.accent}}>
-      🔐 Esta ação requer confirmação de identidade. Digite sua senha para assinar eletronicamente.
+      🔐 Esta acao requer confirmacao de identidade. Digite sua senha para assinar eletronicamente.
     </div>
     {description&&<div style={{fontSize:13,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.surface,borderRadius:8}}>{description}</div>}
     <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Motivo / Justificativa *</label>
-    <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",marginBottom:12,width:"100%"}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo desta ação..."/>
+    <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",marginBottom:12,width:"100%"}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo desta acao..."/>
     <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Sua Senha *</label>
     <div style={{position:"relative",marginBottom:14}}>
       <input type={showPwd?"text":"password"} style={{...Sg.input(),paddingRight:40}} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} placeholder="Digite sua senha..." onKeyDown={e=>e.key==="Enter"&&go()}/>
@@ -1458,9 +1458,30 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       if(addedAreas.length>0)detail+=" | Areas adicionadas: "+addedAreas.join(", ");
     }
     if(signature)detail+=" | Assinado eletronicamente";
-    let r={...localReq,triage:{...triage,...(signature?{triageSignature:signature}:{})},status:isEdit?localReq.status:"avaliacao_areas",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
+    // Se SA está aberta, precisa passar por avaliacao_inicial antes de avaliacao_areas
+    // Fazemos dois updates em sequência para satisfazer a validação do backend
+    const targetStatus = isEdit ? localReq.status : "avaliacao_areas";
+    let r={...localReq,triage:{...triage,...(signature?{triageSignature:signature}:{})},status:isEdit?localReq.status:"avaliacao_inicial",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
     r=mkLog(r,currentUser.name,"avaliacao_inicial",isEdit?"Avaliacao inicial editada pelo SGQ":"Avaliacao inicial realizada",detail);
-    onUpdate(r);setEditTriagem(false);setSigModal(null);
+    if(!isEdit && localReq.status==="aberta"){
+      // Backend valida transições individuais: precisa de dois PUTs
+      // 1) aberta → avaliacao_inicial, 2) avaliacao_inicial → avaliacao_areas
+      const token=sessionStorage.getItem('cm_token');
+      const base=window.API_BASE||'';
+      const id=encodeURIComponent(localReq.id);
+      try{
+        // Primeiro PUT: aberta → avaliacao_inicial
+        await fetch(base+'/api/requests/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(r)});
+        // Segundo PUT: avaliacao_inicial → avaliacao_areas
+        const r2={...r,status:"avaliacao_areas"};
+        r2.log=[...(r.log||[]),{at:new Date().toISOString(),by:currentUser.name,type:"avaliacao_inicial",event:"SA enviada para avaliacao de areas",detail:"Areas: "+triage.assignedAreas.join(", ")}];
+        await fetch(base+'/api/requests/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(r2)});
+        setLocalReq(r2);onUpdate(r2);
+      }catch(e){alert('Erro ao salvar triagem: '+e.message);}
+    } else {
+      onUpdate(r);
+    }
+    setEditTriagem(false);setSigModal(null);
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
@@ -2191,7 +2212,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </FieldCard>
         </div>
         :isAdmin&&allActsDone
-          ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar — Encerramento da SA",desc:"SA: "+localReq.id+" — "+localReq.title,label:"Assinar e Encerrar",style:"success"})} C={C} Sg={Sg}/>
+          ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar - Encerramento da SA",desc:"SA: "+localReq.id+" - "+localReq.title,label:"Assinar e Encerrar",style:"success"})} C={C} Sg={Sg}/>
           :<div style={{fontSize:14,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
     </SecCard>
 
@@ -2359,7 +2380,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ TRIAGE DRAWER ══ */}
     {triageDrawer&&<TaskDrawer open={true} onClose={()=>setTriageDrawer(false)} title={editTriagem?"Editar Avaliacao Inicial":"Avaliacao Inicial da Mudanca"} subtitle={editTriagem?"Alteracoes ficam registradas no historico":null} C={C}>
       {editTriagem&&<div style={{marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33",fontSize:13,color:C.warning}}>Editando — areas removidas terao suas avaliacoes apagadas.</div>}
-      <TriagePanel request={localReq} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{setTriageDrawer(false);setSigModal({action:(sig)=>{saveTriage(t,editTriagem,sig);setEditTriagem(false);},title:"Assinar — Avaliação Inicial",desc:"SA: "+localReq.id+" | Criticidade: "+t.criticality+" | "+t.assignedAreas.length+" áreas",label:"Assinar e Confirmar Triagem",style:"warning"});}} C={C}/>
+      <TriagePanel request={localReq} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{setTriageDrawer(false);setSigModal({action:(sig)=>{saveTriage(t,editTriagem,sig);setEditTriagem(false);},title:"Assinar - Avaliacao Inicial",desc:"SA: "+localReq.id+" | Criticidade: "+t.criticality+" | "+t.assignedAreas.length+" areas",label:"Assinar e Confirmar Triagem",style:"warning"});}} C={C}/>
       <button style={{...Sg.btn(),marginTop:12,fontSize:12}} onClick={()=>{setTriageDrawer(false);setEditTriagem(false);}}>Cancelar</button>
     </TaskDrawer>}
 
@@ -2514,7 +2535,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </div>}
 
           {/* Form conclusao */}
-          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{setSigModal({action:(sig)=>{concludeAction(ac.id,note,att,sig);closeDrawer();},title:"Assinar — Conclusão de Ação",desc:"Ação: "+ac.id+" — "+ac.desc.slice(0,60),label:"Assinar e Concluir",style:"success"});}} request={localReq} currentUser={currentUser} C={C} Sg={Sg}/>}
+          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{setSigModal({action:(sig)=>{concludeAction(ac.id,note,att,sig);closeDrawer();},title:"Assinar - Conclusao de Acao",desc:"Acao: "+ac.id+" - "+ac.desc.slice(0,60),label:"Assinar e Concluir",style:"success"});}} request={localReq} currentUser={currentUser} C={C} Sg={Sg}/>}
 
           {/* Acoes admin/canPlan — somente se acao NAO estiver concluida/cancelada */}
           {["concluida","cancelada"].includes(ac.status)
@@ -2568,7 +2589,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.montagem_plano&&phaseDl.montagem_plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp2(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,sig);},title:"Assinar — Aprovar Avaliações",desc:"SA: "+localReq.id+" — Iniciar montagem do plano de ação",label:"Assinar e Aprovar",style:"success"});}}>Continuar →</button>
+        <button style={Sg.btn("success")} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,sig);},title:"Assinar - Aprovar Avaliacoes",desc:"SA: "+localReq.id+" - Iniciar montagem do plano de acao",label:"Assinar e Aprovar",style:"success"});}}>Continuar →</button>
       </div>
     </Modal>}
 
@@ -2577,12 +2598,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       <div style={{fontSize:13,color:C.muted,marginBottom:18}}>O plano tem <strong style={{color:C.text}}>{(localReq.actions||[]).length} acao{(localReq.actions||[]).length!==1?"es":""}</strong>. Ao confirmar, as acoes serao liberadas para execucao pelos responsaveis.</div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp3(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{setShowAp3(false);setSigModal({action:(sig)=>{ap3(sig);},title:"Assinar — Liberar para Execução",desc:"SA: "+localReq.id+" — "+((localReq.actions||[]).length)+" ações serão liberadas",label:"Assinar e Liberar",style:"success"});}}>Continuar →</button>
+        <button style={Sg.btn("success")} onClick={()=>{setShowAp3(false);setSigModal({action:(sig)=>{ap3(sig);},title:"Assinar - Liberar para Execucao",desc:"SA: "+localReq.id+" - "+((localReq.actions||[]).length)+" acoes serao liberadas",label:"Assinar e Liberar",style:"success"});}}>Continuar →</button>
       </div>
     </Modal>}
 
     {/* Cancelar SA */}
-    <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={motive=>{setShowCancel(false);setSigModal({action:(sig)=>cancelSA(motive,sig),title:"Assinar — Cancelamento da SA",desc:"SA: "+localReq.id+" — Motivo: "+motive,label:"Assinar e Cancelar",style:"danger"});}}
+    <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={motive=>{setShowCancel(false);setSigModal({action:(sig)=>cancelSA(motive,sig),title:"Assinar - Cancelamento da SA",desc:"SA: "+localReq.id+" - Motivo: "+motive,label:"Assinar e Cancelar",style:"danger"});}}
       title="Cancelar SA" confirmLabel="Continuar →" confirmStyle="danger"
       description={"SA "+localReq.id+" sera cancelada permanentemente. Esta acao nao pode ser desfeita."}
       C={C} Sg={Sg}/>
@@ -2678,7 +2699,7 @@ function ExtReqForm({onClose,onSubmit,currentDeadline,C,Sg,isAdmin}){
 
 // Extensions tab
 function ExtensionsTab({request,currentUser,allUsers,isAdmin,onDecide,onAdminChange,C,Sg}){
-  const all=localReq.deadlineExtensions||[];
+  const all=request.deadlineExtensions||[];
   const pending=all.filter(e=>e.status==="pending");
   const decided=all.filter(e=>e.status!=="pending");
   const EItem=({ext})=>{
@@ -5133,7 +5154,7 @@ const loadAll = async () => {
       {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
-      {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,area:f.area||loggedIn.area||'',status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
+      {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,area:f.area||loggedIn.area||'Administrativo',status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
       {view==='matrix'    &&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
