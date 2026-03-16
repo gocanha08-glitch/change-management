@@ -1440,7 +1440,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   // ── Actions ──────────────────────────────────────────────────────
   const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r);};
 
-  const saveTriage=(triage,isEdit,signature)=>{
+  const saveTriage=async(triage,isEdit,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const oldCrit=localReq.triage&&localReq.triage.criticality;
     const oldAreas=localReq.triage&&localReq.triage.assignedAreas||[];
