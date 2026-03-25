@@ -2,7 +2,7 @@
 // POST — verifica senha e registra assinatura eletrônica (GAMP 5)
 // GET  — retorna auditoria de assinaturas (para tela Assinaturas)
 
-const { verifyToken } = require('../../lib/auth');
+const { verifyToken, requireAuth } = require('../../lib/auth');
 const { hasPermission } = require('../../lib/permissions');
 const { query } = require('../../lib/db');
 const bcrypt = require('bcryptjs');
@@ -14,13 +14,9 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const authHeader = req.headers.authorization || '';
-  const token = authHeader.replace('Bearer ', '').trim();
-  if (!token) return res.status(401).json({ error: 'Não autenticado' });
-
-  let decoded;
-  try { decoded = verifyToken(token); }
-  catch { return res.status(401).json({ error: 'Token inválido' }); }
+  // verifyToken recebe req (não string) — padrão do lib/auth.js do projeto
+  const decoded = verifyToken(req);
+  if (!decoded) return res.status(401).json({ error: 'Não autenticado' });
 
   // ── GET: listar assinaturas (auditoria) ──────────────────────────
   if (req.method === 'GET') {
