@@ -4,7 +4,8 @@
 
 const { verifyToken, requireAuth } = require('../../lib/auth');
 const { hasPermission } = require('../../lib/permissions');
-const { query } = require('../../lib/db');
+const db = require('../../lib/db');
+const query = db.query.bind(db);
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
