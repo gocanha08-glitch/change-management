@@ -1,49 +1,94 @@
-// api/auth/verify-password.js — verifica senha para assinatura eletrônica
-const { sql } = require('../../lib/db');
-const { requireAuth } = require('../../lib/auth');
-const bcrypt = require('bcryptjs');
+// api/auth/verify-password.js
+// Verifica senha do usuário logado e registra assinatura eletrônica (GAMP 5 / 21 CFR Part 11)
+// Timestamp é SEMPRE server-side — nunca confia no cliente
 
-const CORS = (res) => {
+const { verifyToken } = require('../../lib/auth');
+const { query } = require('../../lib/db');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-};
-
-module.exports = async (req, res) => {
-  CORS(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
 
-  const user = requireAuth(req, res);
-  if (!user) return;
+  // Autenticar usuário via JWT
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) return res.status(401).json({ error: 'Não autenticado' });
 
-  const { password, reason } = req.body || {};
-  if (!password) return res.status(400).json({ error: 'Senha obrigatória' });
-  if (!reason)   return res.status(400).json({ error: 'Motivo da assinatura obrigatório' });
-
+  let decoded;
   try {
-    const rows = await sql`
-      SELECT pwd_hash FROM users WHERE id = ${user.id} AND active = true LIMIT 1
-    `;
-
-    if (!rows[0]) return res.status(401).json({ error: 'Usuário não encontrado' });
-
-    const valid = await bcrypt.compare(password, rows[0].pwd_hash);
-    if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
-
-    // Retorna dados da assinatura para o frontend registrar no log
-    const signature = {
-      signedBy: user.id,
-      signedByName: user.name,
-      signedAt: new Date().toISOString(),
-      signatureReason: reason,
-      ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
-    };
-
-    return res.json({ ok: true, signature });
-
-  } catch (err) {
-    console.error('verify-password error:', err);
-    return res.status(500).json({ error: 'Erro interno' });
+    decoded = verifyToken(token);
+  } catch {
+    return res.status(401).json({ error: 'Token inválido' });
   }
+
+  const { password, sa_id, action, action_detail, meaning } = req.body || {};
+  if (!password) return res.status(400).json({ error: 'Senha obrigatória' });
+
+  // Buscar usuário e senha hash no banco
+  const { rows } = await query(
+    'SELECT id, name, email, password_hash FROM users WHERE id = $1 AND active = true',
+    [decoded.id]
+  );
+  if (!rows.length) return res.status(401).json({ error: 'Usuário não encontrado' });
+
+  const user = rows[0];
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
+
+  // Timestamp server-side — imutável
+  const signedAt = new Date().toISOString();
+
+  // Hash de integridade: SHA256(sa_id + action + user_id + signedAt)
+  const hashInput = `${sa_id || ''}|${action || ''}|${user.id}|${signedAt}`;
+  const hash = crypto.createHash('sha256').update(hashInput).digest('hex');
+
+  // IP e user-agent para rastreabilidade
+  const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+  const ua = req.headers['user-agent'] || null;
+
+  // Gravar na tabela dedicada de assinaturas
+  let signatureId = null;
+  if (sa_id && action) {
+    try {
+      const ins = await query(
+        `INSERT INTO signatures (sa_id, action, action_detail, signed_by_id, signed_by, signed_at, ip_address, user_agent, meaning, hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [
+          sa_id,
+          action,
+          action_detail || null,
+          user.id,
+          user.name,
+          signedAt,
+          ip,
+          ua,
+          meaning || action,
+          hash,
+        ]
+      );
+      signatureId = ins.rows[0]?.id;
+    } catch (err) {
+      console.error('[verify-password] Erro ao gravar assinatura:', err.message);
+      // Não bloqueia — loga mas retorna a assinatura mesmo assim
+    }
+  }
+
+  // Objeto de assinatura retornado ao frontend (apenas para exibição/log da SA)
+  const signature = {
+    signatureId,
+    signedById: user.id,
+    signedByName: user.name,
+    signedByEmail: user.email,
+    signedAt,   // server-side
+    hash,
+    action: action || null,
+    saId: sa_id || null,
+  };
+
+  return res.status(200).json({ ok: true, signature });
 };
