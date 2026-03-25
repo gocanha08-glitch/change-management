@@ -44,13 +44,13 @@ module.exports = async (req, res) => {
   if (!password) return res.status(400).json({ error: 'Senha obrigatória' });
 
   const { rows } = await query(
-    'SELECT id, name, email, password_hash FROM users WHERE id = $1 AND active = true',
+    'SELECT id, name, email, pwd_hash FROM users WHERE id = $1 AND active = true',
     [decoded.id]
   );
   if (!rows.length) return res.status(401).json({ error: 'Usuário não encontrado' });
 
   const user = rows[0];
-  const valid = await bcrypt.compare(password, user.password_hash);
+  const valid = await bcrypt.compare(password, user.pwd_hash);
   if (!valid) return res.status(401).json({ error: 'Senha incorreta' });
 
   // Timestamp server-side — nunca confia no cliente
