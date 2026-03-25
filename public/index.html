@@ -1170,55 +1170,48 @@ function MotiveModal({open,onClose,onConfirm,title,description,confirmLabel,conf
 // ================================================================
 // SignatureModal — assinatura eletrônica com confirmação de senha
 // ================================================================
-function SignatureModal({open,onClose,onConfirm,title,description,confirmLabel,confirmStyle,C,Sg}){
+function SignatureModal({open,onClose,onConfirm,title,description,confirmLabel,confirmStyle,saId,action,C,Sg}){
   const [pwd,setPwd]=useState("");
-  const [reason,setReason]=useState("");
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(false);
   const [showPwd,setShowPwd]=useState(false);
-  React.useEffect(()=>{if(open){setPwd("");setReason("");setErr("");setLoading(false);}},[open]);
+  React.useEffect(()=>{if(open){setPwd("");setErr("");setLoading(false);}},[open]);
   if(!open)return null;
   const go=async()=>{
     if(!pwd.trim()){setErr("Senha obrigatória");return;}
-    if(!reason.trim()){setErr("Motivo obrigatório");return;}
     setLoading(true);setErr("");
     try{
       const token=sessionStorage.getItem('cm_token');
       const res=await fetch('/api/auth/verify-password',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-        body:JSON.stringify({password:pwd,reason})
+        body:JSON.stringify({password:pwd,sa_id:saId||undefined,action:action||undefined,meaning:title||undefined})
       });
       const data=await res.json();
       if(!res.ok){setErr(data.error||'Senha incorreta');setLoading(false);return;}
-      onConfirm(data.signature,reason);
+      onConfirm(data.signature);
     }catch(e){setErr('Erro ao verificar senha');setLoading(false);}
   };
-  return <Modal open={open} onClose={onClose} title={title||"Assinatura Eletronica"} width={460}>
+  return <Modal open={open} onClose={onClose} title={title||"Assinatura Eletronica"} width={420}>
     <div style={{padding:"10px 14px",background:C.accent+"0D",border:"1px solid "+C.accent+"33",borderRadius:8,marginBottom:14,fontSize:13,color:C.accent}}>
-      🔐 Esta acao requer confirmacao de identidade. Digite sua senha para assinar eletronicamente.
+      🔐 Confirme sua identidade digitando sua senha para assinar eletronicamente.
     </div>
     {description&&<div style={{fontSize:13,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.surface,borderRadius:8}}>{description}</div>}
-    <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Motivo / Justificativa *</label>
-    <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",marginBottom:12,width:"100%"}} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Descreva o motivo desta acao..."/>
     <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Sua Senha *</label>
     <div style={{position:"relative",marginBottom:14}}>
-      <input type={showPwd?"text":"password"} style={{...Sg.input(),paddingRight:40}} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} placeholder="Digite sua senha..." onKeyDown={e=>e.key==="Enter"&&go()}/>
+      <input type={showPwd?"text":"password"} style={{...Sg.input(),paddingRight:40}} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} placeholder="Digite sua senha..." onKeyDown={e=>e.key==="Enter"&&go()} autoFocus/>
       <button type="button" onClick={()=>setShowPwd(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted,padding:0}}>{showPwd?"🙈":"👁️"}</button>
     </div>
     {err&&<div style={{fontSize:12,color:C.danger,marginBottom:10,padding:"6px 10px",background:C.danger+"11",borderRadius:6}}>{err}</div>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
       <button style={Sg.btn()} onClick={onClose} disabled={loading}>Cancelar</button>
-      <button style={{...Sg.btn(confirmStyle||"primary"),opacity:pwd.trim()&&reason.trim()&&!loading?1:.4}} disabled={!pwd.trim()||!reason.trim()||loading} onClick={go}>
+      <button style={{...Sg.btn(confirmStyle||"primary"),opacity:pwd.trim()&&!loading?1:.4}} disabled={!pwd.trim()||loading} onClick={go}>
         {loading?"Verificando...":("🔐 "+(confirmLabel||"Assinar e Confirmar"))}
       </button>
     </div>
   </Modal>;
 }
 
-// ================================================================
-// VerifyForm — owns internal state to avoid focus loss on parent re-render
-// ================================================================
 function VerifyForm({onConfirm,C,Sg}){
   const [note,setNote]=useState("");
   return <div>
@@ -2212,7 +2205,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </FieldCard>
         </div>
         :isAdmin&&allActsDone
-          ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar - Encerramento da SA",desc:"SA: "+localReq.id+" - "+localReq.title,label:"Assinar e Encerrar",style:"success"})} C={C} Sg={Sg}/>
+          ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar - Encerramento da SA",desc:"SA: "+localReq.id+" - "+localReq.title,label:"Assinar e Encerrar",style:"success",saId:localReq.id,sigAction:"conclusao"})} C={C} Sg={Sg}/>
           :<div style={{fontSize:14,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
     </SecCard>
 
@@ -2380,7 +2373,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
     {/* ══ TRIAGE DRAWER ══ */}
     {triageDrawer&&<TaskDrawer open={true} onClose={()=>setTriageDrawer(false)} title={editTriagem?"Editar Avaliacao Inicial":"Avaliacao Inicial da Mudanca"} subtitle={editTriagem?"Alteracoes ficam registradas no historico":null} C={C}>
       {editTriagem&&<div style={{marginBottom:12,padding:"8px 12px",background:C.warning+"0D",borderRadius:8,border:"1px solid "+C.warning+"33",fontSize:13,color:C.warning}}>Editando — areas removidas terao suas avaliacoes apagadas.</div>}
-      <TriagePanel request={localReq} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{setTriageDrawer(false);setSigModal({action:(sig)=>{saveTriage(t,editTriagem,sig);setEditTriagem(false);},title:"Assinar - Avaliacao Inicial",desc:"SA: "+localReq.id+" | Criticidade: "+t.criticality+" | "+t.assignedAreas.length+" areas",label:"Assinar e Confirmar Triagem",style:"warning"});}} C={C}/>
+      <TriagePanel request={localReq} matrix={matrix||mkMatrix()} allUsers={allUsers} currentUser={currentUser} crits={crits} phaseDl={phaseDl} onSave={(t)=>{setTriageDrawer(false);setSigModal({action:(sig)=>{saveTriage(t,editTriagem,sig);setEditTriagem(false);},title:"Assinar - Avaliacao Inicial",desc:"SA: "+localReq.id+" | Criticidade: "+t.criticality+" | "+t.assignedAreas.length+" areas",label:"Assinar e Confirmar Triagem",style:"warning",saId:localReq.id,sigAction:"avaliacao_inicial"});}} C={C}/>
       <button style={{...Sg.btn(),marginTop:12,fontSize:12}} onClick={()=>{setTriageDrawer(false);setEditTriagem(false);}}>Cancelar</button>
     </TaskDrawer>}
 
@@ -2535,7 +2528,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
           </div>}
 
           {/* Form conclusao */}
-          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{setSigModal({action:(sig)=>{concludeAction(ac.id,note,att,sig);closeDrawer();},title:"Assinar - Conclusao de Acao",desc:"Acao: "+ac.id+" - "+ac.desc.slice(0,60),label:"Assinar e Concluir",style:"success"});}} request={localReq} currentUser={currentUser} C={C} Sg={Sg}/>}
+          {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{setSigModal({action:(sig)=>{concludeAction(ac.id,note,att,sig);closeDrawer();},title:"Assinar - Conclusao de Acao",desc:"Acao: "+ac.id+" - "+ac.desc.slice(0,60),label:"Assinar e Concluir",style:"success",saId:localReq.id,sigAction:"concluir_acao"});}} request={localReq} currentUser={currentUser} C={C} Sg={Sg}/>}
 
           {/* Acoes admin/canPlan — somente se acao NAO estiver concluida/cancelada */}
           {["concluida","cancelada"].includes(ac.status)
@@ -2589,7 +2582,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.montagem_plano&&phaseDl.montagem_plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp2(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,sig);},title:"Assinar - Aprovar Avaliacoes",desc:"SA: "+localReq.id+" - Iniciar montagem do plano de acao",label:"Assinar e Aprovar",style:"success"});}}>Continuar →</button>
+        <button style={Sg.btn("success")} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,sig);},title:"Assinar - Aprovar Avaliacoes",desc:"SA: "+localReq.id+" - Iniciar montagem do plano de acao",label:"Assinar e Aprovar",style:"success",saId:localReq.id,sigAction:"aprovacao_avaliacoes"});}}>Continuar →</button>
       </div>
     </Modal>}
 
@@ -2598,12 +2591,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       <div style={{fontSize:13,color:C.muted,marginBottom:18}}>O plano tem <strong style={{color:C.text}}>{(localReq.actions||[]).length} acao{(localReq.actions||[]).length!==1?"es":""}</strong>. Ao confirmar, as acoes serao liberadas para execucao pelos responsaveis.</div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp3(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{setShowAp3(false);setSigModal({action:(sig)=>{ap3(sig);},title:"Assinar - Liberar para Execucao",desc:"SA: "+localReq.id+" - "+((localReq.actions||[]).length)+" acoes serao liberadas",label:"Assinar e Liberar",style:"success"});}}>Continuar →</button>
+        <button style={Sg.btn("success")} onClick={()=>{setShowAp3(false);setSigModal({action:(sig)=>{ap3(sig);},title:"Assinar - Liberar para Execucao",desc:"SA: "+localReq.id+" - "+((localReq.actions||[]).length)+" acoes serao liberadas",label:"Assinar e Liberar",style:"success",saId:localReq.id,sigAction:"liberar_execucao"});}}>Continuar →</button>
       </div>
     </Modal>}
 
     {/* Cancelar SA */}
-    <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={motive=>{setShowCancel(false);setSigModal({action:(sig)=>cancelSA(motive,sig),title:"Assinar - Cancelamento da SA",desc:"SA: "+localReq.id+" - Motivo: "+motive,label:"Assinar e Cancelar",style:"danger"});}}
+    <MotiveModal open={showCancel} onClose={()=>setShowCancel(false)} onConfirm={motive=>{setShowCancel(false);setSigModal({action:(sig)=>cancelSA(motive,sig),title:"Assinar - Cancelamento da SA",desc:"SA: "+localReq.id+" - Motivo: "+motive,label:"Assinar e Cancelar",style:"danger",saId:localReq.id,sigAction:"cancelamento"});}}
       title="Cancelar SA" confirmLabel="Continuar →" confirmStyle="danger"
       description={"SA "+localReq.id+" sera cancelada permanentemente. Esta acao nao pode ser desfeita."}
       C={C} Sg={Sg}/>
@@ -2679,6 +2672,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       description={sigModal.desc}
       confirmLabel={sigModal.label}
       confirmStyle={sigModal.style}
+      saId={sigModal.saId}
+      action={sigModal.sigAction}
       C={C} Sg={Sg}/>}
 
   </div>;
@@ -3581,6 +3576,110 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
         />
       </div>
     </>}
+  </div>;
+}
+
+
+// ================================================================
+// SIGNATURES PAGE — Auditoria de assinaturas eletrônicas (GAMP 5)
+// ================================================================
+function SignaturesPage({requests,currentUser}){
+  const {C}=useTheme();const Sg=mkSg(C);
+  const [rows,setRows]=React.useState([]);
+  const [loading,setLoading]=React.useState(true);
+  const [q,setQ]=React.useState("");
+  const [fAction,setFA]=React.useState("");
+  const [fSA,setFSA]=React.useState("");
+  const [fFrom,setFF]=React.useState("");
+  const [fTo,setFT]=React.useState("");
+
+  const load=async()=>{
+    setLoading(true);
+    try{
+      const token=sessionStorage.getItem('cm_token');
+      let url='/api/auth/verify-password?limit=500';
+      if(fSA)url+='&sa_id='+encodeURIComponent(fSA);
+      if(fAction)url+='&action='+encodeURIComponent(fAction);
+      if(fFrom)url+='&from='+fFrom;
+      if(fTo)url+='&to='+fTo;
+      const res=await fetch(url,{headers:{'Authorization':'Bearer '+token}});
+      if(res.ok){const data=await res.json();setRows(data);}
+    }catch(e){console.error(e);}
+    setLoading(false);
+  };
+
+  React.useEffect(()=>{load();},[]);
+
+  const vis=rows.filter(r=>(
+    (!q||(r.signed_by+r.sa_id+r.action+(r.meaning||"")).toLowerCase().includes(q.toLowerCase()))
+  ));
+
+  const ACTION_LABELS={
+    avaliacao_inicial:"Avaliação Inicial",
+    aprovacao_avaliacoes:"Aprovação de Avaliações",
+    liberar_execucao:"Liberar Execução",
+    concluir_acao:"Conclusão de Ação",
+    conclusao:"Encerramento da SA",
+    cancelamento:"Cancelamento",
+  };
+  const ACTION_COLORS={
+    avaliacao_inicial:C.warning,
+    aprovacao_avaliacoes:C.success,
+    liberar_execucao:C.success,
+    concluir_acao:C.accent,
+    conclusao:C.success,
+    cancelamento:C.danger,
+  };
+
+  return <div style={{padding:"18px 22px"}}>
+    <div style={{marginBottom:14}}>
+      <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Assinaturas Eletrônicas</h1>
+      <div style={{fontSize:11,color:C.muted,marginTop:2}}>Trilha de auditoria — GAMP 5 / 21 CFR Part 11</div>
+    </div>
+
+    {/* Filtros */}
+    <div style={{...Sg.card({marginBottom:12,padding:"11px 14px"})}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div style={{flex:1,minWidth:180}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar usuário, SA, ação..." style={Sg.input()}/></div>
+        <select value={fSA} onChange={e=>setFSA(e.target.value)} style={{...Sg.input(),width:150}}>
+          <option value="">Todos controles</option>
+          {[...new Set(rows.map(r=>r.sa_id))].sort().map(id=><option key={id} value={id}>{id}</option>)}
+        </select>
+        <select value={fAction} onChange={e=>setFA(e.target.value)} style={{...Sg.input(),width:185}}>
+          <option value="">Todas as ações</option>
+          {Object.entries(ACTION_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+        </select>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>De</label><input type="date" style={{...Sg.input(),width:135}} value={fFrom} onChange={e=>setFF(e.target.value)}/></div>
+        <div><label style={{...Sg.lbl,marginBottom:2}}>Até</label><input type="date" style={{...Sg.input(),width:135}} value={fTo} onChange={e=>setFT(e.target.value)}/></div>
+        <button style={{...Sg.btn("primary"),alignSelf:"flex-end"}} onClick={load}>Buscar</button>
+        {(fSA||fAction||fFrom||fTo)&&<button style={{...Sg.btn(),alignSelf:"flex-end"}} onClick={()=>{setFSA("");setFA("");setFF("");setFT("");setTimeout(load,50);}}>Limpar</button>}
+      </div>
+    </div>
+
+    <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{loading?"Carregando...":vis.length+" registro"+(vis.length!==1?"s":"")}</div>
+
+    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+      <ResizableTable
+        storageKey="tbl_signatures"
+        cols={[155,130,110,185,100,160,300]}
+        headers={["Data / Hora","Usuário","SA","Ação","Ação Detail","Hash (integridade)","Descrição"]}
+        C={C}
+        rows={vis.map((r,i)=>({
+          cells:[
+            <span style={{fontSize:11,color:C.muted}}>{fmt(r.signed_at)}</span>,
+            <span style={{fontSize:12,fontWeight:600,color:C.text}}>{r.signed_by}</span>,
+            <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.sa_id||"—"}</span>,
+            <span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:4,background:(ACTION_COLORS[r.action]||C.muted)+"22",color:ACTION_COLORS[r.action]||C.muted}}>
+              {ACTION_LABELS[r.action]||r.action}
+            </span>,
+            <span style={{fontSize:11,color:C.muted}}>{r.action_detail||"—"}</span>,
+            <span style={{fontSize:9,color:C.muted,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}} title={r.hash}>{r.hash?r.hash.slice(0,16)+"...":"—"}</span>,
+            <span style={{fontSize:11,color:C.dim}}>{r.meaning||"—"}</span>,
+          ]
+        }))}
+      />
+      {!loading&&vis.length===0&&<div style={{textAlign:"center",padding:32,color:C.muted}}>Nenhuma assinatura registrada.</div>}
+    </div>
   </div>;
 }
 
@@ -5087,6 +5186,7 @@ const loadAll = async () => {
     ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
     ...((hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))?[{id:"grupos", label:"Grupos", badge:0,adm:true}]:[]),
     ...(hasPerm(loggedIn,'auditoria.ver')  ?[{id:"log",       label:"Auditoria",    badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'auditoria.ver')||hasPerm(loggedIn,'sa.avaliacao_inicial')?[{id:"signatures",label:"Assinaturas",badge:0,adm:true}]:[]),
   ];
 
   // ---- Inline eval modal state ----
@@ -5162,6 +5262,7 @@ const loadAll = async () => {
       {view==='users'     &&(hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar'))&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} canManage={hasPerm(loggedIn,'usuarios.gerenciar')} onSave={saveUsers}/>}
       {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'       &&isAdmin&&<AuditLog requests={requests} sysLog={sysLog}/>}
+      {view==='signatures'&&(isAdmin||hasPerm(loggedIn,'auditoria.ver'))&&<SignaturesPage requests={requests} currentUser={loggedIn}/>}
       {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C} canManage={hasPerm(loggedIn,'grupos.gerenciar')}/>}
     </div>
   </div>;
