@@ -104,8 +104,7 @@ function validateSameStatusUpdate(status, user, sa, perms, uid) {
   return null;
 }
 
-// ─── helpers de e-mail ────────────────────────────────────────────────────────
-
+// ─── helpers de e-mail ────────────────────────────────────────────
 async function getSGQEmails() {
   try {
     const rows = await sql`
@@ -125,75 +124,71 @@ async function getUserEmail(userId) {
   } catch { return null; }
 }
 
-async function getUserEmailsByIds(ids) {
-  if (!ids || ids.length === 0) return [];
-  try {
-    const rows = await sql`SELECT email FROM users WHERE id = ANY(${ids}) AND active = true`;
-    return rows.map(r => r.email);
-  } catch { return []; }
-}
-
 async function dispararEmail(oldStatus, newStatus, sa) {
   try {
-    const saInfo = { saId: sa.id, title: sa.title };
+    const BASE_URL = process.env.APP_URL || 'https://change-management-eta.vercel.app';
+    const saUrl = `${BASE_URL}/?view=detail&id=${encodeURIComponent(sa.id)}`;
 
-    // avaliacao_inicial → avaliacao_areas: notifica responsáveis das áreas
+    // avaliacao_inicial → avaliacao_areas: notifica cada avaliador
     if (oldStatus === 'avaliacao_inicial' && newStatus === 'avaliacao_areas') {
       const assignments = sa.triage?.assignments || {};
-      const userIds = Object.values(assignments).map(id => parseInt(id));
-      const emails = await getUserEmailsByIds(userIds);
-      if (emails.length > 0) {
-        const prazo = sa.stageDeadlines?.avaliacao_areas || 'A definir';
-        mailer.avaliacaoArea({ ...saInfo, prazo }, emails);
+      const areas = sa.triage?.assignedAreas || [];
+      for (const dept of areas) {
+        const userId = assignments[dept];
+        if (!userId) continue;
+        const rows = await sql`SELECT name, email FROM users WHERE id = ${userId} AND active = true LIMIT 1`;
+        const u = rows[0];
+        if (!u?.email) continue;
+        const deadline = sa.triage?.deadlines?.[dept] || 'A definir';
+        mailer.sendEvaluationPending({
+          to: u.email, name: u.name, saId: sa.id,
+          saTitle: sa.title, dept, deadline, saUrl
+        });
       }
     }
 
-    // avaliacao_areas → montagem_plano: notifica planResponsible
-    if (oldStatus === 'avaliacao_areas' && newStatus === 'montagem_plano') {
-      if (sa.planResponsible) {
-        const email = await getUserEmail(sa.planResponsible);
-        if (email) mailer.avaliacaoConcluida({ ...saInfo, area: 'todas as áreas' }, [email]);
-      }
-    }
-
-    // montagem_plano → aprovacao_plano: notifica SGQ
-    if (oldStatus === 'montagem_plano' && newStatus === 'aprovacao_plano') {
+    // avaliacao_areas → aprovacao_plano: notifica SGQ
+    if (oldStatus === 'avaliacao_areas' && newStatus === 'aprovacao_plano') {
       const sgqEmails = await getSGQEmails();
+      const areas = sa.triage?.assignedAreas || [];
+      const doneEvals = Object.keys(sa.evaluations || {}).filter(d => sa.evaluations[d]?.at).length;
       if (sgqEmails.length > 0) {
-        mailer.planoSubmetido({ ...saInfo, planResponsibleName: sa.planResponsibleName || '' }, sgqEmails);
+        mailer.sendApprovalPending({
+          to: sgqEmails, saId: sa.id, saTitle: sa.title,
+          doneEvals, totalEvals: areas.length, saUrl
+        });
       }
     }
 
     // aprovacao_plano → execucao: notifica responsáveis das ações
     if (oldStatus === 'aprovacao_plano' && newStatus === 'execucao') {
       const actions = sa.actions || [];
-      const userIds = [...new Set(actions.map(a => parseInt(a.whoId)).filter(Boolean))];
-      const emails = await getUserEmailsByIds(userIds);
-      if (emails.length > 0) {
-        mailer.planoAprovado({ ...saInfo }, emails);
+      const userIds = [...new Set(actions.map(a => parseInt(a.responsible)).filter(Boolean))];
+      for (const uid of userIds) {
+        const rows = await sql`SELECT name, email FROM users WHERE id = ${uid} AND active = true LIMIT 1`;
+        const u = rows[0];
+        if (!u?.email) continue;
+        const myActions = actions.filter(a => parseInt(a.responsible) === uid);
+        for (const ac of myActions) {
+          mailer.sendActionOverdue({
+            to: u.email, name: u.name, saId: sa.id, saTitle: sa.title,
+            acId: ac.id, acDesc: ac.desc, deadline: ac.deadline, saUrl
+          });
+        }
       }
     }
 
-    // execucao → concluida: notifica solicitante + SGQ
+    // execucao → concluida: notifica solicitante
     if (oldStatus === 'execucao' && newStatus === 'concluida') {
-      const sgqEmails = await getSGQEmails();
       const solicitanteEmail = await getUserEmail(sa.createdBy);
-      const emails = [...new Set([...sgqEmails, ...(solicitanteEmail ? [solicitanteEmail] : [])])];
-      if (emails.length > 0) {
-        mailer.saConcluida({ ...saInfo, createdBy: sa.createdByName || '' }, emails);
-      }
-    }
-
-    // cancelada: notifica solicitante + SGQ + responsáveis das ações
-    if (newStatus === 'cancelada') {
-      const sgqEmails = await getSGQEmails();
-      const solicitanteEmail = await getUserEmail(sa.createdBy);
-      const actions = sa.actions || [];
-      const actionUserIds = [...new Set(actions.map(a => parseInt(a.whoId)).filter(Boolean))];
-      const actionEmails = await getUserEmailsByIds(actionUserIds);
-      const emails = [...new Set([...sgqEmails, ...(solicitanteEmail ? [solicitanteEmail] : []), ...actionEmails])];
-      if (emails.length > 0) {
-        mailer.saCancelada({ ...saInfo, motivo: sa.cancelReason || '' }, emails);
+      if (solicitanteEmail) {
+        mailer.sendSAConcluded({
+          to: solicitanteEmail, name: sa.createdByName,
+          saId: sa.id, saTitle: sa.title,
+          concludedBy: sa.verifiedByName || '',
+          verifyNote: sa.verifyNote || '',
+          saUrl
+        });
       }
     }
 
@@ -202,8 +197,7 @@ async function dispararEmail(oldStatus, newStatus, sa) {
   }
 }
 
-// ─── handler ─────────────────────────────────────────────────────────────────
-
+// ─── handler ─────────────────────────────────────────────────────
 module.exports = async (req, res) => {
   CORS(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
