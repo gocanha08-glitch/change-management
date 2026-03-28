@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
         )
       `;
 
-      // Buscar e-mails do SGQ para notificar
+      // Notificar SGQ sobre nova SA
       const sgqUsers = await sql`
         SELECT u.email FROM users u
         JOIN user_roles ur ON ur.user_id = u.id
@@ -65,13 +65,15 @@ module.exports = async (req, res) => {
       `;
       const sgqEmails = sgqUsers.map(u => u.email);
       if (sgqEmails.length > 0) {
-        mailer.novaSA({
+        const BASE_URL = process.env.APP_URL || 'https://change-management-eta.vercel.app';
+        mailer.sendNewSA({
+          to: sgqEmails,
           saId: sa.id,
-          title: sa.title,
-          area: sa.area,
+          saTitle: sa.title,
+          saType: sa.type,
           createdBy: sa.createdByName || user.name,
-          description: sa.description,
-        }, sgqEmails);
+          saUrl: `${BASE_URL}/?view=detail&id=${encodeURIComponent(sa.id)}`
+        });
       }
 
       return res.status(201).json({ ok: true, id: sa.id });
