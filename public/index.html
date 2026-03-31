@@ -2681,7 +2681,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     <div>
       <label style={Sg.lbl}>Responsável *</label>
       <Sel value={newArea.responsible} onChange={v=>setNewArea(p=>({...p,responsible:v}))}
-        options={allUsers.filter(u=>u.active&&(u.evalDepts||[]).includes(newArea.dept)).map(u=>({value:u.id,label:u.name}))}
+        options={allUsers.filter(u=>u.active&&(u.evalDepts||u.eval_depts||[]).includes(newArea.dept)).map(u=>({value:u.id,label:u.name}))}
         placeholder="Selecione o responsável..." C={C}/>
     </div>
     <div>
@@ -2695,7 +2695,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
         value={newArea.motive} onChange={e=>setNewArea(p=>({...p,motive:e.target.value}))}
         placeholder="Justifique a inclusão desta área no processo..."/>
     </div>
-    {newArea.dept&&allUsers.filter(u=>u.active&&(u.evalDepts||[]).includes(newArea.dept)).length===0&&
+    {newArea.dept&&allUsers.filter(u=>u.active&&(u.evalDepts||u.eval_depts||[]).includes(newArea.dept)).length===0&&
       <div style={{fontSize:12,color:C.danger}}>⚠️ Nenhum avaliador cadastrado para esta área.</div>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:4}}>
       <button style={Sg.btn()} onClick={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:""});}}>Cancelar</button>
