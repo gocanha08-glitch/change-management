@@ -2886,8 +2886,8 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
           onUpdate(mkLog(r2,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" → Para: "+(newU?newU.name:"—")));
         }}
         onClose={()=>setSelected(null)}
-        onSaveDraft={saveDraft}
-        onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);setSelected(null);}}
+        onSaveDraft={(dept,answers,obs,atts)=>{saveDraft(dept,answers,obs,atts);setSelected(null);}}
+        onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);onClose();}}
         C={C}/>;
     }
     if(t.type==="action"){
