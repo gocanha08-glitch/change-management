@@ -2667,7 +2667,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     </Modal>}
 
     {/* ══ ADICIONAR ÁREA AVALIADORA ══ */}
-{addAreaModal&&<Modal open={addAreaModal} onClose={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:"";});}} title="Adicionar Área Avaliadora" width={500}>
+{addAreaModal&&<Modal open={addAreaModal} onClose={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:""});}} title="Adicionar Área Avaliadora" width={500}>
   <div style={{fontSize:13,color:C.muted,marginBottom:14,padding:"8px 12px",background:C.accent+"0D",borderRadius:8}}>
     A área será adicionada ao processo de avaliação e o responsável será notificado. O motivo ficará registrado no histórico.
   </div>
