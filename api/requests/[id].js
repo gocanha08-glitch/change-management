@@ -12,7 +12,7 @@ const CORS = (res) => {
 
 const STATUS_ORDER = {
   aberta: 0, avaliacao_inicial: 1, avaliacao_areas: 2,
-  montagem_plano: 3, aprovacao_plano: 4, execucao: 5,
+  aprovacao_plano: 3, montagem_plano: 4, execucao: 5,
   concluida: 6, cancelada: 7
 };
 
@@ -54,21 +54,24 @@ function validateTransition(oldStatus, newStatus, user, sa) {
     return null;
   }
 
-  if (oldStatus === 'avaliacao_areas' && newStatus === 'montagem_plano') {
+  // avaliacao_areas → aprovacao_plano (quando todas avaliações concluídas)
+  if (oldStatus === 'avaliacao_areas' && newStatus === 'aprovacao_plano') {
     const assignments = sa.triage?.assignments || {};
     const isAssigned = Object.values(assignments).some(id => parseInt(id) === uid);
     if (!isAssigned && !isSGQ(perms)) return 'Sem vínculo com esta SA para avançar avaliação';
     return null;
   }
 
-  if (oldStatus === 'montagem_plano' && newStatus === 'aprovacao_plano') {
-    const isPlanResp = parseInt(sa.planResponsible) === uid;
-    if (!isPlanResp && !isSGQ(perms)) return 'Sem permissão para submeter plano de ação';
+  // aprovacao_plano → montagem_plano (SGQ aprova avaliações)
+  if (oldStatus === 'aprovacao_plano' && newStatus === 'montagem_plano') {
+    if (!isSGQ(perms)) return 'Sem permissão para aprovar avaliações';
     return null;
   }
 
-  if (oldStatus === 'aprovacao_plano' && newStatus === 'execucao') {
-    if (!hasPermission(perms, 'sa.aprovacao_plano')) return 'Sem permissão para aprovar plano de ação';
+  // montagem_plano → execucao (SGQ/responsável libera plano)
+  if (oldStatus === 'montagem_plano' && newStatus === 'execucao') {
+    const isPlanResp = parseInt(sa.planResponsible) === uid;
+    if (!isPlanResp && !isSGQ(perms)) return 'Sem permissão para liberar plano para execução';
     return null;
   }
 
@@ -98,6 +101,13 @@ function validateSameStatusUpdate(status, user, sa, perms, uid) {
   if (status === 'montagem_plano') {
     const isPlanResp = parseInt(sa.planResponsible) === uid;
     if (!isPlanResp && !isSGQ(perms)) return 'Sem permissão para editar plano de ação';
+    return null;
+  }
+
+  if (status === 'execucao') {
+    const actions = sa.actions || [];
+    const isResponsible = actions.some(a => parseInt(a.responsible) === uid);
+    if (!isResponsible && !isSGQ(perms)) return 'Sem vínculo com ações desta SA';
     return null;
   }
 
@@ -160,8 +170,8 @@ async function dispararEmail(oldStatus, newStatus, sa) {
       }
     }
 
-    // aprovacao_plano → execucao: notifica responsáveis das ações
-    if (oldStatus === 'aprovacao_plano' && newStatus === 'execucao') {
+    // montagem_plano → execucao: notifica responsáveis das ações
+    if (oldStatus === 'montagem_plano' && newStatus === 'execucao') {
       const actions = sa.actions || [];
       const userIds = [...new Set(actions.map(a => parseInt(a.responsible)).filter(Boolean))];
       for (const uid of userIds) {
@@ -170,9 +180,9 @@ async function dispararEmail(oldStatus, newStatus, sa) {
         if (!u?.email) continue;
         const myActions = actions.filter(a => parseInt(a.responsible) === uid);
         for (const ac of myActions) {
-          mailer.sendActionOverdue({
-            to: u.email, name: u.name, saId: sa.id, saTitle: sa.title,
-            acId: ac.id, acDesc: ac.desc, deadline: ac.deadline, saUrl
+          mailer.sendEvaluationPending({
+            to: u.email, name: u.name, saId: sa.id,
+            saTitle: sa.title, dept: 'Execução', deadline: ac.deadline, saUrl
           });
         }
       }
@@ -250,7 +260,6 @@ module.exports = async (req, res) => {
         WHERE id = ${id}
       `;
 
-      // Disparar e-mail se houve mudança de status
       if (oldStatus !== newStatus) {
         dispararEmail(oldStatus, newStatus, newSA);
       }
