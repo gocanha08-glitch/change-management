@@ -1324,6 +1324,8 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [extTarget,setExtTarget]=useState(null);
   const [adminDlTarget,setAdminDlTarget]=useState(null);
   const [editTriagem,setEditTriagem]=useState(false);
+const [addAreaModal,setAddAreaModal]=useState(false);
+const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:""});
   const [triageDrawer,setTriageDrawer]=useState(false);
   const [showAddAc,setAddAc]=useState(false);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
@@ -1882,11 +1884,12 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
 
               {/* ── RETORNAR / REJEITAR / CANCELAR — sempre (enquanto ativo) ── */}
               {notFinal&&<>
-                <Sep/>
-                {prevSt&&st!=="aberta"&&<MI onClick={()=>setRegress(true)} color={C.warning} icon="←" label="Retornar fase anterior"/>}
-                <MI onClick={()=>setReject(true)} color={C.danger} icon="✕" label="Rejeitar SA"/>
-                <MI onClick={()=>setShowCancel(true)} color={C.danger} icon="⊘" label="Cancelar SA"/>
-              </>}
+  <Sep/>
+  {["avaliacao_areas","aprovacao_plano"].includes(st)&&<MI onClick={()=>{setSgqOpen(false);setAddAreaModal(true);}} color={C.cyan} icon="+" label="Adicionar área avaliadora"/>}
+  {prevSt&&st!=="aberta"&&<MI onClick={()=>setRegress(true)} color={C.warning} icon="←" label="Retornar fase anterior"/>}
+  <MI onClick={()=>setReject(true)} color={C.danger} icon="✕" label="Rejeitar SA"/>
+  <MI onClick={()=>setShowCancel(true)} color={C.danger} icon="⊘" label="Cancelar SA"/>
+</>}
             </div>;
           })()}
         </div>}
@@ -2663,6 +2666,61 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
       })()}
     </Modal>}
 
+    {/* ══ ADICIONAR ÁREA AVALIADORA ══ */}
+{addAreaModal&&<Modal open={addAreaModal} onClose={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:"";});}} title="Adicionar Área Avaliadora" width={500}>
+  <div style={{fontSize:13,color:C.muted,marginBottom:14,padding:"8px 12px",background:C.accent+"0D",borderRadius:8}}>
+    A área será adicionada ao processo de avaliação e o responsável será notificado. O motivo ficará registrado no histórico.
+  </div>
+  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+    <div>
+      <label style={Sg.lbl}>Área *</label>
+      <Sel value={newArea.dept} onChange={v=>setNewArea(p=>({...p,dept:v}))}
+        options={ALL_DEPTS.filter(d=>!(localReq.triage?.assignedAreas||[]).includes(d)).map(d=>({value:d,label:d}))}
+        placeholder="Selecione a área..." C={C}/>
+    </div>
+    <div>
+      <label style={Sg.lbl}>Responsável *</label>
+      <Sel value={newArea.responsible} onChange={v=>setNewArea(p=>({...p,responsible:v}))}
+        options={allUsers.filter(u=>u.active&&(u.evalDepts||[]).includes(newArea.dept)).map(u=>({value:u.id,label:u.name}))}
+        placeholder="Selecione o responsável..." C={C}/>
+    </div>
+    <div>
+      <label style={Sg.lbl}>Prazo *</label>
+      <input type="date" style={Sg.input()} value={newArea.deadline} min={todayStr()}
+        onChange={e=>setNewArea(p=>({...p,deadline:e.target.value}))}/>
+    </div>
+    <div>
+      <label style={{...Sg.lbl,color:C.warning}}>Motivo da inclusão *</label>
+      <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",borderColor:C.warning+"66"}}
+        value={newArea.motive} onChange={e=>setNewArea(p=>({...p,motive:e.target.value}))}
+        placeholder="Justifique a inclusão desta área no processo..."/>
+    </div>
+    {newArea.dept&&allUsers.filter(u=>u.active&&(u.evalDepts||[]).includes(newArea.dept)).length===0&&
+      <div style={{fontSize:12,color:C.danger}}>⚠️ Nenhum avaliador cadastrado para esta área.</div>}
+    <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:4}}>
+      <button style={Sg.btn()} onClick={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:""});}}>Cancelar</button>
+      <button style={{...Sg.btn("primary"),opacity:newArea.dept&&newArea.responsible&&newArea.deadline&&newArea.motive.trim()?1:.4}}
+        disabled={!newArea.dept||!newArea.responsible||!newArea.deadline||!newArea.motive.trim()}
+        onClick={()=>{
+          const newTriage={
+            ...localReq.triage,
+            assignedAreas:[...(localReq.triage?.assignedAreas||[]),newArea.dept],
+            assignments:{...(localReq.triage?.assignments||{}),[newArea.dept]:parseInt(newArea.responsible)},
+            deadlines:{...(localReq.triage?.deadlines||{}),[newArea.dept]:newArea.deadline},
+            originalDeadlines:{...(localReq.triage?.originalDeadlines||{}),[newArea.dept]:newArea.deadline},
+          };
+          let r={...localReq,triage:newTriage};
+          r=mkLog(r,currentUser.name,"avaliacao","Área avaliadora adicionada",
+            "Área: "+newArea.dept+" | Responsável: "+(allUsers.find(u=>u.id===parseInt(newArea.responsible))?.name||"—")+" | Prazo: "+fmtD(newArea.deadline)+" | Motivo: "+newArea.motive);
+          onUpdate(r);
+          setAddAreaModal(false);
+          setNewArea({dept:"",responsible:"",deadline:"",motive:""});
+        }}>
+        Adicionar Área
+      </button>
+    </div>
+  </div>
+</Modal>}
     {/* ══ SIGNATURE MODAL ══ */}
     {sigModal&&<SignatureModal
       open={!!sigModal}
