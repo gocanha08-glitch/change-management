@@ -2849,7 +2849,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
     const urgOrder={overdue:0,today:1,soon:2,normal:3,done:4};
     return tasks.sort((a,b)=>(urgOrder[a.urg||"normal"]||3)-(urgOrder[b.urg||"normal"]||3));
   };
-  const tasks=buildTasks();
+  const tasks=buildTasks().filter(t=>t.urg!=="done");
   const urgColor=(u)=>u==="overdue"?C.danger:u==="today"?C.warning:u==="soon"?C.accent:u==="done"?C.success:C.muted;
   const urgLabel=(u)=>u==="overdue"?"Atrasada":u==="today"?"Hoje":u==="soon"?"Em breve":u==="done"?"Concluida":"Pendente";
   const pending=tasks.filter(t=>t.urg!=="done").length;
@@ -2876,7 +2876,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
         const r2={...r,evaluations:{...(r.evaluations||{}),[dept]:ev2}};
         onUpdate(r2);
       };
-      return <EvalForm dept={dept} existing={ev} readOnly={done&&!isAdmin&&!isMe}
+      return <EvalForm dept={dept} existing={ev} readOnly={done}
         allUsers={allUsers} deptQuestions={deptQuestions}
         assignedUserId={r.triage&&r.triage.assignments&&r.triage.assignments[dept]}
         isAdmin={isAdmin} currentUser={currentUser}
