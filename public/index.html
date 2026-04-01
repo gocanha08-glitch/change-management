@@ -5031,7 +5031,7 @@ const loadAll = async () => {
       apiGet('/api/requests').catch(()=>null),
     ]);
     if (us) setUR(us);
-    if (rs) setRR(rs);
+    if (rs) setRR(rs.map(r=>({...r,evaluations:r.evaluations||{},actions:r.actions||[],attachments:r.attachments||[]})));
     try {
       const mx = await apiGet('/api/config/matrix');
       if (mx) {
@@ -5221,16 +5221,16 @@ const saveReq = async (r) => {
         // Merge carefully: don't overwrite if user is actively editing
         // We compare by updatedAt / log length to detect server changes
         if (rs) setRR(prev => {
-          // For each request from server, only update if server version is newer
           const prevMap = Object.fromEntries(prev.map(r=>[r.id,r]));
           return rs.map(sr => {
+            // Garantir que campos criticos nunca sejam null
+            const safe = {...sr, evaluations:sr.evaluations||{}, actions:sr.actions||[], attachments:sr.attachments||[]};
             const lr = prevMap[sr.id];
-            if (!lr) return sr; // new request from server
+            if (!lr) return safe;
             const srLog = (sr.log||[]).length;
             const lrLog = (lr.log||[]).length;
-            // Server has more events → use server version
-            if (srLog > lrLog) return sr;
-            return lr; // keep local (user may be editing)
+            if (srLog > lrLog) return safe;
+            return lr;
           });
         });
         if (us) setUR(us);
