@@ -2814,12 +2814,13 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
   // Sync initialSelected when drawer opens
   React.useEffect(()=>{
     if(open&&initialSelected){
+      // Find matching task from live requests
       const r=requests.find(r=>r.id===(initialSelected.req&&initialSelected.req.id));
       if(r){
-        if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept,label:initialSelected.dept,sublabel:r.id+" · "+r.title});
+        if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept});
         else if(initialSelected.type==="action"){
           const ac=(r.actions||[]).find(a=>a.id===initialSelected.ac.id)||initialSelected.ac;
-          setSelected({type:"action",req:r,ac,label:ac.id+" — "+ac.desc,sublabel:r.id+" · "+r.title});
+          setSelected({type:"action",req:r,ac});
         }
       }
     }
@@ -5006,7 +5007,7 @@ function App() {
         if (!u.groups && !u.roles) {
           apiGet('/api/users/me').then(fresh => {
             if (fresh && !fresh.error) {
-              const updated = {...u, groups: Array.isArray(fresh.groups)?fresh.groups:[], groupIds: Array.isArray(fresh.groupIds)?fresh.groupIds:[], permissions: Array.isArray(fresh.permissions)?fresh.permissions:[]};
+              const updated = {...u, groups: fresh.groups||[], groupIds: fresh.groupIds||[], permissions: fresh.permissions||[]};
               sessionStorage.setItem('cm_user', JSON.stringify(updated));
               setLI(updated);
             }
@@ -5076,9 +5077,9 @@ const loadAll = async () => {
             if (!prev || prev.id !== fresh.id) return prev;
             const updated = {
               ...prev,
-              permissions: Array.isArray(fresh.permissions)?fresh.permissions:[],
-              groups: Array.isArray(fresh.groups)?fresh.groups:[],
-              groupIds: Array.isArray(fresh.groupIds)?fresh.groupIds:[]
+              permissions: fresh.permissions,
+              groups: fresh.groups,
+              groupIds: fresh.groupIds
             };
             sessionStorage.setItem('cm_user', JSON.stringify(updated));
             return updated;
@@ -5276,7 +5277,7 @@ const saveReq = async (r) => {
         </div>
         <div style={{fontSize:8,color:C.muted,letterSpacing:.2,display:'flex',alignItems:'center',gap:4}}>
           <div title="Dados atualizados automaticamente a cada 30s" className="refresh-dot" style={{width:5,height:5,borderRadius:'50%',background:C.success,flexShrink:0}}/>
-          v{APP_VERSION} · {(()=>{const g=loggedIn.groups||[];return g.length>0?g.map(r=>typeof r==='object'?r.name||'':String(r)).filter(Boolean).join(', '):(loggedIn.role||'').toUpperCase();})()}
+          v{APP_VERSION} · {(()=>{const g=loggedIn.roles||loggedIn.groups||[];return g.length>0?g.map(r=>r.name).join(', '):loggedIn.role.toUpperCase();})()}
         </div>
       </div>
       <div style={{flex:1,padding:'6px 0'}}>
@@ -5306,7 +5307,8 @@ const saveReq = async (r) => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-{view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
+      <MyTasksDrawer
         open={myTasksOpen}
         onClose={()=>{setMyTasksOpen(false);setMyTasksTarget(null);}}
         requests={requests}
