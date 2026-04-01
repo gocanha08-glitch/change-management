@@ -1480,7 +1480,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
-    const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
     const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
     const allDone=assignedAreas.length>0&&assignedAreas.every(d=>evs[d]&&evs[d].at);
     let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
@@ -1607,7 +1607,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   // ── Reabrir avaliacao ──
   const doReopenEval=(dept,motive)=>{
-    const evs={...localReq.evaluations};
+    const evs={...(localReq.evaluations||{})};
     const prev=evs[dept];
     delete evs[dept];
     const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
