@@ -2812,11 +2812,8 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
   const [selected,setSelected]=React.useState(null);
 
   // Sync initialSelected when drawer opens
-  // Se veio de um clique direto numa tarefa (initialSelected), abre direto nela
-  const [directMode, setDirectMode] = React.useState(false);
   React.useEffect(()=>{
     if(open&&initialSelected){
-      // Find matching task from live requests
       const r=requests.find(r=>r.id===(initialSelected.req&&initialSelected.req.id));
       if(r){
         if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept,label:initialSelected.dept,sublabel:r.id+" · "+r.title});
@@ -2825,11 +2822,8 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
           setSelected({type:"action",req:r,ac,label:ac.id+" — "+ac.desc,sublabel:r.id+" · "+r.title});
         }
       }
-      setDirectMode(true);
-    } else if(open) {
-      setDirectMode(false);
     }
-    if(!open){setSelected(null);setDirectMode(false);}
+    if(!open) setSelected(null);
   },[open]);
 
   // Build task list from live requests
@@ -2966,7 +2960,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
     <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(580px,100vw)",background:C.bg,borderLeft:"1px solid "+C.border,zIndex:301,display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px #0008"}}>
       {/* Header */}
       <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        {selected&&<button onClick={()=>directMode?onClose():setSelected(null)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:13,padding:"4px 10px",fontFamily:"inherit",flexShrink:0}}>{directMode?"✕ Fechar":"← Voltar"}</button>}
+        {selected&&<button onClick={()=>setSelected(null)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:13,padding:"4px 10px",fontFamily:"inherit",flexShrink:0}}>← Voltar</button>}
         <div style={{flex:1,minWidth:0}}>
           {selected
             ?<><div style={{fontSize:14,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.label}</div>
