@@ -5102,12 +5102,15 @@ const loadAll = async () => {
     try { await apiPut('/api/config/syslog', entry); } catch {}
   };
 
-  const saveReq = async (r) => {
+const saveReq = async (r) => {
     try {
       const exists = requests.find(x => x.id === r.id);
       if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
       else await apiPost('/api/requests', r);
-      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+      // Busca a versão mais recente do servidor para garantir sincronia
+      const fresh = await apiGet('/api/requests').catch(()=>null);
+      if (fresh) setRR(fresh);
+      else setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
     } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
