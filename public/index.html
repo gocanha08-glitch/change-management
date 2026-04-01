@@ -1433,8 +1433,8 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   };
 
   // ── Actions ──────────────────────────────────────────────────────
-  const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r);};
-
+const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r).then(()=>setLocalReq(r));};
+  
   const saveTriage=async(triage,isEdit,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const oldCrit=localReq.triage&&localReq.triage.criticality;
@@ -1520,11 +1520,15 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     onUpdate(r3);
     requestAnimationFrame(()=>requestAnimationFrame(()=>window.scrollTo(0,_scrollRef.current)));
   };
-  const addAction=()=>{
+ const addAction=()=>{
     const id="AC-"+String((localReq.actions&&localReq.actions.length||0)+1).padStart(3,"0");
     const respU=allUsers.find(u=>u.id===parseInt(nAc.responsible));
-    updScroll({actions:[...(localReq.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}]},"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
-    setNAc({desc:"",responsible:"",deadline:"",obs:""});setAddAc(false);
+    const newActions=[...(localReq.actions||[]),{...nAc,id,status:"pendente",responsible:parseInt(nAc.responsible),createdBy:currentUser.id}];
+    const newReq=mkLog({...localReq,actions:newActions},currentUser.name,"plano","Acao criada","ID: "+id+" | "+nAc.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAc.deadline));
+    setLocalReq(newReq);
+    onUpdate(newReq);
+    setNAc({desc:"",responsible:"",deadline:"",obs:""});
+    setAddAc(false);
   };
 
   const updAc=(aid,ch,ev,detail)=>{
@@ -5107,10 +5111,8 @@ const saveReq = async (r) => {
       const exists = requests.find(x => x.id === r.id);
       if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
       else await apiPost('/api/requests', r);
-      // Busca a versão mais recente do servidor para garantir sincronia
-      const fresh = await apiGet('/api/requests').catch(()=>null);
-      if (fresh) setRR(fresh);
-      else setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+      // Atualiza estado local imediatamente
+      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
     } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
