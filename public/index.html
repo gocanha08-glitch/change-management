@@ -1481,7 +1481,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   const saveEval=(dept,answers,obs,atts)=>{
     const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
-    const allDone=aa.every(d=>evs[d]&&evs[d].at);
+    const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
+    const allDone=assignedAreas.length>0&&assignedAreas.every(d=>evs[d]&&evs[d].at);
     let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
     const simN=(answers||[]).filter(a=>a.a==="S").length;
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
