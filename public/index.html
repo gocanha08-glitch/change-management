@@ -1606,7 +1606,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     const prev=evs[dept];
     delete evs[dept];
     const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
-    let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao":localReq.status};
+    let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao_areas":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
     onUpdate(r);setReopenEval(null);
   };
@@ -2887,7 +2887,15 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
         }}
         onClose={()=>setSelected(null)}
         onSaveDraft={(dept,answers,obs,atts)=>{saveDraft(dept,answers,obs,atts);setSelected(null);}}
-        onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);onClose();}}
+        onSave={(dept,answers,obs,atts)=>{
+  const ev2={answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()};
+  const newEvs={...(r.evaluations||{}),[dept]:ev2};
+  const allDone=(r.triage?.assignedAreas||[]).every(d=>newEvs[d]&&newEvs[d].at);
+  const r2=mkLog({...r,evaluations:newEvs,status:allDone?"aprovacao_plano":"avaliacao_areas"},currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept);
+  if(allDone)r2.log=[...r2.log,{at:new Date().toISOString(),by:"Sistema",type:"sistema",event:"Todas as avaliacoes concluidas",detail:"Aguarda Aprovacao 2 (SGQ)"}];
+  onUpdate(r2);
+  onClose();
+}}
         C={C}/>;
     }
     if(t.type==="action"){
