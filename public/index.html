@@ -1433,7 +1433,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   };
 
   // ── Actions ──────────────────────────────────────────────────────
-const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r).then(()=>setLocalReq(r));};
+const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r);};
   
   const saveTriage=async(triage,isEdit,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
@@ -1487,7 +1487,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2 (SGQ)");
-    onUpdate(r);setEvalOpen(null);
+    setLocalReq(r);onUpdate(r);setEvalOpen(null);
   };
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
@@ -1548,7 +1548,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,actions,attachments:newAtts};
     r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+note.slice(0,80)+(signature?" | Assinado eletronicamente":""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
-    onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
+    setLocalReq(r);onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
   };
 
   const addAttachment=att=>upd({attachments:[...(localReq.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
@@ -1558,14 +1558,14 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const doRemoveAcPlano=(ac)=>{
     const actions=(localReq.actions||[]).filter(a=>a.id!==ac.id);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
-    onUpdate(r);setConfirmRemoveAc(null);
+    setLocalReq(r);onUpdate(r);setConfirmRemoveAc(null);
   };
 
   // ── Remover acao durante execucao (SGQ, com motivo) ──
   const doRemoveAcExec=(ac,motive)=>{
     const actions=(localReq.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    onUpdate(r);setRemoveAcExec(null);
+    setLocalReq(r);onUpdate(r);setRemoveAcExec(null);
   };
 
   // ── Acrescentar acao durante execucao (SGQ, com motivo) ──
@@ -1576,7 +1576,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     delete newAc.motive;
     const actions=[...(localReq.actions||[]),newAc];
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
-    onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
+    setLocalReq(r);onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
   };
 
   // ── Reabrir fase ──
@@ -1593,7 +1593,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
     let r={...localReq,...patch};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    onUpdate(r);setReopenPhase(null);
+    setLocalReq(r);onUpdate(r);setReopenPhase(null);
   };
 
   // ── Cancelar SA ──
@@ -1601,7 +1601,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
     if(signature)r={...r,cancelSignature:signature};
     r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive+(signature?" | Assinado por: "+signature.signedByName:""));
-    onUpdate(r);setShowCancel(false);setSigModal(null);
+    setLocalReq(r);onUpdate(r);setShowCancel(false);setSigModal(null);
   };
 
   // ── Reabrir avaliacao ──
@@ -1612,7 +1612,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
     let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao_areas":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
-    onUpdate(r);setReopenEval(null);
+    setLocalReq(r);onUpdate(r);setReopenEval(null);
   };
 
   // ── Reatribuir avaliacao ──
@@ -1620,7 +1620,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
     const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    onUpdate(r);setReassignEval(null);setReassignEvalUser("");
+    setLocalReq(r);onUpdate(r);setReassignEval(null);setReassignEvalUser("");
   };
 
   // ── Reabrir acao ──
@@ -1629,7 +1629,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
     let r={...localReq,actions,status:localReq.status==="concluida"?"execucao":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Acao reaberta","ID: "+acId+" | Motivo: "+motive+(ac&&ac.doneNote?" | Conclusao anterior: "+ac.doneNote.slice(0,60):""));
-    onUpdate(r);setReopenAc(null);
+    setLocalReq(r);onUpdate(r);setReopenAc(null);
   };
 
   // ── Reatribuir acao ──
@@ -1639,7 +1639,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    onUpdate(r);setReassignAc(null);setReassignAcUser("");
+    setLocalReq(r);onUpdate(r);setReassignAc(null);setReassignAcUser("");
   };
 
   const concludeSA=(note,signature)=>{
@@ -2812,19 +2812,24 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
   const [selected,setSelected]=React.useState(null);
 
   // Sync initialSelected when drawer opens
+  // Se veio de um clique direto numa tarefa (initialSelected), abre direto nela
+  const [directMode, setDirectMode] = React.useState(false);
   React.useEffect(()=>{
     if(open&&initialSelected){
       // Find matching task from live requests
       const r=requests.find(r=>r.id===(initialSelected.req&&initialSelected.req.id));
       if(r){
-        if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept});
+        if(initialSelected.type==="eval") setSelected({type:"eval",req:r,dept:initialSelected.dept,label:initialSelected.dept,sublabel:r.id+" · "+r.title});
         else if(initialSelected.type==="action"){
           const ac=(r.actions||[]).find(a=>a.id===initialSelected.ac.id)||initialSelected.ac;
-          setSelected({type:"action",req:r,ac});
+          setSelected({type:"action",req:r,ac,label:ac.id+" — "+ac.desc,sublabel:r.id+" · "+r.title});
         }
       }
+      setDirectMode(true);
+    } else if(open) {
+      setDirectMode(false);
     }
-    if(!open) setSelected(null);
+    if(!open){setSelected(null);setDirectMode(false);}
   },[open]);
 
   // Build task list from live requests
@@ -2961,7 +2966,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
     <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(580px,100vw)",background:C.bg,borderLeft:"1px solid "+C.border,zIndex:301,display:"flex",flexDirection:"column",boxShadow:"-8px 0 40px #0008"}}>
       {/* Header */}
       <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        {selected&&<button onClick={()=>setSelected(null)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:13,padding:"4px 10px",fontFamily:"inherit",flexShrink:0}}>← Voltar</button>}
+        {selected&&<button onClick={()=>directMode?onClose():setSelected(null)} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:13,padding:"4px 10px",fontFamily:"inherit",flexShrink:0}}>{directMode?"✕ Fechar":"← Voltar"}</button>}
         <div style={{flex:1,minWidth:0}}>
           {selected
             ?<><div style={{fontSize:14,fontWeight:700,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selected.label}</div>
