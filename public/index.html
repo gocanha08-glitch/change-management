@@ -974,7 +974,9 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     const t=existing;const cr=crits.find(c=>c.v===t.criticality);
     // isMandatory usando dados salvos (nao o estado local que está vazio no read-only)
     const isMandSaved=dept=>{
-      const cell=(matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][t.criticality])||"";
+      const typeMatrix=matrix&&matrix[request.type];
+      const deptMatrix=typeMatrix&&typeMatrix[dept];
+      const cell=(deptMatrix&&deptMatrix[t.criticality])||"";
       if(cell==="mandatory")return true;
       if(t.flagReg&&dept==="Assuntos Regulatorios")return true;
       if(t.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
@@ -1424,7 +1426,9 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
 
   const isMandSaved=dept=>{
-    const cell=(matrix&&matrix[localReq.type]&&matrix[localReq.type][dept]&&matrix[localReq.type][dept][localReq.triage&&localReq.triage.criticality])||"";
+    const typeMatrix=matrix&&matrix[localReq.type];
+    const deptMatrix=typeMatrix&&typeMatrix[dept];
+    const cell=(deptMatrix&&deptMatrix[localReq.triage&&localReq.triage.criticality])||"";
     if(cell==="mandatory")return true;
     if(localReq.triage&&localReq.triage.flagReg&&dept==="Assuntos Regulatorios")return true;
     if(localReq.triage&&localReq.triage.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
@@ -2041,6 +2045,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             <FieldCard label="Areas Definidas para Avaliacao de Impacto" wide>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
                 {aa.map(d=>{
+                  if(!localReq.evaluations)return null;
                   const done=!!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
                   const mand=isMandSaved(d);
                   return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
