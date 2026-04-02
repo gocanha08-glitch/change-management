@@ -5114,7 +5114,7 @@ const saveReq = async (r) => {
       else await apiPost('/api/requests', r);
       // Atualiza estado local imediatamente
       setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
-    } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
+    } catch (err) { console.error('Erro ao salvar SA:', err); }
   };
 
   const saveUsers = async (list, by, action, detail) => {
