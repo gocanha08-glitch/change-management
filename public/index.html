@@ -2110,6 +2110,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             </thead>
             <tbody>
               {aa.map((dept,di)=>{
+                try {
                 if(!localReq.evaluations){console.error('EVALUATIONS NULL at dept:',dept,'localReq:',localReq);return null;}
                 if(!localReq.triage){console.error('TRIAGE NULL at dept:',dept);return null;}
                 if(!localReq.triage.assignments){console.error('ASSIGNMENTS NULL at dept:',dept);return null;}
@@ -2145,6 +2146,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                   </tr>
 
                 </React.Fragment>;
+                } catch(err) { console.error('MAP2 ERROR at dept:',dept,'err:',err.message,'localReq.evaluations:',localReq.evaluations,'localReq.triage:',JSON.stringify(localReq.triage)); return null; }
               })}
             </tbody>
           </table>
