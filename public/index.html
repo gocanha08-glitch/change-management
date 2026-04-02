@@ -1741,6 +1741,23 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     ...(localReq.actions||[]).filter(a=>a.doneAtt).map(a=>({...a.doneAtt,_src:"Acao "+a.id,_by:a.responsible})),
   ];
 
+  // Safety: garantir que localReq nunca tenha campos null críticos
+  if(!localReq||!localReq.id) return null;
+  const safeLocalReq = localReq.evaluations===null||localReq.triage===null ? {
+    ...localReq,
+    evaluations: localReq.evaluations||{},
+    actions: localReq.actions||[],
+    attachments: localReq.attachments||[],
+    triage: localReq.triage ? {
+      ...localReq.triage,
+      assignments: localReq.triage.assignments||{},
+      deadlines: localReq.triage.deadlines||{},
+      originalDeadlines: localReq.triage.originalDeadlines||{},
+      assignedAreas: localReq.triage.assignedAreas||[],
+    } : null,
+  } : localReq;
+  if(safeLocalReq !== localReq) { console.warn('FIXED NULL FIELDS in localReq'); setLocalReq(safeLocalReq); return null; }
+
   return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
 
     {/* ══ HEADER BAR ══ */}
@@ -5041,7 +5058,7 @@ const loadAll = async () => {
       apiGet('/api/requests').catch(()=>null),
     ]);
     if (us) setUR(us);
-    if (rs) setRR(rs.map(r=>({...r,evaluations:r.evaluations||{},actions:r.actions||[],attachments:r.attachments||[]})));
+    if (rs) setRR(rs.map(r=>safeSA(r)));
     try {
       const mx = await apiGet('/api/config/matrix');
       if (mx) {
@@ -5117,13 +5134,29 @@ const loadAll = async () => {
     try { await apiPut('/api/config/syslog', entry); } catch {}
   };
 
+const safeSA = (r) => ({
+    ...r,
+    evaluations: r.evaluations||{},
+    actions: r.actions||[],
+    attachments: r.attachments||[],
+    deadlineExtensions: r.deadlineExtensions||[],
+    log: r.log||[],
+    triage: r.triage ? {
+      ...r.triage,
+      assignments: r.triage.assignments||{},
+      deadlines: r.triage.deadlines||{},
+      originalDeadlines: r.triage.originalDeadlines||{},
+      assignedAreas: r.triage.assignedAreas||[],
+    } : null,
+  });
+
 const saveReq = async (r) => {
     try {
       const exists = requests.find(x => x.id === r.id);
       if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
       else await apiPost('/api/requests', r);
       // Atualiza estado local imediatamente
-      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+      setRR(p => exists ? p.map(x => x.id === r.id ? safeSA(r) : x) : [safeSA(r), ...p]);
     } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
@@ -5180,7 +5213,21 @@ const saveReq = async (r) => {
   const isAdmin = loggedIn && hasPerm(loggedIn,'sa.avaliacao_inicial');
   const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
   const selectedRaw = requests.find(r => r.id === selId);
-  const selected = selectedRaw ? {...selectedRaw, evaluations:selectedRaw.evaluations||{}, actions:selectedRaw.actions||[], attachments:selectedRaw.attachments||[], deadlineExtensions:selectedRaw.deadlineExtensions||[], log:selectedRaw.log||[]} : null;
+  const selected = selectedRaw ? {
+    ...selectedRaw,
+    evaluations: selectedRaw.evaluations||{},
+    actions: selectedRaw.actions||[],
+    attachments: selectedRaw.attachments||[],
+    deadlineExtensions: selectedRaw.deadlineExtensions||[],
+    log: selectedRaw.log||[],
+    triage: selectedRaw.triage ? {
+      ...selectedRaw.triage,
+      assignments: selectedRaw.triage.assignments||{},
+      deadlines: selectedRaw.triage.deadlines||{},
+      originalDeadlines: selectedRaw.triage.originalDeadlines||{},
+      assignedAreas: selectedRaw.triage.assignedAreas||[],
+    } : null,
+  } : null;
 
   // ---- Browser history (back/forward button support) ----
   // Only active on real domains (not srcdoc/iframe previews)
@@ -5234,8 +5281,7 @@ const saveReq = async (r) => {
         if (rs) setRR(prev => {
           const prevMap = Object.fromEntries(prev.map(r=>[r.id,r]));
           return rs.map(sr => {
-            // Garantir que campos criticos nunca sejam null
-            const safe = {...sr, evaluations:sr.evaluations||{}, actions:sr.actions||[], attachments:sr.attachments||[]};
+            const safe = safeSA(sr);
             const lr = prevMap[sr.id];
             if (!lr) return safe;
             const srLog = (sr.log||[]).length;
