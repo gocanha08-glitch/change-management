@@ -934,8 +934,10 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   const evalDays=(phaseDl&&phaseDl.avaliacao_areas&&phaseDl.avaliacao_areas.days)||7;
 
   const getCell=(dept)=>{
-    if(!crit||!matrix||!matrix[request.type]||!matrix[request.type][dept])return"";
-    return matrix[request.type][dept][crit]||"";
+    if(!crit||!matrix||!matrix[request.type])return"";
+    const deptMatrix=matrix[request.type][dept];
+    if(!deptMatrix)return"";
+    return deptMatrix[crit]||"";
   };
 
   const isMandatory=dept=>{
@@ -4425,7 +4427,7 @@ function MatrixEditor({matrix,crits,currentUser,onSave}){
           <React.Fragment key={dept}>
             <div style={{padding:"6px 11px",fontSize:11,color:C.dim,background:di%2===0?C.card:C.surface,borderTop:"1px solid "+C.border,borderRight:"1px solid "+C.border,display:"flex",alignItems:"center",position:"sticky",left:0,zIndex:1,minHeight:36}}>{dept}</div>
             {crits.map(cr=>{
-              const val=(m[selType]&&m[selType][dept]&&m[selType][dept][cr.v])||"";
+              const deptM=m[selType]&&m[selType][dept];const val=(deptM&&deptM[cr.v])||"";
               return <div key={cr.v} style={{display:"flex",alignItems:"center",justifyContent:"center",borderLeft:"1px solid "+C.border,borderTop:"1px solid "+C.border,background:di%2===0?C.card:C.surface}}>
                 <button onClick={()=>isAdmin&&cycle(selType,dept,cr.v)}
                   title={val===""?"Clique para adicionar como opcional":val==="optional"?"Opcional — clique para tornar obrigatorio":"Obrigatorio — clique para remover"}
