@@ -1620,7 +1620,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const doReassignEval=(dept,newUserId,motive)=>{
     const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
-    const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...(localReq.triage.assignments||{}),[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
     setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignEval(null);setReassignEvalUser("");
   };
 
@@ -1676,7 +1676,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const applyAdminDl=(newDate)=>{
     if(!adminDlTarget)return;
     let r={...localReq};
-    if(adminDlTarget.type==="eval"){const dl={...localReq.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+    if(adminDlTarget.type==="eval"){const dl={...(localReq.triage.deadlines||{}),[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
     else{const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);r={...r,actions};}
     r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | De: "+fmtD(adminDlTarget.currentDate)+" → Para: "+fmtD(newDate));
     onUpdate(r);setAdminDlTarget(null);
@@ -1689,7 +1689,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     });
     let r={...localReq,deadlineExtensions:exts};
     if(approved){
-      if(ext.targetType==="eval"){const dl={...localReq.triage.deadlines,[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+      if(ext.targetType==="eval"){const dl={...(localReq.triage.deadlines||{}),[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
       else{const actions=r.actions.map(a=>a.id===ext.targetKey?{...a,deadline:ext.newDate}:a);r={...r,actions};}
       r=mkLog(r,currentUser.name,"extensao","Extensao aprovada",ext.targetLabel+" -> "+fmtD(ext.newDate));
     }else{r=mkLog(r,currentUser.name,"extensao","Extensao rejeitada",ext.targetLabel);}
@@ -2408,7 +2408,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               onChangeOwner={(d,id)=>{
                 const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[d]));
                 const newU=allUsers.find(u=>u.id===id);
-                const r={...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[d]:id}}};
+                const r={...localReq,triage:{...localReq.triage,assignments:{...(localReq.triage.assignments||{}),[d]:id}}};
                 onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
               }}
               onClose={closeDrawer}
