@@ -2124,6 +2124,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                 const stColor=done?C.success:draft?C.accent:ov?C.danger:C.muted;
                 const stLabel=done?"Concluida":draft?"Rascunho":ov?"Atrasada":"Pendente";
                 const mand=isMandSaved(dept);
+                console.log('MAP OK dept:',dept,'ev:',ev,'done:',done,'mand:',mand,'dl:',dl);
                 const concObs=done&&ev&&(ev.obs||(ev.answers&&ev.answers.filter(a=>a.a==="S").length+" sim / "+ev.answers.filter(a=>a.a==="N").length+" nao"))||"—";
                 const evalRowId="eval-row-"+dept.replace(/[\s\/()&]/g,"-");
                 return <React.Fragment key={dept}>
