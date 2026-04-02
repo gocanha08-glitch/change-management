@@ -5169,7 +5169,8 @@ const saveReq = async (r) => {
   // ---- Derived ----
   const isAdmin = loggedIn && hasPerm(loggedIn,'sa.avaliacao_inicial');
   const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
-  const selected = requests.find(r => r.id === selId);
+  const selectedRaw = requests.find(r => r.id === selId);
+  const selected = selectedRaw ? {...selectedRaw, evaluations:selectedRaw.evaluations||{}, actions:selectedRaw.actions||[], attachments:selectedRaw.attachments||[], deadlineExtensions:selectedRaw.deadlineExtensions||[], log:selectedRaw.log||[]} : null;
 
   // ---- Browser history (back/forward button support) ----
   // Only active on real domains (not srcdoc/iframe previews)
