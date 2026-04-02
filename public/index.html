@@ -4,21 +4,10 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>CHANGE - Gestao de Mudancas</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-<script>
-window.addEventListener('error', function(e) {
-  if(e.message && e.message.includes('null')) {
-    console.error('=== CAUGHT ERROR ===');
-    console.error('Message:', e.message);
-    console.error('File:', e.filename);
-    console.error('Line:', e.lineno, 'Col:', e.colno);
-    console.error('Stack:', e.error && e.error.stack);
-  }
-});
-</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--app-bg,#0F1117);font-family:'Segoe UI',system-ui,sans-serif;color:#E8EAF0;font-size:14px}
@@ -1430,7 +1419,6 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const st=REQ_ST[localReq.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
   const aa=(localReq.triage&&localReq.triage.assignedAreas)||[];
-  if(localReq.evaluations===null){console.error('CRITICAL: localReq.evaluations is null!',JSON.stringify(localReq).slice(0,200));}
   const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
   const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
@@ -1504,13 +1492,13 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2 (SGQ)");
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEvalOpen(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEvalOpen({});
   };
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
     const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
     onUpdate(mkLog({...localReq,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
-    setEvalOpen(null);
+    setEvalOpen({});
   };
 
   const ap2=(customDate,signature)=>{
@@ -1767,7 +1755,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
       assignedAreas: localReq.triage.assignedAreas||[],
     } : null,
   } : localReq;
-  if(safeLocalReq !== localReq) { console.warn('FIXED NULL FIELDS in localReq'); setLocalReq(safeLocalReq); return null; }
+  if(safeLocalReq !== localReq) { setLocalReq(safeLocalReq); return null; }
 
   return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
 
@@ -2078,7 +2066,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                   if(!localReq.evaluations)return null;
                   const done=!!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
                   const mand=isMandSaved(d);
-                  console.log('MAP1 OK dept:',d,'mand:',mand);
                   return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
                     {done&&<span style={{color:C.success}}>✓</span>}{d}
                     {mand&&<span style={{fontSize:10,color:C.warning,opacity:.8}}>obr</span>}
@@ -2110,11 +2097,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             </thead>
             <tbody>
               {aa.map((dept,di)=>{
-                try {
-                if(!localReq.evaluations){console.error('EVALUATIONS NULL at dept:',dept,'localReq:',localReq);return null;}
-                if(!localReq.triage){console.error('TRIAGE NULL at dept:',dept);return null;}
-                if(!localReq.triage.assignments){console.error('ASSIGNMENTS NULL at dept:',dept);return null;}
-                if(!localReq.triage.deadlines){console.error('DEADLINES NULL at dept:',dept);return null;}
+
                 const ev=(localReq.evaluations&&localReq.evaluations[dept])||null;
                 const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
                 const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
@@ -2126,7 +2109,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                 const stColor=done?C.success:draft?C.accent:ov?C.danger:C.muted;
                 const stLabel=done?"Concluida":draft?"Rascunho":ov?"Atrasada":"Pendente";
                 const mand=isMandSaved(dept);
-                console.log('MAP OK dept:',dept,'ev:',ev,'done:',done,'mand:',mand,'dl:',dl);
                 const concObs=done&&ev&&(ev.obs||(ev.answers&&ev.answers.filter(a=>a.a==="S").length+" sim / "+ev.answers.filter(a=>a.a==="N").length+" nao"))||"—";
                 const evalRowId="eval-row-"+dept.replace(/[\s\/()&]/g,"-");
                 return <React.Fragment key={dept}>
@@ -2146,7 +2128,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                   </tr>
 
                 </React.Fragment>;
-                } catch(err) { console.error('MAP2 ERROR at dept:',dept,'err:',err.message,'localReq.evaluations:',localReq.evaluations,'localReq.triage:',JSON.stringify(localReq.triage)); return null; }
               })}
             </tbody>
           </table>
