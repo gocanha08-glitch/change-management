@@ -2078,6 +2078,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                   if(!localReq.evaluations)return null;
                   const done=!!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
                   const mand=isMandSaved(d);
+                  console.log('MAP1 OK dept:',d,'mand:',mand);
                   return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
                     {done&&<span style={{color:C.success}}>✓</span>}{d}
                     {mand&&<span style={{fontSize:10,color:C.warning,opacity:.8}}>obr</span>}
