@@ -2075,6 +2075,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             </thead>
             <tbody>
               {aa.map((dept,di)=>{
+                if(!localReq.evaluations){console.error('EVALUATIONS NULL at dept:',dept,'localReq:',localReq);return null;}
+                if(!localReq.triage){console.error('TRIAGE NULL at dept:',dept);return null;}
                 const ev=localReq.evaluations&&localReq.evaluations[dept];
                 const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
                 const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
