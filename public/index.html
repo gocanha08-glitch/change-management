@@ -995,10 +995,10 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
         </div>
       </div>
       {(t.assignedAreas||[]).map(d=>{
-        const u=allUsers.find(x=>x.id===(t.assignments&&t.assignments[d]));
+        const u=allUsers.find(x=>x.id===((t.assignments||{})[d]));
         const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
-        const dl=t.deadlines&&t.deadlines[d];
-        const orig=t.originalDeadlines&&t.originalDeadlines[d];
+        const dl=(t.deadlines||{})[d];
+        const orig=(t.originalDeadlines||{})[d];
         const extended=orig&&dl&&dl!==orig;
         const mand=isMandSaved(d);
         return <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 9px",background:C.surface,borderRadius:6,marginBottom:3,fontSize:11}}>
@@ -1378,10 +1378,8 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     );
     busyRef.current=anyOpen;
     if(!anyOpen){
-      // Só sincroniza se o servidor tem versão mais nova (mais eventos no log)
-      const serverLog=(localReq.log||[]).length;
-      const localLog=(localReq.log||[]).length;
-      if(serverLog>localLog||localReq.id!==localReq.id){
+      // Só sincroniza se mudou de SA (id diferente)
+      if(request.id!==localReq.id){
         setLocalReq({...request,evaluations:request.evaluations||{},actions:request.actions||[],attachments:request.attachments||[],deadlineExtensions:request.deadlineExtensions||[],log:request.log||[]});
       }
     }
@@ -1417,6 +1415,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const st=REQ_ST[localReq.status]||{};
   const getU=id=>allUsers.find(u=>u.id===id);
   const aa=(localReq.triage&&localReq.triage.assignedAreas)||[];
+  if(localReq.evaluations===null){console.error('CRITICAL: localReq.evaluations is null!',JSON.stringify(localReq).slice(0,200));}
   const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
   const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
@@ -2077,7 +2076,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               {aa.map((dept,di)=>{
                 if(!localReq.evaluations){console.error('EVALUATIONS NULL at dept:',dept,'localReq:',localReq);return null;}
                 if(!localReq.triage){console.error('TRIAGE NULL at dept:',dept);return null;}
-                const ev=localReq.evaluations&&localReq.evaluations[dept];
+                if(!localReq.triage.assignments){console.error('ASSIGNMENTS NULL at dept:',dept);return null;}
+                if(!localReq.triage.deadlines){console.error('DEADLINES NULL at dept:',dept);return null;}
+                const ev=(localReq.evaluations&&localReq.evaluations[dept])||null;
                 const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
                 const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
                 const dl=localReq.triage&&localReq.triage.deadlines&&localReq.triage.deadlines[dept];
@@ -2391,7 +2392,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     {drawer&&(()=>{
       if(drawer.type==="eval"){
         const dept=drawer.dept;
-        const ev=localReq.evaluations&&localReq.evaluations[dept];
+        const ev=(localReq.evaluations&&localReq.evaluations[dept])||null;
         const done=!!(ev&&ev.at);
         const u=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
         const isMe=u&&u.id===currentUser.id;
@@ -2839,7 +2840,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
         aa.forEach(dept=>{
           const assignedId=r.triage&&r.triage.assignments&&r.triage.assignments[dept];
           if(parseInt(assignedId)!==parseInt(currentUser.id))return;
-          const ev=r.evaluations&&r.evaluations[dept];
+          const ev=(r.evaluations&&r.evaluations[dept])||null;
           const done=!!(ev&&ev.at);
           tasks.push({type:"eval",req:r,dept,done,label:dept,sublabel:r.id+" · "+r.title,urg:done?"done":urgCls((r.stageDeadlines&&r.stageDeadlines.avaliacao)||r.deadline,done?"concluida":"pendente")});
         });
@@ -2866,7 +2867,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
     if(t.type==="eval"){
       const r=t.req;
       const dept=t.dept;
-      const ev=r.evaluations&&r.evaluations[dept];
+      const ev=(r.evaluations&&r.evaluations[dept])||null;
       const done=!!(ev&&ev.at);
       const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
       const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
@@ -3460,7 +3461,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
     return (r.triage.assignedAreas||[]).map(dept=>{
       const cr=crits.find(c=>c.v===r.triage.criticality);
       const resp=allUsers.find(u=>u.id===(r.triage.assignments&&r.triage.assignments[dept]));
-      const ev=r.evaluations&&r.evaluations[dept];
+      const ev=(r.evaluations&&r.evaluations[dept])||null;
       const dl=r.triage.deadlines&&r.triage.deadlines[dept];
       const orig=r.triage.originalDeadlines&&r.triage.originalDeadlines[dept];
       const extended=orig&&dl&&dl!==orig;
