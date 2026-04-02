@@ -54,7 +54,6 @@ function validateTransition(oldStatus, newStatus, user, sa) {
     return null;
   }
 
-  // avaliacao_areas → aprovacao_plano (quando todas avaliações concluídas)
   if (oldStatus === 'avaliacao_areas' && newStatus === 'aprovacao_plano') {
     const assignments = sa.triage?.assignments || {};
     const isAssigned = Object.values(assignments).some(id => parseInt(id) === uid);
@@ -62,13 +61,11 @@ function validateTransition(oldStatus, newStatus, user, sa) {
     return null;
   }
 
-  // aprovacao_plano → montagem_plano (SGQ aprova avaliações)
   if (oldStatus === 'aprovacao_plano' && newStatus === 'montagem_plano') {
     if (!isSGQ(perms)) return 'Sem permissão para aprovar avaliações';
     return null;
   }
 
-  // montagem_plano → execucao (SGQ/responsável libera plano)
   if (oldStatus === 'montagem_plano' && newStatus === 'execucao') {
     const isPlanResp = parseInt(sa.planResponsible) === uid;
     if (!isPlanResp && !isSGQ(perms)) return 'Sem permissão para liberar plano para execução';
@@ -114,7 +111,6 @@ function validateSameStatusUpdate(status, user, sa, perms, uid) {
   return null;
 }
 
-// ─── helpers de e-mail ────────────────────────────────────────────
 async function getSGQEmails() {
   try {
     const rows = await sql`
@@ -139,7 +135,6 @@ async function dispararEmail(oldStatus, newStatus, sa) {
     const BASE_URL = process.env.APP_URL || 'https://change-management-eta.vercel.app';
     const saUrl = `${BASE_URL}/?view=detail&id=${encodeURIComponent(sa.id)}`;
 
-    // avaliacao_inicial → avaliacao_areas: notifica cada avaliador
     if (oldStatus === 'avaliacao_inicial' && newStatus === 'avaliacao_areas') {
       const assignments = sa.triage?.assignments || {};
       const areas = sa.triage?.assignedAreas || [];
@@ -157,7 +152,6 @@ async function dispararEmail(oldStatus, newStatus, sa) {
       }
     }
 
-    // avaliacao_areas → aprovacao_plano: notifica SGQ
     if (oldStatus === 'avaliacao_areas' && newStatus === 'aprovacao_plano') {
       const sgqEmails = await getSGQEmails();
       const areas = sa.triage?.assignedAreas || [];
@@ -170,7 +164,6 @@ async function dispararEmail(oldStatus, newStatus, sa) {
       }
     }
 
-    // montagem_plano → execucao: notifica responsáveis das ações
     if (oldStatus === 'montagem_plano' && newStatus === 'execucao') {
       const actions = sa.actions || [];
       const userIds = [...new Set(actions.map(a => parseInt(a.responsible)).filter(Boolean))];
@@ -188,7 +181,6 @@ async function dispararEmail(oldStatus, newStatus, sa) {
       }
     }
 
-    // execucao → concluida: notifica solicitante
     if (oldStatus === 'execucao' && newStatus === 'concluida') {
       const solicitanteEmail = await getUserEmail(sa.createdBy);
       if (solicitanteEmail) {
@@ -207,7 +199,6 @@ async function dispararEmail(oldStatus, newStatus, sa) {
   }
 }
 
-// ─── handler ─────────────────────────────────────────────────────
 module.exports = async (req, res) => {
   CORS(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -223,7 +214,13 @@ module.exports = async (req, res) => {
     try {
       const rows = await sql`SELECT data FROM requests WHERE id = ${id} LIMIT 1`;
       if (!rows[0]) return res.status(404).json({ error: 'SA nao encontrada' });
-      return res.json(rows[0].data);
+      const data = rows[0].data;
+      data.evaluations = data.evaluations || {};
+      data.actions = data.actions || [];
+      data.attachments = data.attachments || [];
+      data.deadlineExtensions = data.deadlineExtensions || [];
+      data.log = data.log || [];
+      return res.json(data);
     } catch (err) {
       return res.status(500).json({ error: 'Erro ao buscar SA' });
     }
