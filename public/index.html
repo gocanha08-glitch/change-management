@@ -1382,7 +1382,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
       const serverLog=(localReq.log||[]).length;
       const localLog=(localReq.log||[]).length;
       if(serverLog>localLog||localReq.id!==localReq.id){
-        setLocalReq(request);
+        setLocalReq({...request,evaluations:request.evaluations||{},actions:request.actions||[],attachments:request.attachments||[],deadlineExtensions:request.deadlineExtensions||[],log:request.log||[]});
       }
     }
   },[request,drawer,drawerEditing,showReject,showRegress,showCancel,
@@ -5114,7 +5114,7 @@ const saveReq = async (r) => {
       else await apiPost('/api/requests', r);
       // Atualiza estado local imediatamente
       setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
-    } catch (err) { console.error('Erro ao salvar SA:', err); }
+    } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
   const saveUsers = async (list, by, action, detail) => {
