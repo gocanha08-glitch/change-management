@@ -1424,7 +1424,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
   const prevSt={avaliacao_inicial:"aberta",avaliacao_areas:"avaliacao_inicial",aprovacao_plano:"avaliacao_areas",montagem_plano:"aprovacao_plano",execucao:"montagem_plano"}[localReq.status];
   const allActsDone=(localReq.actions||[]).length>0&&(localReq.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
-  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
+  const statusIdx={aberta:0,avaliacao_inicial:1,avaliacao_areas:2,aprovacao_plano:2,montagem_plano:3,execucao:4,concluida:5,cancelada:5}[localReq.status]||0;
 
   const isMandSaved=dept=>{
     const typeMatrix=matrix&&matrix[localReq.type];
