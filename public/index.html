@@ -1655,13 +1655,13 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   };
 
   // ── Reatribuir acao ──
-  const doReassignAc=(acId,newUserId,motive)=>{
+  const doReassignAc=(acId,newUserId,motive,signature)=>{
     const ac=(localReq.actions||[]).find(a=>a.id===acId);
     const oldU=allUsers.find(u=>u.id===ac.responsible);
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
-    const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
-    const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignAc(null);setReassignAcUser("");
+    const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId),...(signature?{reassignSignature:signature}:{})}:a);
+    const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive+(signature?" | Assinado eletronicamente":""));
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignAc(null);setReassignAcUser("");setReassignAcObs("");setSigModal(null);
   };
 
   const doReassignPlan=(newUserId,obs,signature)=>{
@@ -2177,7 +2177,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                     <Th>Responsavel</Th>
                     <Th>Prazo</Th>
                     <Th>Status</Th>
-                    <Th>Conclusao / Observacao</Th>
+                    <Th>Observacao</Th>
+                    <Th>Nota de Conclusao</Th>
                     <Th>Concluida por</Th>
                     <Th>Data conclusao</Th>
                     <Th>Anexo</Th>
@@ -2199,8 +2200,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                         <Td muted>{resp?resp.name:"—"}</Td>
                         <Td><span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted,fontSize:13}}>{fmtD(ac.deadline)}</span></Td>
                         <Td><Pill label={ac.status==="concluida"?"Concluida":ac.status==="cancelada"?"Cancelada":ov?"Atrasada":"Pendente"} color={acColor}/></Td>
-                        <Td muted>{ac.doneNote||ac.obs||"—"}</Td>
-                        <Td muted>{ac.status==="concluida"&&resp?resp.name:"—"}</Td>
+                        <Td muted>{ac.obs||"—"}</Td>
+                        <Td muted>{ac.doneNote||"—"}</Td>
+                        <Td muted>{ac.status==="concluida"&&(ac.doneByName||(resp?resp.name:null))||"—"}</Td>
                         <Td muted>{ac.doneAt?fmtD(ac.doneAt.slice(0,10)):"—"}</Td>
                         <Td muted>{ac.doneAtt?ac.doneAtt.name:"—"}</Td>
                       </tr>
@@ -2676,7 +2678,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
           <button style={Sg.btn()} onClick={()=>{setReassignAc(null);setReassignAcUser("");setReassignAcObs("");}}>Cancelar</button>
-          <button style={{...Sg.btn("primary"),opacity:reassignAcUser&&reassignAcObs.trim()?1:.4}} disabled={!reassignAcUser||!reassignAcObs.trim()} onClick={()=>doReassignAc(reassignAc.id,reassignAcUser,reassignAcObs)}>Confirmar</button>
+          <button style={{...Sg.btn("primary"),opacity:reassignAcUser&&reassignAcObs.trim()?1:.4}} disabled={!reassignAcUser||!reassignAcObs.trim()} onClick={()=>{const acId=reassignAc.id;const newU=allUsers.find(u=>parseInt(u.id)===parseInt(reassignAcUser));setReassignAc(null);setSigModal({action:(sig)=>{doReassignAc(acId,reassignAcUser,reassignAcObs,sig);},title:"Assinar - Reatribuir Acao",desc:"Acao: "+acId+" | Novo responsavel: "+(newU?newU.name:""),label:"Assinar e Confirmar",style:"primary",saId:localReq.id,sigAction:"reatribuicao"});}}>Continuar →</button>
         </div>
       </div>
     </Modal>}
@@ -2836,6 +2838,7 @@ function ExtensionsTab({request,currentUser,allUsers,isAdmin,onDecide,onAdminCha
 function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initialSelected,onNav,onUpdate,matrix,deptQuestions,phaseDl,C}){
   const Sg=mkSg(C);
   const [selected,setSelected]=React.useState(null);
+  const [sigModal,setSigModal]=React.useState(null);
 
   // Sync initialSelected when drawer opens
   React.useEffect(()=>{
@@ -2936,9 +2939,12 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
       const ov=isOD(ac.deadline,ac.status);
       const acColor=ac.status==="concluida"?C.success:ac.status==="cancelada"?C.muted:ov?C.danger:C.warning;
       const canAct=isMine&&r.status==="execucao"&&!["concluida","cancelada"].includes(ac.status);
-      const concludeAc=(note,att)=>{
-        const actions=(r.actions||[]).map(a=>a.id===ac.id?{...a,status:"concluida",doneNote:note,doneAtt:att,doneBy:currentUser.id,doneByName:currentUser.name,doneAt:new Date().toISOString()}:a);
-        const r2=mkLog({...r,actions},currentUser.name,"acao","Acao concluida","ID: "+ac.id+" | "+(note.slice(0,80)));
+      const concludeAc=(note,att,sig)=>{
+        const patch={status:"concluida",doneNote:note,doneAtt:att,doneBy:currentUser.id,doneByName:currentUser.name,doneAt:new Date().toISOString(),...(sig?{doneSignature:sig}:{})};
+        const actions=(r.actions||[]).map(a=>a.id===ac.id?{...a,...patch}:a);
+        const allDone=actions.every(a=>["concluida","cancelada"].includes(a.status));
+        let r2=mkLog({...r,actions},currentUser.name,"acao","Acao concluida","ID: "+ac.id+" | "+(note.slice(0,80))+(sig?" | Assinado eletronicamente":""));
+        if(allDone)r2=mkLog(r2,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
         onUpdate(r2);setSelected(null);
       };
       return <div>
@@ -2964,7 +2970,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
             <div style={{fontSize:13,color:C.text}}>{ac.obs}</div>
           </div>}
         </div>
-        {canAct&&<AcConcForm acId={ac.id} onConfirm={concludeAc} request={r} currentUser={currentUser} C={C} Sg={Sg}/>}
+        {canAct&&<AcConcForm acId={ac.id} onConfirm={(note,att)=>{setSigModal({action:(sig)=>{concludeAc(note,att,sig);},title:"Assinar - Conclusao de Acao",desc:"Acao: "+ac.id+" - "+ac.desc.slice(0,60),label:"Assinar e Concluir",style:"success",saId:r.id,sigAction:"concluir_acao"});}} request={r} currentUser={currentUser} C={C} Sg={Sg}/>}
         {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginTop:8}}>
           <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:4,textTransform:"uppercase"}}>Concluida</div>
           <div style={{fontSize:13,color:C.text}}>{ac.doneNote}</div>
@@ -3022,6 +3028,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
         </>}
       </div>
     </div>
+    <SignatureModal open={!!sigModal} onClose={()=>setSigModal(null)} onConfirm={(sig)=>{if(sigModal&&sigModal.action){sigModal.action(sig);}setSigModal(null);}} title={sigModal&&sigModal.title} description={sigModal&&sigModal.desc} confirmLabel={sigModal&&sigModal.label} confirmStyle={sigModal&&sigModal.style} saId={sigModal&&sigModal.saId} action={sigModal&&sigModal.sigAction} C={C} Sg={Sg}/>
   </>;
 }
 
