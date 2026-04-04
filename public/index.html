@@ -1323,6 +1323,9 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [reopenAc,setReopenAc]=useState(null);       // ac object
   const [reassignAc,setReassignAc]=useState(null);   // ac object
   const [reassignAcUser,setReassignAcUser]=useState("");
+  const [reassignPlan,setReassignPlan]=useState(false);
+  const [reassignPlanUser,setReassignPlanUser]=useState("");
+  const [reassignPlanObs,setReassignPlanObs]=useState("");
   const [extTarget,setExtTarget]=useState(null);
   const [adminDlTarget,setAdminDlTarget]=useState(null);
   const [editTriagem,setEditTriagem]=useState(false);
@@ -1657,6 +1660,15 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
     setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignAc(null);setReassignAcUser("");
+  };
+
+  const doReassignPlan=(newUserId,obs,signature)=>{
+    const oldName=localReq.planResponsibleName||"—";
+    const newU=allUsers.find(u=>parseInt(u.id)===parseInt(newUserId));
+    const patch={planResponsible:parseInt(newUserId),planResponsibleName:newU?newU.name:""};
+    if(signature)patch.reassignPlanSignature=signature;
+    const r=mkLog({...localReq,...patch},currentUser.name,"reatribuicao","Responsavel do plano reatribuido","De: "+oldName+" → Para: "+(newU?newU.name:"—")+(obs?" | Justificativa: "+obs.slice(0,100):"")+(signature?" | Assinado eletronicamente":""));
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignPlan(false);setReassignPlanUser("");setReassignPlanObs("");setSigModal(null);
   };
 
   const concludeSA=(note,signature)=>{
@@ -2137,11 +2149,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                   <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,marginBottom:3}}>Responsavel pelo Plano</div>
                   <div style={{fontSize:13,fontWeight:600,color:localReq.planResponsibleName?C.text:C.muted}}>{localReq.planResponsibleName||"Nao definido"}</div>
                 </div>
-                {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
-                  const u=allUsers.find(x=>x.id===parseInt(v));
-                  const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
-                  setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
-                }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
+                {isAdmin&&["montagem_plano","execucao"].includes(localReq.status)&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={()=>{setReassignPlanUser(localReq.planResponsible||"");setReassignPlan(true);}}>Trocar</button>}
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {canPlan&&localReq.status==="montagem_plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
@@ -2443,11 +2451,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8,flexWrap:"wrap"}}>
             <div style={{fontSize:13,color:C.muted}}>Responsavel: <strong style={{color:C.text}}>{localReq.planResponsibleName||"Nao definido"}</strong></div>
             <div style={{display:"flex",gap:8}}>
-              {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
-                const u=allUsers.find(x=>x.id===parseInt(v));
-                const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
-                setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
-              }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
+              {isAdmin&&["montagem_plano","execucao"].includes(localReq.status)&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={()=>{setReassignPlanUser(localReq.planResponsible||"");setReassignPlan(true);}}>Trocar</button>}
               {canPlan&&localReq.status==="montagem_plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
               {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
             </div>
@@ -2681,6 +2685,21 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
           </div>
         </div>;
       })()}
+    </Modal>}
+
+    {reassignPlan&&<Modal open={reassignPlan} onClose={()=>{setReassignPlan(false);setReassignPlanUser("");setReassignPlanObs("");}} title="Reatribuir Responsavel do Plano" width={460}>
+      <div style={{fontSize:13,color:C.muted,marginBottom:14}}>Responsavel atual: <strong style={{color:C.text}}>{localReq.planResponsibleName||"Nao definido"}</strong></div>
+      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
+      <select style={{...Sg.input(),width:"100%",marginBottom:12}} value={reassignPlanUser} onChange={e=>setReassignPlanUser(e.target.value)}>
+        <option value="">Selecione...</option>
+        {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+      </select>
+      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Justificativa *</label>
+      <textarea style={{...Sg.input(),minHeight:72,resize:"vertical",marginBottom:14}} value={reassignPlanObs} onChange={e=>setReassignPlanObs(e.target.value)} placeholder="Por que esta trocando o responsavel pelo plano?"/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button style={Sg.btn()} onClick={()=>{setReassignPlan(false);setReassignPlanUser("");setReassignPlanObs("");}}>Cancelar</button>
+        <button style={{...Sg.btn("warning"),opacity:reassignPlanUser&&reassignPlanObs.trim()?1:.4}} disabled={!reassignPlanUser||!reassignPlanObs.trim()} onClick={()=>{setReassignPlan(false);setSigModal({action:(sig)=>{doReassignPlan(reassignPlanUser,reassignPlanObs,sig);},title:"Assinar - Reatribuir Plano",desc:"SA: "+localReq.id+" | Novo responsavel: "+((allUsers.find(u=>parseInt(u.id)===parseInt(reassignPlanUser))||{}).name||""),label:"Assinar e Confirmar",style:"warning",saId:localReq.id,sigAction:"reatribuicao"});}}>Continuar →</button>
+      </div>
     </Modal>}
 
     {/* ══ ADICIONAR ÁREA AVALIADORA ══ */}
