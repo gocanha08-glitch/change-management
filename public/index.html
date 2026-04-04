@@ -2417,7 +2417,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               }}
               onClose={closeDrawer}
               onSaveDraft={(dept,answers,obs,atts)=>{saveDraftEval(dept,answers,obs,atts);closeDrawer();}}
-              onSave={(dept,answers,obs,atts)=>{closeDrawer();setSigModal({action:(sig)=>{saveEval(dept,answers,obs,atts,sig);},title:"Assinar - Avaliacao de Impacto",desc:"SA: "+localReq.id+" | Area: "+dept,label:"Assinar e Registrar Avaliacao",style:"primary",saId:localReq.id,sigAction:"avaliacao"});}}
+              onSave={(dept,answers,obs,atts)=>{setSigModal({action:(sig)=>{saveEval(dept,answers,obs,atts,sig);closeDrawer();},title:"Assinar - Avaliacao de Impacto",desc:"SA: "+localReq.id+" | Area: "+dept,label:"Assinar e Registrar Avaliacao",style:"primary",saId:localReq.id,sigAction:"avaliacao"});}}
               C={C}/>}
         </TaskDrawer>;
       }
