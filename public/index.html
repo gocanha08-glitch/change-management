@@ -3463,6 +3463,10 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
   const [fResp,setFResp]=useState("");
   const [fSA,setFSA]=useState("");
 
+  const [sortCol,setSortCol]=useState("createdAt");
+  const [sortDir,setSortDir]=useState("asc");
+  const toggleSort=(col)=>{if(sortCol===col)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortCol(col);setSortDir("asc");}};
+
   // Montar lista unificada
   const allItems=[];
 
@@ -3471,21 +3475,22 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
     (r.actions||[]).forEach(a=>{
       const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
       const resp=allUsers.find(u=>u.id===a.responsible);
-      const done=a.status==="concluida";const cancel=a.status==="cancelada";
+      const done=a.status==="concluida";const cancel=a.status==="cancelada"||r.status==="cancelada";
       const ov=isOD(a.deadline,a.status);
       const urg=done||cancel?"done":urgCls(a.deadline,a.status);
-      allItems.push({type:"acao",key:r.id+"-"+a.id,r,a,cr,resp,done,cancel,ov,urg,dl:a.deadline,label:a.desc,sublabel:a.id,status:a.status,doneAt:a.doneAt,doneBy:a.doneByName||(done&&resp?resp.name:null)});
+      allItems.push({type:"acao",key:r.id+"-"+a.id,r,a,cr,resp,done,cancel,ov,urg,dl:a.deadline,label:a.desc,sublabel:a.id,status:cancel?"cancelada":a.status,doneAt:a.doneAt,doneBy:a.doneByName||(done&&resp?resp.name:null)});
     });
   });
 
-  // Avaliações
+  // Avaliações — excluir SAs canceladas e avaliações canceladas
   requests.forEach(r=>{
-    if(!r.triage)return;
+    if(!r.triage||r.status==="cancelada")return;
     (r.triage.assignedAreas||[]).forEach(dept=>{
       const cr=crits.find(c=>c.v===r.triage.criticality);
       const respId=r.triage.assignments&&r.triage.assignments[dept];
       const resp=allUsers.find(u=>u.id===respId);
       const ev=r.evaluations&&r.evaluations[dept];
+      if(ev&&ev.cancelled)return; // pular avaliações canceladas
       const dl=r.triage.deadlines&&r.triage.deadlines[dept];
       const done=!!(ev&&ev.at);
       const ov=!done&&isOD(dl,"");
@@ -3507,8 +3512,24 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
     const matchSA=!fSA||i.r.id===fSA;
     return matchQ&&matchType&&matchStatus&&matchResp&&matchSA;
   }).sort((a,b)=>{
-    return (a.r.createdAt||"").localeCompare(b.r.createdAt||"");
+    let va,vb;
+    if(sortCol==="dl"){va=a.dl||"9999";vb=b.dl||"9999";}
+    else if(sortCol==="status"){va=a.status||"";vb=b.status||"";}
+    else if(sortCol==="resp"){va=a.resp&&a.resp.name||"";vb=b.resp&&b.resp.name||"";}
+    else if(sortCol==="tipo"){va=a.type||"";vb=b.type||"";}
+    else if(sortCol==="sa"){va=a.r.id||"";vb=b.r.id||"";}
+    else{va=a.r.createdAt||"";vb=b.r.createdAt||"";}
+    const cmp=va.localeCompare(vb);
+    return sortDir==="asc"?cmp:-cmp;
   });
+
+  const SortTh=({label,col,style={}})=>{
+    const active=sortCol===col;
+    const arrow=active?(sortDir==="asc"?" ↑":" ↓"):" ↕";
+    return <span onClick={()=>toggleSort(col)} style={{cursor:"pointer",userSelect:"none",whiteSpace:"nowrap",...style}}>
+      {label}<span style={{opacity:active?1:.3,fontSize:9}}>{arrow}</span>
+    </span>;
+  };
 
   const pend=allItems.filter(i=>!i.done&&!i.cancel).length;
   const late=allItems.filter(i=>i.ov).length;
@@ -3573,7 +3594,17 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       <ResizableTable
         storageKey="cm_tarefas_unified_v1"
         cols={[90,130,55,200,155,40,110,95,115]}
-        headers={["SA","Título SA","Tipo","Tarefa","Responsável","Crit.","Status","Prazo","Concluído por"]}
+        headers={[
+          <SortTh label="SA" col="sa"/>,
+          "Título SA",
+          <SortTh label="Tipo" col="tipo"/>,
+          "Tarefa",
+          <SortTh label="Responsável" col="resp"/>,
+          "Crit.",
+          <SortTh label="Status" col="status"/>,
+          <SortTh label="Prazo" col="dl"/>,
+          "Concluído por"
+        ]}
         onRowClick={row=>{
           const i=row.r;
           if(i.type==="acao") onNav("detail",i.r.id,"plano",null,i.a.id);
