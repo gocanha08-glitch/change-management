@@ -1417,7 +1417,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const cr=crits.find(c=>c.v===(localReq.triage&&localReq.triage.criticality));
   const st=REQ_ST[localReq.status]||{};
-  const getU=id=>allUsers.find(u=>u.id===id);
+  const getU=id=>allUsers.find(u=>parseInt(u.id)===parseInt(id));
   const aa=(localReq.triage&&localReq.triage.assignedAreas)||[];
   const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
   const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
@@ -1497,7 +1497,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
     const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
-    onUpdate(mkLog({...localReq,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
+    const r={...localReq,evaluations:evs};
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});
+    onUpdate(mkLog(r,currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
     setEvalOpen({});
   };
 
@@ -2119,7 +2121,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                     <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.success:C.accent}/></Td>
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
-                      {(done||canAct)
+                      {(done||canAct||draft)
                         ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>openEvalDrawer(dept)}>
                           {done?"Ver respostas":draft?"Continuar":"Avaliar"}
                         </button>
