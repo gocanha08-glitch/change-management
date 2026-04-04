@@ -2900,7 +2900,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
   const r2=mkLog({...r,evaluations:newEvs,status:allDone?"aprovacao_plano":"avaliacao_areas"},currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept);
   if(allDone)r2.log=[...r2.log,{at:new Date().toISOString(),by:"Sistema",type:"sistema",event:"Todas as avaliacoes concluidas",detail:"Aguarda Aprovacao 2 (SGQ)"}];
   onUpdate(r2);
-  onClose();
+  setSelected(null);
 }}
         C={C}/>;
     }
