@@ -1620,7 +1620,20 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   // ── Cancelar SA ──
   const cancelSA=(motive,signature)=>{
-    let r={...localReq,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
+    // Cancelar todas as ações pendentes
+    const actions=(localReq.actions||[]).map(a=>
+      ["concluida","cancelada"].includes(a.status)?a:
+      {...a,status:"cancelada",cancelledMotive:"SA cancelada",cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}
+    );
+    // Cancelar todas as avaliações pendentes (marcar como cancelada)
+    const evaluations={...(localReq.evaluations||{})};
+    const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
+    assignedAreas.forEach(dept=>{
+      if(!evaluations[dept]||!evaluations[dept].at){
+        evaluations[dept]={...evaluations[dept],cancelled:true,cancelledAt:new Date().toISOString()};
+      }
+    });
+    let r={...localReq,status:"cancelada",actions,evaluations,cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
     if(signature)r={...r,cancelSignature:signature};
     r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive+(signature?" | Assinado por: "+signature.signedByName:""));
     setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setShowCancel(false);setSigModal(null);
@@ -3531,21 +3544,21 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
     <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
         <div style={{flex:1,minWidth:180}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar descricao, SA, area..." style={Sg.input()}/></div>
-        <select value={fType} onChange={e=>setFType(e.target.value)} style={{...Sg.input(),width:140}}>
+        <select value={fType} onChange={e=>setFType(e.target.value)} style={{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:140,boxSizing:"border-box"}}>
           <option value="">Todos tipos</option>
           <option value="acao">Acoes</option>
           <option value="avaliacao">Avaliacoes</option>
         </select>
-        <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...Sg.input(),width:140}}>
+        <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:140,boxSizing:"border-box"}}>
           <option value="pendente">Pendentes</option>
           <option value="concluida">Concluidas</option>
           <option value="todas">Todas</option>
         </select>
-        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={{...Sg.input(),width:185}}>
+        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:185,boxSizing:"border-box"}}>
           <option value="">Todos responsaveis</option>
           {respList.map(n=><option key={n} value={n}>{n}</option>)}
         </select>
-        <select value={fSA} onChange={e=>setFSA(e.target.value)} style={{...Sg.input(),width:140}}>
+        <select value={fSA} onChange={e=>setFSA(e.target.value)} style={{background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:140,boxSizing:"border-box"}}>
           <option value="">Todas SAs</option>
           {saList.map(id=><option key={id} value={id}>{id}</option>)}
         </select>
