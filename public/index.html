@@ -1413,7 +1413,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const [editDados,setEditDados]=React.useState(false);
   const [dadosForm,setDF]=React.useState({});
   const openEditDados=()=>{setDF({title:localReq.title,type:localReq.type,description:localReq.description,justification:localReq.justification||"",area:localReq.area||""});setEditDados(true);};
-  const saveDados=()=>{let r={...localReq,...dadosForm};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+dadosForm.title);onUpdate(r);upd(r);setEditDados(false);};
+  const saveDados=()=>{let r={...localReq,...dadosForm};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+dadosForm.title);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);upd(r);setEditDados(false);};
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
@@ -1485,7 +1485,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         setLocalReq(r2);onUpdate(r2);
       }catch(e){alert('Erro ao salvar triagem: '+e.message);}
     } else {
-      onUpdate(r);
+      setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
     }
     setEditTriagem(false);setSigModal(null);
   };
@@ -1498,7 +1498,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2 (SGQ)");
-    onUpdate(r);setEvalOpen({});
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEvalOpen({});
   };
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
@@ -1544,7 +1544,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   const updAc=(aid,ch,ev,detail)=>{
     const actions=(localReq.actions||[]).map(a=>a.id===aid?{...a,...ch}:a);
-    let r={...localReq,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");onUpdate(r);
+    let r={...localReq,actions};if(ev)r=mkLog(r,currentUser.name,"execucao",ev,detail||"");setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
   };
 
   const concludeAction=(acId,note,atts,signature)=>{
@@ -1559,7 +1559,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,actions,attachments:newAtts};
     r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+note.slice(0,80)+(signature?" | Assinado eletronicamente":""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
-    onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
   };
 
   const addAttachment=att=>upd({attachments:[...(localReq.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
@@ -1569,14 +1569,14 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const doRemoveAcPlano=(ac)=>{
     const actions=(localReq.actions||[]).filter(a=>a.id!==ac.id);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
-    onUpdate(r);setConfirmRemoveAc(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setConfirmRemoveAc(null);
   };
 
   // ── Remover acao durante execucao (SGQ, com motivo) ──
   const doRemoveAcExec=(ac,motive)=>{
     const actions=(localReq.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    onUpdate(r);setRemoveAcExec(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setRemoveAcExec(null);
   };
 
   // ── Acrescentar acao durante execucao (SGQ, com motivo) ──
@@ -1587,7 +1587,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     delete newAc.motive;
     const actions=[...(localReq.actions||[]),newAc];
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
-    onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
   };
 
   // ── Reabrir fase ──
@@ -1604,7 +1604,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
     let r={...localReq,...patch};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    onUpdate(r);setReopenPhase(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenPhase(null);
   };
 
   // ── Cancelar SA ──
@@ -1612,7 +1612,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
     if(signature)r={...r,cancelSignature:signature};
     r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive+(signature?" | Assinado por: "+signature.signedByName:""));
-    onUpdate(r);setShowCancel(false);setSigModal(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setShowCancel(false);setSigModal(null);
   };
 
   // ── Reabrir avaliacao ──
@@ -1623,7 +1623,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
     let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao_areas":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
-    onUpdate(r);setReopenEval(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenEval(null);
   };
 
   // ── Reatribuir avaliacao ──
@@ -1631,7 +1631,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
     const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    onUpdate(r);setReassignEval(null);setReassignEvalUser("");
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignEval(null);setReassignEvalUser("");
   };
 
   // ── Reabrir acao ──
@@ -1640,7 +1640,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
     let r={...localReq,actions,status:localReq.status==="concluida"?"execucao":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Acao reaberta","ID: "+acId+" | Motivo: "+motive+(ac&&ac.doneNote?" | Conclusao anterior: "+ac.doneNote.slice(0,60):""));
-    onUpdate(r);setReopenAc(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenAc(null);
   };
 
   // ── Reatribuir acao ──
@@ -1650,21 +1650,21 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    onUpdate(r);setReassignAc(null);setReassignAcUser("");
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignAc(null);setReassignAcUser("");
   };
 
   const concludeSA=(note,signature)=>{
     if(!note||!note.trim())return;
     let r={...localReq,status:"concluida",closedAt:new Date().toISOString(),verifyNote:note,verifiedBy:currentUser.id,verifiedByName:currentUser.name,verifiedAt:new Date().toISOString()};
     if(signature)r={...r,conclusionSignature:signature};
-    r=mkLog(r,currentUser.name,"conclusao","SA encerrada e verificada pelo SGQ","Verificado por: "+currentUser.name+" | "+note.slice(0,100)+(signature?" | Assinado eletronicamente":""));onUpdate(r);setSigModal(null);
+    r=mkLog(r,currentUser.name,"conclusao","SA encerrada e verificada pelo SGQ","Verificado por: "+currentUser.name+" | "+note.slice(0,100)+(signature?" | Assinado eletronicamente":""));setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setSigModal(null);
   };
 
   const rejeitar=()=>{
     let r={...localReq,status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null,
       rejections:[...(localReq.rejections||[]),{by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),note:rejectNote,fromStatus:localReq.status}]};
     r=mkLog(r,currentUser.name,"rejeicao","SA rejeitada e devolvida para abertura","Rejeitado por: "+currentUser.name+" | Motivo: "+rejectNote);
-    onUpdate(r);setReject(false);setRN("");onBack();
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReject(false);setRN("");onBack();
   };
 
   const regredir=()=>{
@@ -1672,7 +1672,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     if(!prev)return;
     let r={...localReq,status:prev};
     r=mkLog(r,currentUser.name,"retorno","SA retornada para fase anterior","De: "+st.label+" → Para: "+(REQ_ST[prev]&&REQ_ST[prev].label)+" | Motivo: "+regressNote+" | Por: "+currentUser.name);
-    onUpdate(r);setRegress(false);setGN("");
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setRegress(false);setGN("");
   };
 
   const requestExtension=(newDate,reason)=>{
@@ -1680,7 +1680,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const ext={id:"EXT-"+Date.now(),targetType:extTarget.type,targetKey:extTarget.key,targetLabel:extTarget.label,currentDate:extTarget.currentDate,newDate,reason,status:"pending",requestedBy:currentUser.id,requestedByName:currentUser.name,requestedAt:new Date().toISOString()};
     let r={...localReq,deadlineExtensions:[...(localReq.deadlineExtensions||[]),ext]};
     r=mkLog(r,currentUser.name,"extensao","Extensao solicitada",extTarget.label+" | Novo: "+fmtD(newDate));
-    onUpdate(r);setExtTarget(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setExtTarget(null);
   };
 
   const applyAdminDl=(newDate)=>{
@@ -1689,7 +1689,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     if(adminDlTarget.type==="eval"){const dl={...localReq.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
     else{const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);r={...r,actions};}
     r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | De: "+fmtD(adminDlTarget.currentDate)+" → Para: "+fmtD(newDate));
-    onUpdate(r);setAdminDlTarget(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setAdminDlTarget(null);
   };
 
   const decideExt=(ext,approved,note)=>{
@@ -1703,7 +1703,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
       else{const actions=r.actions.map(a=>a.id===ext.targetKey?{...a,deadline:ext.newDate}:a);r={...r,actions};}
       r=mkLog(r,currentUser.name,"extensao","Extensao aprovada",ext.targetLabel+" -> "+fmtD(ext.newDate));
     }else{r=mkLog(r,currentUser.name,"extensao","Extensao rejeitada",ext.targetLabel);}
-    onUpdate(r);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
   };
 
   // ── Style atoms ──────────────────────────────────────────────────
