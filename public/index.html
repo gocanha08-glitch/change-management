@@ -5309,7 +5309,7 @@ const saveReq = async (r) => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{setMyTasksOpen(true);setMyTasksTarget({type:"eval",req:r,dept});}} onOpenAction={(r,ac)=>{setMyTasksOpen(true);setMyTasksTarget({type:"action",req:r,ac});}}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
       <MyTasksDrawer
         open={myTasksOpen}
         onClose={()=>{setMyTasksOpen(false);setMyTasksTarget(null);}}
