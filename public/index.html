@@ -3044,6 +3044,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
     ...requests.filter(r=>r.status==="aprovacao_plano").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="montagem_plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="montagem_plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")).map(r=>({type:"extensao",r,urg:"today",tag:"Extensao Prazo",tagColor:C.orange,deadline:getPhaseDeadline(r)})),
   ]:[];
 
   const pendExt=isAdmin?requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")):[];
@@ -3117,13 +3118,6 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
       <button style={{...Sg.btn("primary"),padding:"8px 16px",fontSize:13}} onClick={onNew}>+ Nova Solicitacao</button>
     </div>
 
-    {pendExt.length>0&&<div style={{...Sg.card({marginBottom:12,padding:"9px 13px",border:"1px solid "+C.warning+"55",background:C.warning+"09"})}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{fontSize:12,fontWeight:700,color:C.warning}}>{pendExt.length} SA{pendExt.length!==1?"s":""} com extensao de prazo aguardando aprovacao</span>
-        <button style={{...Sg.btn("warning"),fontSize:11,padding:"4px 10px"}} onClick={()=>onNav("changes")}>Revisar</button>
-      </div>
-    </div>}
-
     {total===0&&pendExt.length===0&&<div style={{...Sg.card({textAlign:"center",padding:48})}}>
       <div style={{fontSize:32,marginBottom:8}}>✓</div>
       <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:2}}>Tudo em dia!</div>
@@ -3146,6 +3140,7 @@ function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenA
             if(item.type==="triage") onNav("detail",rid,"triage");
             else if(item.type==="revisao") onNav("detail",rid,"revisao");
             else if(item.type==="plano"||item.type==="montarplano") onNav("detail",rid,"plano");
+            else if(item.type==="extensao") onNav("detail",rid,"extensoes");
             else onNav("detail",rid);
           }}
           rows={sortU(aprovSGQ).map(item=>{
@@ -5281,11 +5276,11 @@ const saveReq = async (r) => {
   const navItems=[
     {id:"dashboard",  label:"Inicio",        badge:0},
     {id:"changes",    label:"Controles",     badge:0},
-    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs)||0},
+    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs+(isAdmin?pendExt:0))||0},
     {id:"indicators", label:"Indicadores",   badge:0},
     {id:"crits",     label:"Criticidade",  badge:0},
     {id:"perguntas", label:"Perguntas",    badge:0},
-    {id:"settings",   label:"Meu Perfil", badge:isAdmin?(pendExt||0):0},
+    {id:"settings",   label:"Meu Perfil", badge:0},
     {id:"matrix",    label:"Matriz",       badge:0},
     ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
     ...((hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))?[{id:"grupos", label:"Grupos", badge:0,adm:true}]:[]),
