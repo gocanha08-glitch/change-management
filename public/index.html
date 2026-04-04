@@ -1320,9 +1320,11 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [reopenEval,setReopenEval]=useState(null);   // dept string
   const [reassignEval,setReassignEval]=useState(null); // {dept, currentUserId}
   const [reassignEvalUser,setReassignEvalUser]=useState("");
+  const [reassignEvalObs,setReassignEvalObs]=useState("");
   const [reopenAc,setReopenAc]=useState(null);       // ac object
   const [reassignAc,setReassignAc]=useState(null);   // ac object
   const [reassignAcUser,setReassignAcUser]=useState("");
+  const [reassignAcObs,setReassignAcObs]=useState("");
   const [reassignPlan,setReassignPlan]=useState(false);
   const [reassignPlanUser,setReassignPlanUser]=useState("");
   const [reassignPlanObs,setReassignPlanObs]=useState("");
@@ -2633,27 +2635,23 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
       C={C} Sg={Sg}/>
 
     {/* Reatribuir avaliacao */}
-    {reassignEval&&<Modal open={!!reassignEval} onClose={()=>setReassignEval(null)} title={"Reatribuir Avaliacao — "+reassignEval.dept} width={460}>
-      {(()=>{
-        const [rmotive,setRmotive]=useState("");
-        const curU=allUsers.find(u=>u.id===reassignEval.currentUserId);
-        return <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{curU?curU.name:"—"}</strong></div>
-          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
-            <select style={{...Sg.input(),width:"100%"}} value={reassignEvalUser} onChange={e=>setReassignEvalUser(e.target.value)}>
-              <option value="">Selecione...</option>
-              {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
-            <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={rmotive} onChange={e=>setRmotive(e.target.value)} placeholder="Motivo da reatribuicao..."/>
-          </div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-            <button style={Sg.btn()} onClick={()=>setReassignEval(null)}>Cancelar</button>
-            <button style={{...Sg.btn("primary"),opacity:reassignEvalUser&&rmotive.trim()?1:.4}} disabled={!reassignEvalUser||!rmotive.trim()} onClick={()=>doReassignEval(reassignEval.dept,reassignEvalUser,rmotive)}>Confirmar</button>
-          </div>
-        </div>;
-      })()}
+    {reassignEval&&<Modal open={!!reassignEval} onClose={()=>{setReassignEval(null);setReassignEvalUser("");setReassignEvalObs("");}} title={"Reatribuir Avaliacao — "+reassignEval.dept} width={460}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{(allUsers.find(u=>u.id===reassignEval.currentUserId)||{}).name||"—"}</strong></div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
+          <select style={{...Sg.input(),width:"100%"}} value={reassignEvalUser} onChange={e=>setReassignEvalUser(e.target.value)}>
+            <option value="">Selecione...</option>
+            {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
+          <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={reassignEvalObs} onChange={e=>setReassignEvalObs(e.target.value)} placeholder="Motivo da reatribuicao..."/>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>{setReassignEval(null);setReassignEvalUser("");setReassignEvalObs("");}}>Cancelar</button>
+          <button style={{...Sg.btn("primary"),opacity:reassignEvalUser&&reassignEvalObs.trim()?1:.4}} disabled={!reassignEvalUser||!reassignEvalObs.trim()} onClick={()=>doReassignEval(reassignEval.dept,reassignEvalUser,reassignEvalObs)}>Confirmar</button>
+        </div>
+      </div>
     </Modal>}
 
     {/* Reabrir acao */}
@@ -2664,27 +2662,23 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
       C={C} Sg={Sg}/>
 
     {/* Reatribuir acao */}
-    {reassignAc&&<Modal open={!!reassignAc} onClose={()=>setReassignAc(null)} title={"Reatribuir Acao — "+reassignAc.id} width={460}>
-      {(()=>{
-        const [rmotive2,setRmotive2]=useState("");
-        const curU=allUsers.find(u=>u.id===reassignAc.responsible);
-        return <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{curU?curU.name:"—"}</strong></div>
-          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
-            <select style={{...Sg.input(),width:"100%"}} value={reassignAcUser} onChange={e=>setReassignAcUser(e.target.value)}>
-              <option value="">Selecione...</option>
-              {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
-            <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={rmotive2} onChange={e=>setRmotive2(e.target.value)} placeholder="Motivo da reatribuicao..."/>
-          </div>
-          <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-            <button style={Sg.btn()} onClick={()=>setReassignAc(null)}>Cancelar</button>
-            <button style={{...Sg.btn("primary"),opacity:reassignAcUser&&rmotive2.trim()?1:.4}} disabled={!reassignAcUser||!rmotive2.trim()} onClick={()=>doReassignAc(reassignAc.id,reassignAcUser,rmotive2)}>Confirmar</button>
-          </div>
-        </div>;
-      })()}
+    {reassignAc&&<Modal open={!!reassignAc} onClose={()=>{setReassignAc(null);setReassignAcUser("");setReassignAcObs("");}} title={"Reatribuir Acao — "+reassignAc.id} width={460}>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <div style={{fontSize:13,color:C.muted}}>Responsavel atual: <strong style={{color:C.text}}>{(allUsers.find(u=>u.id===reassignAc.responsible)||{}).name||"—"}</strong></div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Novo Responsavel *</label>
+          <select style={{...Sg.input(),width:"100%"}} value={reassignAcUser} onChange={e=>setReassignAcUser(e.target.value)}>
+            <option value="">Selecione...</option>
+            {allUsers.filter(u=>u.active).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </div>
+        <div><label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Motivo *</label>
+          <textarea style={{...Sg.input(),minHeight:60,resize:"vertical",width:"100%"}} value={reassignAcObs} onChange={e=>setReassignAcObs(e.target.value)} placeholder="Motivo da reatribuicao..."/>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+          <button style={Sg.btn()} onClick={()=>{setReassignAc(null);setReassignAcUser("");setReassignAcObs("");}}>Cancelar</button>
+          <button style={{...Sg.btn("primary"),opacity:reassignAcUser&&reassignAcObs.trim()?1:.4}} disabled={!reassignAcUser||!reassignAcObs.trim()} onClick={()=>doReassignAc(reassignAc.id,reassignAcUser,reassignAcObs)}>Confirmar</button>
+        </div>
+      </div>
     </Modal>}
 
     {reassignPlan&&<Modal open={reassignPlan} onClose={()=>{setReassignPlan(false);setReassignPlanUser("");setReassignPlanObs("");}} title="Reatribuir Responsavel do Plano" width={460}>
