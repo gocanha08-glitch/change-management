@@ -934,10 +934,8 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   const evalDays=(phaseDl&&phaseDl.avaliacao_areas&&phaseDl.avaliacao_areas.days)||7;
 
   const getCell=(dept)=>{
-    if(!crit||!matrix||!matrix[request.type])return"";
-    const deptMatrix=matrix[request.type][dept];
-    if(!deptMatrix)return"";
-    return deptMatrix[crit]||"";
+    if(!crit||!matrix||!matrix[request.type]||!matrix[request.type][dept])return"";
+    return matrix[request.type][dept][crit]||"";
   };
 
   const isMandatory=dept=>{
@@ -976,9 +974,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     const t=existing;const cr=crits.find(c=>c.v===t.criticality);
     // isMandatory usando dados salvos (nao o estado local que está vazio no read-only)
     const isMandSaved=dept=>{
-      const typeMatrix=matrix&&matrix[request.type];
-      const deptMatrix=typeMatrix&&typeMatrix[dept];
-      const cell=(deptMatrix&&deptMatrix[t.criticality])||"";
+      const cell=(matrix[request.type]&&matrix[request.type][dept]&&matrix[request.type][dept][t.criticality])||"";
       if(cell==="mandatory")return true;
       if(t.flagReg&&dept==="Assuntos Regulatorios")return true;
       if(t.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
@@ -999,10 +995,10 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
         </div>
       </div>
       {(t.assignedAreas||[]).map(d=>{
-        const u=allUsers.find(x=>x.id===((t.assignments||{})[d]));
+        const u=allUsers.find(x=>x.id===(t.assignments&&t.assignments[d]));
         const done=!!(request.evaluations&&request.evaluations[d]&&request.evaluations[d].at);
-        const dl=(t.deadlines||{})[d];
-        const orig=(t.originalDeadlines||{})[d];
+        const dl=t.deadlines&&t.deadlines[d];
+        const orig=t.originalDeadlines&&t.originalDeadlines[d];
         const extended=orig&&dl&&dl!==orig;
         const mand=isMandSaved(d);
         return <div key={d} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 9px",background:C.surface,borderRadius:6,marginBottom:3,fontSize:11}}>
@@ -1332,9 +1328,20 @@ const [addAreaModal,setAddAreaModal]=useState(false);
 const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:""});
   const [triageDrawer,setTriageDrawer]=useState(false);
   const [showAddAc,setAddAc]=useState(false);
+  const [sgqOpen,setSgqOpen]=useState(false);
+  const [sgqSub,setSgqSub]=useState(null);
+  const sgqRef=React.useRef(null);
   const [nAc,setNAc]=useState({desc:"",responsible:"",deadline:"",obs:""});
   const [editAc,setEditAc]=useState(null);
   const [expandedAc,setExpandedAc]=useState(()=>focusAcId?{[focusAcId]:true}:{});
+
+  // Close SGQ menu on outside click
+  React.useEffect(()=>{
+    if(!sgqOpen)return;
+    const close=(e)=>{if(sgqRef.current&&!sgqRef.current.contains(e.target))setSgqOpen(false);};
+    document.addEventListener("mousedown",close);
+    return()=>document.removeEventListener("mousedown",close);
+  },[sgqOpen]);
 
   // Auto-open drawer when coming from dashboard task click
   React.useEffect(()=>{
@@ -1370,7 +1377,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
 
   // ── Proteção contra auto-refresh: só sincroniza o request externo quando
   //    nenhum drawer/modal está aberto (evita perder dados em edição) ─────────
-  const [localReq,setLocalReq]=useState({...request,evaluations:request.evaluations||{},actions:request.actions||[],attachments:request.attachments||[]});
+  const [localReq,setLocalReq]=useState(request);
   const busyRef=React.useRef(false);
   React.useEffect(()=>{
     // Detectar se há alguma coisa aberta (drawer, modal, textarea com foco)
@@ -1382,9 +1389,11 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     );
     busyRef.current=anyOpen;
     if(!anyOpen){
-      // Só sincroniza se mudou de SA (id diferente)
-      if(request.id!==localReq.id){
-        setLocalReq({...request,evaluations:request.evaluations||{},actions:request.actions||[],attachments:request.attachments||[],deadlineExtensions:request.deadlineExtensions||[],log:request.log||[]});
+      // Só sincroniza se o servidor tem versão mais nova (mais eventos no log)
+      const serverLog=(localReq.log||[]).length;
+      const localLog=(localReq.log||[]).length;
+      if(serverLog>localLog||localReq.id!==localReq.id){
+        setLocalReq(request);
       }
     }
   },[request,drawer,drawerEditing,showReject,showRegress,showCancel,
@@ -1417,19 +1426,17 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const cr=crits.find(c=>c.v===(localReq.triage&&localReq.triage.criticality));
   const st=REQ_ST[localReq.status]||{};
-  const getU=id=>allUsers.find(u=>parseInt(u.id)===parseInt(id));
+  const getU=id=>allUsers.find(u=>u.id===id);
   const aa=(localReq.triage&&localReq.triage.assignedAreas)||[];
   const doneEv=aa.filter(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at).length;
   const canPlan=isAdmin||(parseInt(localReq.planResponsible)===parseInt(currentUser.id));
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
   const prevSt={avaliacao_inicial:"aberta",avaliacao_areas:"avaliacao_inicial",aprovacao_plano:"avaliacao_areas",montagem_plano:"aprovacao_plano",execucao:"montagem_plano"}[localReq.status];
   const allActsDone=(localReq.actions||[]).length>0&&(localReq.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
-  const statusIdx={aberta:0,avaliacao_inicial:1,avaliacao_areas:2,aprovacao_plano:2,montagem_plano:3,execucao:4,concluida:5,cancelada:5}[localReq.status]||0;
+  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
 
   const isMandSaved=dept=>{
-    const typeMatrix=matrix&&matrix[localReq.type];
-    const deptMatrix=typeMatrix&&typeMatrix[dept];
-    const cell=(deptMatrix&&deptMatrix[localReq.triage&&localReq.triage.criticality])||"";
+    const cell=(matrix&&matrix[localReq.type]&&matrix[localReq.type][dept]&&matrix[localReq.type][dept][localReq.triage&&localReq.triage.criticality])||"";
     if(cell==="mandatory")return true;
     if(localReq.triage&&localReq.triage.flagReg&&dept==="Assuntos Regulatorios")return true;
     if(localReq.triage&&localReq.triage.flagProd&&["Pesquisa e Desenvolvimento (P&D)","Controle de Qualidade","Assistencia Tecnica (AT)","Comercial"].includes(dept))return true;
@@ -1437,7 +1444,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   };
 
   // ── Actions ──────────────────────────────────────────────────────
-const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);};
+const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r).then(()=>setLocalReq(r));};
   
   const saveTriage=async(triage,isEdit,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
@@ -1475,7 +1482,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         const r2={...r,status:"avaliacao_areas"};
         r2.log=[...(r.log||[]),{at:new Date().toISOString(),by:currentUser.name,type:"avaliacao_inicial",event:"SA enviada para avaliacao de areas",detail:"Areas: "+triage.assignedAreas.join(", ")}];
         await fetch(base+'/api/requests/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(r2)});
-        setLocalReq({...r2,evaluations:r2.evaluations||{},actions:r2.actions||[]});onUpdate(r2);
+        setLocalReq(r2);onUpdate(r2);
       }catch(e){alert('Erro ao salvar triagem: '+e.message);}
     } else {
       onUpdate(r);
@@ -1484,23 +1491,20 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
-    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
-    const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
-    const allDone=assignedAreas.length>0&&assignedAreas.every(d=>evs[d]&&evs[d].at);
+    const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+    const allDone=aa.every(d=>evs[d]&&evs[d].at);
     let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
     const simN=(answers||[]).filter(a=>a.a==="S").length;
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
     r=mkLog(r,currentUser.name,"avaliacao","Avaliacao concluida","Area: "+dept+" | "+simN+" Sim / "+naoN+" Nao"+(obs?" | Obs: "+obs.slice(0,60):""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as avaliacoes concluidas","Aguarda Aprovacao 2 (SGQ)");
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEvalOpen({});
+    onUpdate(r);setEvalOpen(null);
   };
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
     const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
-    const r={...localReq,evaluations:evs};
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});
-    onUpdate(mkLog(r,currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
-    setEvalOpen({});
+    onUpdate(mkLog({...localReq,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
+    setEvalOpen(null);
   };
 
   const ap2=(customDate,signature)=>{
@@ -1555,7 +1559,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,actions,attachments:newAtts};
     r=mkLog(r,currentUser.name,"execucao","Acao concluida","ID: "+acId+" | "+note.slice(0,80)+(signature?" | Assinado eletronicamente":""));
     if(allDone)r=mkLog(r,"Sistema","sistema","Todas as acoes concluidas","Aguardando verificacao e encerramento pelo SGQ");
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
+    onUpdate(r);setExpandedAc(p=>({...p,[acId]:false}));setSigModal(null);
   };
 
   const addAttachment=att=>upd({attachments:[...(localReq.attachments||[]),att]},"anexo","Anexo registrado","Nome: "+att.name);
@@ -1565,14 +1569,14 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const doRemoveAcPlano=(ac)=>{
     const actions=(localReq.actions||[]).filter(a=>a.id!==ac.id);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao excluida do plano","ID: "+ac.id+" | "+ac.desc);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setConfirmRemoveAc(null);
+    onUpdate(r);setConfirmRemoveAc(null);
   };
 
   // ── Remover acao durante execucao (SGQ, com motivo) ──
   const doRemoveAcExec=(ac,motive)=>{
     const actions=(localReq.actions||[]).map(a=>a.id===ac.id?{...a,status:"cancelada",cancelledMotive:motive,cancelledBy:currentUser.name,cancelledAt:new Date().toISOString()}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao removida do plano em execucao","ID: "+ac.id+" | "+ac.desc+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setRemoveAcExec(null);
+    onUpdate(r);setRemoveAcExec(null);
   };
 
   // ── Acrescentar acao durante execucao (SGQ, com motivo) ──
@@ -1583,7 +1587,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     delete newAc.motive;
     const actions=[...(localReq.actions||[]),newAc];
     const r=mkLog({...localReq,actions},currentUser.name,"plano","Acao acrescentada ao plano em execucao","ID: "+id+" | "+nAcExec.desc+" | Responsavel: "+(respU?respU.name:"—")+" | Prazo: "+fmtD(nAcExec.deadline)+" | Motivo: "+nAcExec.motive);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
+    onUpdate(r);setNAcExec({desc:"",responsible:"",deadline:"",obs:"",motive:""});setAddAcExec(false);
   };
 
   // ── Reabrir fase ──
@@ -1600,7 +1604,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
     let r={...localReq,...patch};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenPhase(null);
+    onUpdate(r);setReopenPhase(null);
   };
 
   // ── Cancelar SA ──
@@ -1608,26 +1612,26 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     let r={...localReq,status:"cancelada",cancelledAt:new Date().toISOString(),cancelledBy:currentUser.id,cancelledByName:currentUser.name,cancellationMotive:motive};
     if(signature)r={...r,cancelSignature:signature};
     r=mkLog(r,currentUser.name,"cancelamento","SA cancelada","Motivo: "+motive+(signature?" | Assinado por: "+signature.signedByName:""));
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setShowCancel(false);setSigModal(null);
+    onUpdate(r);setShowCancel(false);setSigModal(null);
   };
 
   // ── Reabrir avaliacao ──
   const doReopenEval=(dept,motive)=>{
-    const evs={...(localReq.evaluations||{})};
+    const evs={...localReq.evaluations};
     const prev=evs[dept];
     delete evs[dept];
     const wasAllDone=aa.every(d=>localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
     let r={...localReq,evaluations:evs,status:wasAllDone?"avaliacao_areas":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Avaliacao reaberta","Area: "+dept+" | Motivo: "+motive+(prev&&prev.byName?" | Anterior: "+prev.byName:""));
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenEval(null);
+    onUpdate(r);setReopenEval(null);
   };
 
   // ── Reatribuir avaliacao ──
   const doReassignEval=(dept,newUserId,motive)=>{
     const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
-    const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...(localReq.triage.assignments||{}),[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignEval(null);setReassignEvalUser("");
+    const r=mkLog({...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[dept]:parseInt(newUserId)}}},currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+dept+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
+    onUpdate(r);setReassignEval(null);setReassignEvalUser("");
   };
 
   // ── Reabrir acao ──
@@ -1636,7 +1640,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,status:"pendente",doneAt:null,doneNote:null,doneAtt:null}:a);
     let r={...localReq,actions,status:localReq.status==="concluida"?"execucao":localReq.status};
     r=mkLog(r,currentUser.name,"reabrir","Acao reaberta","ID: "+acId+" | Motivo: "+motive+(ac&&ac.doneNote?" | Conclusao anterior: "+ac.doneNote.slice(0,60):""));
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenAc(null);
+    onUpdate(r);setReopenAc(null);
   };
 
   // ── Reatribuir acao ──
@@ -1646,7 +1650,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const newU=allUsers.find(u=>u.id===parseInt(newUserId));
     const actions=(localReq.actions||[]).map(a=>a.id===acId?{...a,responsible:parseInt(newUserId)}:a);
     const r=mkLog({...localReq,actions},currentUser.name,"reatribuicao","Responsavel de acao alterado","ID: "+acId+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")+" | Motivo: "+motive);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReassignAc(null);setReassignAcUser("");
+    onUpdate(r);setReassignAc(null);setReassignAcUser("");
   };
 
   const concludeSA=(note,signature)=>{
@@ -1682,7 +1686,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   const applyAdminDl=(newDate)=>{
     if(!adminDlTarget)return;
     let r={...localReq};
-    if(adminDlTarget.type==="eval"){const dl={...(localReq.triage.deadlines||{}),[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+    if(adminDlTarget.type==="eval"){const dl={...localReq.triage.deadlines,[adminDlTarget.key]:newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
     else{const actions=r.actions.map(a=>a.id===adminDlTarget.key?{...a,deadline:newDate}:a);r={...r,actions};}
     r=mkLog(r,currentUser.name,"extensao","Prazo alterado pelo admin",adminDlTarget.label+" | De: "+fmtD(adminDlTarget.currentDate)+" → Para: "+fmtD(newDate));
     onUpdate(r);setAdminDlTarget(null);
@@ -1695,7 +1699,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     });
     let r={...localReq,deadlineExtensions:exts};
     if(approved){
-      if(ext.targetType==="eval"){const dl={...(localReq.triage.deadlines||{}),[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
+      if(ext.targetType==="eval"){const dl={...localReq.triage.deadlines,[ext.targetKey]:ext.newDate};r={...r,triage:{...r.triage,deadlines:dl}};}
       else{const actions=r.actions.map(a=>a.id===ext.targetKey?{...a,deadline:ext.newDate}:a);r={...r,actions};}
       r=mkLog(r,currentUser.name,"extensao","Extensao aprovada",ext.targetLabel+" -> "+fmtD(ext.newDate));
     }else{r=mkLog(r,currentUser.name,"extensao","Extensao rejeitada",ext.targetLabel);}
@@ -1742,37 +1746,11 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     ...(localReq.actions||[]).filter(a=>a.doneAtt).map(a=>({...a.doneAtt,_src:"Acao "+a.id,_by:a.responsible})),
   ];
 
-  // Safety: garantir que localReq nunca tenha campos null críticos
-  if(!localReq||!localReq.id) return null;
-  const safeLocalReq = localReq.evaluations===null||localReq.triage===null ? {
-    ...localReq,
-    evaluations: localReq.evaluations||{},
-    actions: localReq.actions||[],
-    attachments: localReq.attachments||[],
-    triage: localReq.triage ? {
-      ...localReq.triage,
-      assignments: localReq.triage.assignments||{},
-      deadlines: localReq.triage.deadlines||{},
-      originalDeadlines: localReq.triage.originalDeadlines||{},
-      assignedAreas: localReq.triage.assignedAreas||[],
-    } : null,
-  } : localReq;
-  if(safeLocalReq !== localReq) { setLocalReq(safeLocalReq); return null; }
-
   return <div style={{padding:"20px 24px",maxWidth:960,margin:"0 auto"}}>
 
     {/* ══ HEADER BAR ══ */}
     {(()=>{
-      const [sgqOpen,setSgqOpen]=useState(false);
-      const [sgqSub,setSgqSub]=useState(null); // 'reatrib_ev'|'reatrib_ac'|'reabrir_ev'|'reabrir_ac'
       const toggleSub=k=>setSgqSub(p=>p===k?null:k);
-      const sgqRef=React.useRef(null);
-      React.useEffect(()=>{
-        if(!sgqOpen)return;
-        const close=(e)=>{if(sgqRef.current&&!sgqRef.current.contains(e.target))setSgqOpen(false);};
-        document.addEventListener("mousedown",close);
-        return()=>document.removeEventListener("mousedown",close);
-      },[sgqOpen]);
       const phases=[
         {key:"aberta",    label:"Solicitacao Aberta"},
         {key:"avaliacao", label:"Avaliacao Inicial"},
@@ -2065,7 +2043,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             <FieldCard label="Areas Definidas para Avaliacao de Impacto" wide>
               <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:4}}>
                 {aa.map(d=>{
-                  if(!localReq.evaluations)return null;
                   const done=!!(localReq.evaluations&&localReq.evaluations[d]&&localReq.evaluations[d].at);
                   const mand=isMandSaved(d);
                   return <span key={d} style={{fontSize:13,padding:"5px 12px",borderRadius:8,border:"1px solid "+(done?C.success+"55":C.border),background:done?C.success+"0D":C.surface,color:done?C.success:C.text,display:"inline-flex",alignItems:"center",gap:5}}>
@@ -2099,8 +2076,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             </thead>
             <tbody>
               {aa.map((dept,di)=>{
-
-                const ev=(localReq.evaluations&&localReq.evaluations[dept])||null;
+                const ev=localReq.evaluations&&localReq.evaluations[dept];
                 const done=!!(ev&&ev.at);const draft=!!(ev&&!ev.at&&ev.draft);
                 const u=getU(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]);
                 const dl=localReq.triage&&localReq.triage.deadlines&&localReq.triage.deadlines[dept];
@@ -2121,7 +2097,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                     <Td><Pill label={mand?"Obrigatoria":"Opcional"} color={mand?C.success:C.accent}/></Td>
                     <Td><Pill label={stLabel} color={stColor}/></Td>
                     <Td>
-                      {(done||canAct||draft)
+                      {(done||canAct)
                         ?<button style={{...Sg.btn(done&&!canAct?"":"primary"),fontSize:12,padding:"4px 12px"}} onClick={()=>openEvalDrawer(dept)}>
                           {done?"Ver respostas":draft?"Continuar":"Avaliar"}
                         </button>
@@ -2414,7 +2390,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     {drawer&&(()=>{
       if(drawer.type==="eval"){
         const dept=drawer.dept;
-        const ev=(localReq.evaluations&&localReq.evaluations[dept])||null;
+        const ev=localReq.evaluations&&localReq.evaluations[dept];
         const done=!!(ev&&ev.at);
         const u=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[dept]));
         const isMe=u&&u.id===currentUser.id;
@@ -2433,7 +2409,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               onChangeOwner={(d,id)=>{
                 const oldU=allUsers.find(u=>u.id===(localReq.triage&&localReq.triage.assignments&&localReq.triage.assignments[d]));
                 const newU=allUsers.find(u=>u.id===id);
-                const r={...localReq,triage:{...localReq.triage,assignments:{...(localReq.triage.assignments||{}),[d]:id}}};
+                const r={...localReq,triage:{...localReq.triage,assignments:{...localReq.triage.assignments,[d]:id}}};
                 onUpdate(mkLog(r,currentUser.name,"reatribuicao","Responsavel de avaliacao alterado","Area: "+d+" | De: "+(oldU?oldU.name:"—")+" → Para: "+(newU?newU.name:"—")));
               }}
               onClose={closeDrawer}
@@ -2862,7 +2838,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
         aa.forEach(dept=>{
           const assignedId=r.triage&&r.triage.assignments&&r.triage.assignments[dept];
           if(parseInt(assignedId)!==parseInt(currentUser.id))return;
-          const ev=(r.evaluations&&r.evaluations[dept])||null;
+          const ev=r.evaluations&&r.evaluations[dept];
           const done=!!(ev&&ev.at);
           tasks.push({type:"eval",req:r,dept,done,label:dept,sublabel:r.id+" · "+r.title,urg:done?"done":urgCls((r.stageDeadlines&&r.stageDeadlines.avaliacao)||r.deadline,done?"concluida":"pendente")});
         });
@@ -2889,7 +2865,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
     if(t.type==="eval"){
       const r=t.req;
       const dept=t.dept;
-      const ev=(r.evaluations&&r.evaluations[dept])||null;
+      const ev=r.evaluations&&r.evaluations[dept];
       const done=!!(ev&&ev.at);
       const u=allUsers.find(u=>parseInt(u.id)===parseInt(r.triage&&r.triage.assignments&&r.triage.assignments[dept]));
       const isMe=u&&parseInt(u.id)===parseInt(currentUser.id);
@@ -3483,7 +3459,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
     return (r.triage.assignedAreas||[]).map(dept=>{
       const cr=crits.find(c=>c.v===r.triage.criticality);
       const resp=allUsers.find(u=>u.id===(r.triage.assignments&&r.triage.assignments[dept]));
-      const ev=(r.evaluations&&r.evaluations[dept])||null;
+      const ev=r.evaluations&&r.evaluations[dept];
       const dl=r.triage.deadlines&&r.triage.deadlines[dept];
       const orig=r.triage.originalDeadlines&&r.triage.originalDeadlines[dept];
       const extended=orig&&dl&&dl!==orig;
@@ -4442,7 +4418,7 @@ function MatrixEditor({matrix,crits,currentUser,onSave}){
           <React.Fragment key={dept}>
             <div style={{padding:"6px 11px",fontSize:11,color:C.dim,background:di%2===0?C.card:C.surface,borderTop:"1px solid "+C.border,borderRight:"1px solid "+C.border,display:"flex",alignItems:"center",position:"sticky",left:0,zIndex:1,minHeight:36}}>{dept}</div>
             {crits.map(cr=>{
-              const deptM=m[selType]&&m[selType][dept];const val=(deptM&&deptM[cr.v])||"";
+              const val=(m[selType]&&m[selType][dept]&&m[selType][dept][cr.v])||"";
               return <div key={cr.v} style={{display:"flex",alignItems:"center",justifyContent:"center",borderLeft:"1px solid "+C.border,borderTop:"1px solid "+C.border,background:di%2===0?C.card:C.surface}}>
                 <button onClick={()=>isAdmin&&cycle(selType,dept,cr.v)}
                   title={val===""?"Clique para adicionar como opcional":val==="optional"?"Opcional — clique para tornar obrigatorio":"Obrigatorio — clique para remover"}
@@ -5056,7 +5032,7 @@ const loadAll = async () => {
       apiGet('/api/requests').catch(()=>null),
     ]);
     if (us) setUR(us);
-    if (rs) setRR(rs.map(r=>safeSA(r)));
+    if (rs) setRR(rs);
     try {
       const mx = await apiGet('/api/config/matrix');
       if (mx) {
@@ -5132,29 +5108,13 @@ const loadAll = async () => {
     try { await apiPut('/api/config/syslog', entry); } catch {}
   };
 
-const safeSA = (r) => ({
-    ...r,
-    evaluations: r.evaluations||{},
-    actions: r.actions||[],
-    attachments: r.attachments||[],
-    deadlineExtensions: r.deadlineExtensions||[],
-    log: r.log||[],
-    triage: r.triage ? {
-      ...r.triage,
-      assignments: r.triage.assignments||{},
-      deadlines: r.triage.deadlines||{},
-      originalDeadlines: r.triage.originalDeadlines||{},
-      assignedAreas: r.triage.assignedAreas||[],
-    } : null,
-  });
-
 const saveReq = async (r) => {
     try {
       const exists = requests.find(x => x.id === r.id);
       if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
       else await apiPost('/api/requests', r);
       // Atualiza estado local imediatamente
-      setRR(p => exists ? p.map(x => x.id === r.id ? safeSA(r) : x) : [safeSA(r), ...p]);
+      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
     } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
@@ -5210,22 +5170,7 @@ const saveReq = async (r) => {
   // ---- Derived ----
   const isAdmin = loggedIn && hasPerm(loggedIn,'sa.avaliacao_inicial');
   const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
-  const selectedRaw = requests.find(r => r.id === selId);
-  const selected = selectedRaw ? {
-    ...selectedRaw,
-    evaluations: selectedRaw.evaluations||{},
-    actions: selectedRaw.actions||[],
-    attachments: selectedRaw.attachments||[],
-    deadlineExtensions: selectedRaw.deadlineExtensions||[],
-    log: selectedRaw.log||[],
-    triage: selectedRaw.triage ? {
-      ...selectedRaw.triage,
-      assignments: selectedRaw.triage.assignments||{},
-      deadlines: selectedRaw.triage.deadlines||{},
-      originalDeadlines: selectedRaw.triage.originalDeadlines||{},
-      assignedAreas: selectedRaw.triage.assignedAreas||[],
-    } : null,
-  } : null;
+  const selected = requests.find(r => r.id === selId);
 
   // ---- Browser history (back/forward button support) ----
   // Only active on real domains (not srcdoc/iframe previews)
@@ -5277,15 +5222,16 @@ const saveReq = async (r) => {
         // Merge carefully: don't overwrite if user is actively editing
         // We compare by updatedAt / log length to detect server changes
         if (rs) setRR(prev => {
+          // For each request from server, only update if server version is newer
           const prevMap = Object.fromEntries(prev.map(r=>[r.id,r]));
           return rs.map(sr => {
-            const safe = safeSA(sr);
             const lr = prevMap[sr.id];
-            if (!lr) return safe;
+            if (!lr) return sr; // new request from server
             const srLog = (sr.log||[]).length;
             const lrLog = (lr.log||[]).length;
-            if (srLog > lrLog) return safe;
-            return lr;
+            // Server has more events → use server version
+            if (srLog > lrLog) return sr;
+            return lr; // keep local (user may be editing)
           });
         });
         if (us) setUR(us);
@@ -5363,7 +5309,7 @@ const saveReq = async (r) => {
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
     <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{setMyTasksOpen(true);setMyTasksTarget({type:"eval",req:r,dept});}} onOpenAction={(r,ac)=>{setMyTasksOpen(true);setMyTasksTarget({type:"action",req:r,ac});}}/>}
       <MyTasksDrawer
         open={myTasksOpen}
         onClose={()=>{setMyTasksOpen(false);setMyTasksTarget(null);}}
