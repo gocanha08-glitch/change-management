@@ -1433,7 +1433,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const pendExt=(localReq.deadlineExtensions||[]).filter(e=>e.status==="pending").length;
   const prevSt={avaliacao_inicial:"aberta",avaliacao_areas:"avaliacao_inicial",aprovacao_plano:"avaliacao_areas",montagem_plano:"aprovacao_plano",execucao:"montagem_plano"}[localReq.status];
   const allActsDone=(localReq.actions||[]).length>0&&(localReq.actions||[]).every(a=>["concluida","cancelada"].includes(a.status));
-  const statusIdx={aberta:0,avaliacao:1,revisao:2,plano:3,execucao:4,concluida:5}[localReq.status]||0;
+  const statusIdx={aberta:0,avaliacao_inicial:1,avaliacao_areas:2,aprovacao_plano:2,montagem_plano:3,execucao:4,concluida:5,cancelada:5}[localReq.status]||0;
 
   const isMandSaved=dept=>{
     const cell=(matrix&&matrix[localReq.type]&&matrix[localReq.type][dept]&&matrix[localReq.type][dept][localReq.triage&&localReq.triage.criticality])||"";
@@ -1491,8 +1491,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   };
 
   const saveEval=(dept,answers,obs,atts)=>{
-    const evs={...localReq.evaluations,[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
-    const allDone=aa.every(d=>evs[d]&&evs[d].at);
+    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+    const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
+    const allDone=assignedAreas.length>0&&assignedAreas.every(d=>evs[d]&&evs[d].at);
     let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
     const simN=(answers||[]).filter(a=>a.a==="S").length;
     const naoN=(answers||[]).filter(a=>a.a==="N").length;
@@ -1503,7 +1504,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   const saveDraftEval=(dept,answers,obs,atts)=>{
     const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],draft:true,byName:currentUser.name,savedAt:new Date().toISOString()}};
-    onUpdate(mkLog({...localReq,evaluations:evs},currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
+    const r={...localReq,evaluations:evs};
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});
+    onUpdate(mkLog(r,currentUser.name,"avaliacao","Rascunho salvo — "+dept,""));
     setEvalOpen({});
   };
 
@@ -1918,9 +1921,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         <div style={{position:"absolute",top:16,left:"10%",right:"10%",height:4,background:C.border,borderRadius:4,zIndex:0}}/>
         {[
           {l:"Solicitacao Aberta",   done:statusIdx>=1, active:statusIdx===0},
-          {l:"Aval. Inicial",    done:statusIdx>=3, active:statusIdx===1||statusIdx===2, waiting:statusIdx===2},
-          {l:"Avaliacoes de Impacto",done:statusIdx>=3&&doneEv===aa.length&&aa.length>0, active:statusIdx===1||statusIdx===2, pend:aa.length>0&&doneEv<aa.length?aa.length-doneEv:0},
-          {l:"Plano de Acao",        done:statusIdx>=5||allActsDone, active:statusIdx===3||statusIdx===4},
+          {l:"Aval. Inicial",        done:statusIdx>=2, active:statusIdx===1},
+          {l:"Avaliacoes de Impacto",done:statusIdx>=3&&doneEv===aa.length&&aa.length>0, active:statusIdx===2, waiting:statusIdx===2&&doneEv<aa.length, pend:aa.length>0&&doneEv<aa.length?aa.length-doneEv:0},
+          {l:"Plano de Acao",        done:statusIdx>=4||allActsDone, active:statusIdx===3},
           {l:"Conclusao",            done:statusIdx===5, active:statusIdx===4||allActsDone},
         ].map((s,i)=>{
           const col=s.done?C.success:s.waiting?C.warning:s.active?(REQ_ST[localReq.status]&&REQ_ST[localReq.status].color||C.accent):C.border;
