@@ -1490,8 +1490,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     setEditTriagem(false);setSigModal(null);
   };
 
-  const saveEval=(dept,answers,obs,atts)=>{
-    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString()}};
+  const saveEval=(dept,answers,obs,atts,signature)=>{
+    const evs={...(localReq.evaluations||{}),[dept]:{answers,obs,attachments:atts||[],by:currentUser.id,byName:currentUser.name,at:new Date().toISOString(),...(signature?{signature}:{})}};
     const assignedAreas=(localReq.triage&&localReq.triage.assignedAreas)||[];
     const allDone=assignedAreas.length>0&&assignedAreas.every(d=>evs[d]&&evs[d].at);
     let r={...localReq,evaluations:evs,status:allDone?"aprovacao_plano":"avaliacao_areas"};
@@ -2417,7 +2417,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               }}
               onClose={closeDrawer}
               onSaveDraft={(dept,answers,obs,atts)=>{saveDraftEval(dept,answers,obs,atts);closeDrawer();}}
-              onSave={(dept,answers,obs,atts)=>{saveEval(dept,answers,obs,atts);closeDrawer();}}
+              onSave={(dept,answers,obs,atts)=>{closeDrawer();setSigModal({action:(sig)=>{saveEval(dept,answers,obs,atts,sig);},title:"Assinar - Avaliacao de Impacto",desc:"SA: "+localReq.id+" | Area: "+dept,label:"Assinar e Registrar Avaliacao",style:"primary",saId:localReq.id,sigAction:"avaliacao"});}}
               C={C}/>}
         </TaskDrawer>;
       }
