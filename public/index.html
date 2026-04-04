@@ -1958,11 +1958,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
     {/* ══ BANNERS CONTEXTUAIS ══ */}
 
-    {isAdmin&&pendExt>0&&<div style={{marginBottom:14,padding:"11px 18px",borderRadius:10,background:C.orange+"0D",border:"1px solid "+C.orange+"33",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-      <span style={{fontSize:14,fontWeight:600,color:C.orange}}>{pendExt} extensao{pendExt!==1?"es":""} pendente{pendExt!==1?"s":""}</span>
-      <ExtensionsTab request={localReq} currentUser={currentUser} allUsers={allUsers} isAdmin={isAdmin} onDecide={decideExt} onAdminChange={(t,key,label,cd)=>setAdminDlTarget({type:t,key,label,currentDate:cd})} C={C} Sg={Sg} inline/>
-    </div>}
-
     {/* ══════════════════════════════════════════════════════════
         1. DADOS DA SOLICITACAO
     ══════════════════════════════════════════════════════════ */}
@@ -3447,107 +3442,83 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
 // ================================================================
 function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
   const {C}=useTheme();const Sg=mkSg(C);
-  const [tab,setTab]=useState("acoes");
+  const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
 
-  // ---- filters acoes ----
-  const [aq,setAQ]=useState("");const [ast,setAST]=useState("");
-  const [acr,setACR]=useState("");const [aResp,setAResp]=useState("");const [aSA,setASA]=useState("");
+  const [q,setQ]=useState("");
+  const [fType,setFType]=useState(""); // ""=todas | "acao" | "avaliacao"
+  const [fStatus,setFStatus]=useState("pendente"); // "pendente" | "concluida" | "todas"
+  const [fResp,setFResp]=useState("");
+  const [fSA,setFSA]=useState("");
 
-  // ---- filters avals ----
-  const [vq,setVQ]=useState("");const [vst,setVST]=useState("pendente"); // pendente | feita | todas
-  const [vcr,setVCR]=useState("");const [vResp,setVResp]=useState("");const [vSA,setVSA]=useState("");
+  // Montar lista unificada
+  const allItems=[];
 
-  const pool=requests;
-
-  // ---- ACOES ----
-  const allActions=pool.flatMap(r=>(r.actions||[]).map(a=>{
-    const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
-    const resp=allUsers.find(u=>u.id===a.responsible);
-    return {...a,r,cr,resp};
-  }));
-  const acRespList=[...new Set(allActions.map(a=>a.resp&&a.resp.name).filter(Boolean))].sort();
-  const acSAList=[...new Set(pool.flatMap(r=>(r.actions||[]).length?[r.id]:[]))].sort();
-
-  const visAc=allActions.filter(a=>(
-    (!aq||(a.desc+(a.obs||"")+a.r.id+a.r.title).toLowerCase().includes(aq.toLowerCase()))&&
-    (!ast||a.status===ast)&&(!acr||(a.cr&&a.cr.v===acr))&&
-    (!aResp||(a.resp&&a.resp.name===aResp))&&(!aSA||a.r.id===aSA)
-  )).sort((a,b)=>{
-    const oa=isOD(a.deadline,a.status)?0:["concluida","cancelada"].includes(a.status)?2:1;
-    const ob=isOD(b.deadline,b.status)?0:["concluida","cancelada"].includes(b.status)?2:1;
-    if(oa!==ob)return oa-ob;
-    return (a.deadline||"9999").localeCompare(b.deadline||"9999");
-  });
-
-  // ---- AVALIACOES ----
-  const allEvals=pool.flatMap(r=>{
-    if(!r.triage)return[];
-    return (r.triage.assignedAreas||[]).map(dept=>{
-      const cr=crits.find(c=>c.v===r.triage.criticality);
-      const resp=allUsers.find(u=>u.id===(r.triage.assignments&&r.triage.assignments[dept]));
-      const ev=r.evaluations&&r.evaluations[dept];
-      const dl=r.triage.deadlines&&r.triage.deadlines[dept];
-      const orig=r.triage.originalDeadlines&&r.triage.originalDeadlines[dept];
-      const extended=orig&&dl&&dl!==orig;
-      const done=!!(ev&&ev.at);
-      return {r,dept,cr,resp,ev,dl,orig,extended,done,urg:urgCls(dl,done?"concluida":"")};
+  // Ações
+  requests.forEach(r=>{
+    (r.actions||[]).forEach(a=>{
+      const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
+      const resp=allUsers.find(u=>u.id===a.responsible);
+      const done=a.status==="concluida";const cancel=a.status==="cancelada";
+      const ov=isOD(a.deadline,a.status);
+      const urg=done||cancel?"done":urgCls(a.deadline,a.status);
+      allItems.push({type:"acao",key:r.id+"-"+a.id,r,a,cr,resp,done,cancel,ov,urg,dl:a.deadline,label:a.desc,sublabel:a.id,status:a.status,doneAt:a.doneAt,doneBy:a.doneByName||(done&&resp?resp.name:null)});
     });
   });
-  const evalRespList=[...new Set(allEvals.map(e=>e.resp&&e.resp.name).filter(Boolean))].sort();
-  const evalSAList=[...new Set(allEvals.map(e=>e.r.id))].sort();
 
-  const visEv=allEvals.filter(e=>(
-    (!vq||(e.dept+e.r.id+e.r.title+(e.resp&&e.resp.name||"")).toLowerCase().includes(vq.toLowerCase()))&&
-    (vst==="todas"||(vst==="pendente"&&!e.done)||(vst==="feita"&&e.done))&&
-    (!vcr||(e.cr&&e.cr.v===vcr))&&(!vResp||(e.resp&&e.resp.name===vResp))&&(!vSA||e.r.id===vSA)
-  )).sort((a,b)=>{
-    if(!a.done&&b.done)return -1;if(a.done&&!b.done)return 1;
-    const oa=isOD(a.dl,a.done?"concluida":"")?0:1;
-    const ob=isOD(b.dl,b.done?"concluida":"")?0:1;
-    if(oa!==ob)return oa-ob;
-    return (a.dl||"9999").localeCompare(b.dl||"9999");
+  // Avaliações
+  requests.forEach(r=>{
+    if(!r.triage)return;
+    (r.triage.assignedAreas||[]).forEach(dept=>{
+      const cr=crits.find(c=>c.v===r.triage.criticality);
+      const respId=r.triage.assignments&&r.triage.assignments[dept];
+      const resp=allUsers.find(u=>u.id===respId);
+      const ev=r.evaluations&&r.evaluations[dept];
+      const dl=r.triage.deadlines&&r.triage.deadlines[dept];
+      const done=!!(ev&&ev.at);
+      const ov=!done&&isOD(dl,"");
+      const urg=done?"done":urgCls(dl,"");
+      allItems.push({type:"avaliacao",key:r.id+"-eval-"+dept,r,dept,cr,resp,ev,dl,done,ov,urg,label:dept,sublabel:r.id,status:done?"concluida":"pendente",doneAt:ev&&ev.at,doneBy:ev&&ev.byName});
+    });
   });
 
-  // KPIs
-  const acPend=allActions.filter(a=>a.status==="pendente").length;
-  const acLate=allActions.filter(a=>isOD(a.deadline,a.status)).length;
-  const acDone=allActions.filter(a=>a.status==="concluida").length;
-  const evPend=allEvals.filter(e=>!e.done).length;
-  const evLate=allEvals.filter(e=>!e.done&&isOD(e.dl,"")).length;
-  const evDone=allEvals.filter(e=>e.done).length;
+  // Filtrar
+  const respList=[...new Set(allItems.map(i=>i.resp&&i.resp.name).filter(Boolean))].sort();
+  const saList=[...new Set(allItems.map(i=>i.r.id))].sort();
 
-  const UrgCell=({urg,dl,done,doneAt})=>{
-    if(done)return <div style={{display:"flex",flexDirection:"column",gap:1}}>
-      <span style={{fontSize:10,color:C.success,fontWeight:700}}>✓ Concluida</span>
-      {doneAt&&<span style={{fontSize:9,color:C.muted}}>{fmtD(doneAt.slice(0,10))}</span>}
-    </div>;
-    if(!dl)return <span style={{color:C.muted,fontSize:11}}>—</span>;
-    const color=urg==="overdue"?C.danger:urg==="today"?C.warning:urg==="soon"?C.accent:C.muted;
-    return <div style={{display:"flex",flexDirection:"column",gap:1}}>
-      <span style={{fontSize:11,fontWeight:700,color}}>{fmtD(dl)}</span>
-      {urg!=="normal"&&<span style={{fontSize:9,fontWeight:700,color,background:color+"18",borderRadius:3,padding:"0 4px",width:"fit-content"}}>{urg==="overdue"?"Atrasado":urg==="today"?"Hoje":"Breve"}</span>}
-    </div>;
-  };
+  const urgOrder={overdue:0,today:1,soon:2,normal:3,done:4};
+  const vis=allItems.filter(i=>{
+    const matchQ=!q||(i.label+i.sublabel+i.r.id+i.r.title+(i.resp&&i.resp.name||"")).toLowerCase().includes(q.toLowerCase());
+    const matchType=!fType||i.type===fType;
+    const matchStatus=fStatus==="todas"||(fStatus==="pendente"&&!i.done&&!i.cancel)||(fStatus==="concluida"&&(i.done||i.cancel));
+    const matchResp=!fResp||(i.resp&&i.resp.name===fResp);
+    const matchSA=!fSA||i.r.id===fSA;
+    return matchQ&&matchType&&matchStatus&&matchResp&&matchSA;
+  }).sort((a,b)=>{
+    return (a.r.createdAt||"").localeCompare(b.r.createdAt||"");
+  });
 
-  const Th=({cols,labels})=><div style={{display:"grid",gridTemplateColumns:cols,background:C.surface,padding:"5px 12px",borderBottom:"1px solid "+C.border,gap:8}}>
-    {labels.map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
-  </div>;
+  const pend=allItems.filter(i=>!i.done&&!i.cancel).length;
+  const late=allItems.filter(i=>i.ov).length;
+  const done=allItems.filter(i=>i.done||i.cancel).length;
+  const acPend=allItems.filter(i=>i.type==="acao"&&!i.done&&!i.cancel).length;
+  const evPend=allItems.filter(i=>i.type==="avaliacao"&&!i.done).length;
+
+  const urgColor=u=>u==="overdue"?C.danger:u==="today"?C.orange:u==="soon"?C.accent:u==="done"?C.success:C.muted;
 
   return <div style={{padding:"18px 22px"}}>
     <div style={{marginBottom:12}}>
       <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Tarefas</h1>
-      <div style={{fontSize:11,color:C.muted,marginTop:2}}>Todas as tarefas em aberto — acoes e avaliacoes</div>
+      <div style={{fontSize:11,color:C.muted,marginTop:2}}>Avaliacoes e acoes em aberto</div>
     </div>
 
     {/* KPI strip */}
     <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
       {[
-        {l:"Acoes pendentes",v:acPend,c:C.warning},
-        {l:"Acoes atrasadas",v:acLate,c:C.danger},
-        {l:"Acoes concluidas",v:acDone,c:C.success},
-        {l:"Avals. pendentes",v:evPend,c:C.accent},
-        {l:"Avals. atrasadas",v:evLate,c:C.danger},
-        {l:"Avals. feitas",v:evDone,c:C.success},
+        {l:"Pendentes",v:pend,c:C.warning},
+        {l:"Atrasadas",v:late,c:C.danger},
+        {l:"Concluidas",v:done,c:C.success},
+        {l:"Acoes abertas",v:acPend,c:C.accent},
+        {l:"Avals. abertas",v:evPend,c:C.purple||C.accent},
       ].map(k=>(
         <div key={k.l} style={{...Sg.card({padding:"9px 13px",flex:1,minWidth:90,borderTop:"3px solid "+k.c})}}>
           <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
@@ -3556,129 +3527,72 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
       ))}
     </div>
 
-    {/* Tabs */}
-    <div style={{display:"flex",gap:0,marginBottom:12,borderBottom:"1px solid "+C.border}}>
-      {[{id:"acoes",l:"Acoes ("+allActions.length+")"},{id:"avaliacoes",l:"Avaliacoes ("+allEvals.length+")"}].map(t=>(
-        <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"7px 16px",fontSize:13,fontWeight:tab===t.id?700:400,color:tab===t.id?C.accent:C.muted,borderBottom:"2px solid "+(tab===t.id?C.accent:"transparent"),fontFamily:"inherit",whiteSpace:"nowrap"}}>
-          {t.l}
-        </button>
-      ))}
+    {/* Filtros */}
+    <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
+        <div style={{flex:1,minWidth:180}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar descricao, SA, area..." style={Sg.input()}/></div>
+        <select value={fType} onChange={e=>setFType(e.target.value)} style={{...Sg.input(),width:140}}>
+          <option value="">Todos tipos</option>
+          <option value="acao">Acoes</option>
+          <option value="avaliacao">Avaliacoes</option>
+        </select>
+        <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...Sg.input(),width:140}}>
+          <option value="pendente">Pendentes</option>
+          <option value="concluida">Concluidas</option>
+          <option value="todas">Todas</option>
+        </select>
+        <select value={fResp} onChange={e=>setFResp(e.target.value)} style={{...Sg.input(),width:185}}>
+          <option value="">Todos responsaveis</option>
+          {respList.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+        <select value={fSA} onChange={e=>setFSA(e.target.value)} style={{...Sg.input(),width:140}}>
+          <option value="">Todas SAs</option>
+          {saList.map(id=><option key={id} value={id}>{id}</option>)}
+        </select>
+        {(q||fType||fStatus!=="pendente"||fResp||fSA)&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 10px"}} onClick={()=>{setQ("");setFType("");setFStatus("pendente");setFResp("");setFSA("");}}>Limpar</button>}
+      </div>
     </div>
 
-    {/* ===== ABA ACOES ===== */}
-    {tab==="acoes"&&<>
-      <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div style={{flex:1,minWidth:180}}><input value={aq} onChange={e=>setAQ(e.target.value)} placeholder="Buscar descricao, SA..." style={Sg.input()}/></div>
-          <select value={ast} onChange={e=>setAST(e.target.value)} style={{...Sg.input(),width:150}}>
-            <option value="">Todos status</option>
-            <option value="pendente">Pendente</option>
-            <option value="andamento">Em andamento</option>
-            <option value="concluida">Concluida</option>
-            <option value="cancelada">Cancelada</option>
-          </select>
-          <select value={acr} onChange={e=>setACR(e.target.value)} style={{...Sg.input(),width:130}}>
-            <option value="">Todas crit.</option>
-            {crits.map(c=><option key={c.v} value={c.v}>{c.v} — {c.label}</option>)}
-          </select>
-          <select value={aResp} onChange={e=>setAResp(e.target.value)} style={{...Sg.input(),width:185}}>
-            <option value="">Todos responsaveis</option>
-            {acRespList.map(n=><option key={n} value={n}>{n}</option>)}
-          </select>
-          <select value={aSA} onChange={e=>setASA(e.target.value)} style={{...Sg.input(),width:140}}>
-            <option value="">Todos controles</option>
-            {acSAList.map(id=><option key={id} value={id}>{id}</option>)}
-          </select>
-          {(aq||ast||acr||aResp||aSA)&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 10px"}} onClick={()=>{setAQ("");setAST("");setACR("");setAResp("");setASA("");}}>Limpar</button>}
-        </div>
-      </div>
-      <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visAc.length} acao{visAc.length!==1?"es":""}</div>
-      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <ResizableTable
-          storageKey="cm_acoes_cols_v3"
-          cols={[90,155,65,205,155,40,120,80,105,135]}
-          headers={["SA","Titulo SA","ID Ação","Descrição","Responsável","Crit.","Status","Criação","Prazo","Concluído por"]}
-          onRowClick={row=>onNav("detail",row.r.r.id,"plano",null,row.r.id)}
-          C={C}
-          rows={visAc.map(a=>{
-            const ov=isOD(a.deadline,a.status);const done=a.status==="concluida";const cancel=a.status==="cancelada";
-            const stColor=done?C.success:cancel?C.muted:ov?C.danger:a.status==="andamento"?C.accent:C.warning;
-            const stLabel=done?"Concluída":cancel?"Cancelada":ov?"Atrasada":a.status==="andamento"?"Em andamento":"Pendente";
-            const doneByUser=done&&a.doneByName?a.doneByName:(done&&a.resp?a.resp.name:null);
-            return {r:a,cells:[
-              <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{a.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{a.r.title}</span>,
-              <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{a.id}</span>,
-              <div style={{opacity:cancel?.65:1}}><div style={{fontSize:12,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{a.desc}</div>{a.obs&&<div style={{fontSize:10,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.obs}</div>}</div>,
-              <div>{a.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={a.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
-              <div>{a.cr?<span style={{fontSize:13,fontWeight:800,color:a.cr.color}}>{a.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-              <Badge label={stLabel} color={stColor}/>,
-              <span style={{fontSize:11,color:C.muted}}>{a.r.createdAt?fmtD(a.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={urgCls(a.deadline,a.status)} dl={a.deadline} done={done} doneAt={a.doneAt}/>,
-              <span style={{fontSize:11,color:done?C.success:C.muted}}>{doneByUser||"—"}</span>
-            ]};
-          })}
-        />
-      </div>
-    </>}
+    <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{vis.length} tarefa{vis.length!==1?"s":""}</div>
 
-    {/* ===== ABA AVALIACOES ===== */}
-    {tab==="avaliacoes"&&<>
-      <div style={{...Sg.card({marginBottom:10,padding:"10px 13px"})}}>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-end"}}>
-          <div style={{flex:1,minWidth:180}}><input value={vq} onChange={e=>setVQ(e.target.value)} placeholder="Buscar area, SA, avaliador..." style={Sg.input()}/></div>
-          <select value={vst} onChange={e=>setVST(e.target.value)} style={{...Sg.input(),width:150}}>
-            <option value="pendente">Pendentes</option>
-            <option value="feita">Feitas</option>
-            <option value="todas">Todas</option>
-          </select>
-          <select value={vcr} onChange={e=>setVCR(e.target.value)} style={{...Sg.input(),width:130}}>
-            <option value="">Todas crit.</option>
-            {crits.map(c=><option key={c.v} value={c.v}>{c.v} — {c.label}</option>)}
-          </select>
-          <select value={vResp} onChange={e=>setVResp(e.target.value)} style={{...Sg.input(),width:185}}>
-            <option value="">Todos avaliadores</option>
-            {evalRespList.map(n=><option key={n} value={n}>{n}</option>)}
-          </select>
-          <select value={vSA} onChange={e=>setVSA(e.target.value)} style={{...Sg.input(),width:140}}>
-            <option value="">Todos controles</option>
-            {evalSAList.map(id=><option key={id} value={id}>{id}</option>)}
-          </select>
-          {(vq||vst!=="pendente"||vcr||vResp||vSA)&&<button style={{...Sg.btn(),fontSize:11,padding:"5px 10px"}} onClick={()=>{setVQ("");setVST("pendente");setVCR("");setVResp("");setVSA("");}}>Limpar</button>}
-        </div>
-      </div>
-      <div style={{fontSize:11,color:C.muted,marginBottom:7}}>{visEv.length} avaliacao{visEv.length!==1?"oes":""}</div>
-      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-        <ResizableTable
-          storageKey="cm_avals_cols_v2"
-          cols={[90,150,170,170,40,115,80,105,140]}
-          headers={["SA","Titulo SA","Área","Avaliador","Crit.","Status","Criação","Prazo","Concluído por"]}
-          onRowClick={row=>onNav("detail",row.r.r.id,"avaliacao",row.r.dept)}
-          C={C}
-          rows={visEv.map(e=>{
-            const ov=!e.done&&isOD(e.dl,"");
-            const stColor=e.done?C.success:ov?C.danger:C.warning;
-            const stLabel=e.done?"Concluída":ov?"Atrasada":"Pendente";
-            return {r:e,cells:[
-              <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{e.r.id}</span>,
-              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{e.r.title}</span>,
-              <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{e.dept}</span>,
-              <div>{e.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={e.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.resp.name}</span></div>:<span style={{color:C.muted,fontSize:11}}>—</span>}</div>,
-              <div>{e.cr?<span style={{fontSize:13,fontWeight:800,color:e.cr.color}}>{e.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-              <Badge label={stLabel} color={stColor}/>,
-              <span style={{fontSize:11,color:C.muted}}>{e.r.createdAt?fmtD(e.r.createdAt.slice(0,10)):"—"}</span>,
-              <UrgCell urg={e.urg} dl={e.dl} done={e.done} doneAt={e.ev&&e.ev.at}/>,
-              <span style={{fontSize:11,color:e.done?C.success:C.muted}}>{e.done&&e.ev?e.ev.byName:"—"}</span>
-            ]};
-          })}
-        />
-      </div>
-    </>}
+    {/* Lista unificada */}
+    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+      <ResizableTable
+        storageKey="cm_tarefas_unified_v1"
+        cols={[90,130,55,200,155,40,110,95,115]}
+        headers={["SA","Título SA","Tipo","Tarefa","Responsável","Crit.","Status","Prazo","Concluído por"]}
+        onRowClick={row=>{
+          const i=row.r;
+          if(i.type==="acao") onNav("detail",i.r.id,"plano",null,i.a.id);
+          else onNav("detail",i.r.id,"avaliacao",i.dept);
+        }}
+        C={C}
+        rows={vis.map(i=>{
+          const uc=urgColor(i.urg);
+          const stLabel=i.done?"Concluida":i.cancel?"Cancelada":i.ov?"Atrasada":"Pendente";
+          const stColor=i.done?C.success:i.cancel?C.muted:i.ov?C.danger:C.warning;
+          const typeLabel=i.type==="acao"?"Acao":"Aval.";
+          const typeColor=i.type==="acao"?C.accent:C.purple||C.accent;
+          return {r:i,cells:[
+            <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{i.r.id}</span>,
+            <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:40,overflowY:"hidden",wordBreak:"break-word"}}>{i.r.title}</span>,
+            <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:999,background:typeColor+"18",color:typeColor,border:"1px solid "+typeColor+"33",whiteSpace:"nowrap"}}>{typeLabel}</span>,
+            <div>
+              <div style={{fontSize:12,color:C.text,lineHeight:1.3,maxHeight:40,overflowY:"hidden",wordBreak:"break-word"}}>{i.label}</div>
+              {i.type==="acao"&&<div style={{fontSize:10,color:C.muted}}>{i.sublabel}</div>}
+            </div>,
+            <div>{i.resp?<div style={{display:"flex",alignItems:"center",gap:5}}><Av user={i.resp} size={18}/><span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i.resp.name}</span></div>:<span style={{color:C.muted}}>—</span>}</div>,
+            <div>{i.cr?<span style={{fontSize:13,fontWeight:800,color:i.cr.color}}>{i.cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+            <Badge label={stLabel} color={stColor}/>,
+            i.done?<div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:10,color:C.success,fontWeight:700}}>✓ Concluida</span>{i.doneAt&&<span style={{fontSize:9,color:C.muted}}>{fmtD(i.doneAt.slice(0,10))}</span>}</div>:i.dl?<div style={{display:"flex",flexDirection:"column",gap:1}}><span style={{fontSize:11,fontWeight:700,color:uc}}>{fmtD(i.dl)}</span>{i.urg!=="normal"&&<span style={{fontSize:9,fontWeight:700,color:uc,background:uc+"18",borderRadius:3,padding:"0 4px",width:"fit-content"}}>{i.urg==="overdue"?"Atrasado":i.urg==="today"?"Hoje":"Breve"}</span>}</div>:<span style={{color:C.muted,fontSize:11}}>—</span>,
+            <span style={{fontSize:11,color:i.done?C.success:C.muted}}>{i.doneBy||"—"}</span>
+          ]};
+        })}
+      />
+    </div>
   </div>;
 }
 
-
-// ================================================================
 // SIGNATURES PAGE — Auditoria de assinaturas eletrônicas (GAMP 5)
 // ================================================================
 function SignaturesPage({requests,currentUser}){
@@ -5276,7 +5190,7 @@ const saveReq = async (r) => {
   const navItems=[
     {id:"dashboard",  label:"Inicio",        badge:0},
     {id:"changes",    label:"Controles",     badge:0},
-    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs+(isAdmin?pendExt:0))||0},
+    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs)||0},
     {id:"indicators", label:"Indicadores",   badge:0},
     {id:"crits",     label:"Criticidade",  badge:0},
     {id:"perguntas", label:"Perguntas",    badge:0},
