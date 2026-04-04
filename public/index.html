@@ -1309,6 +1309,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showAp2,setShowAp2]=useState(false);
   const [showAp3,setShowAp3]=useState(false);
   const [ap2DateVal,setAp2DateVal]=useState("");
+  const [ap2PlanResp,setAp2PlanResp]=useState("");
   const [ap2Obs,setAp2Obs]=useState("");
   const [ap3DateVal,setAp3DateVal]=useState("");
   const [reopenPhase,setReopenPhase]=useState(null);
@@ -1511,12 +1512,13 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     setEvalOpen({});
   };
 
-  const ap2=(customDate,obs,signature)=>{
+  const ap2=(customDate,obs,planResp,planRespName,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
     const planDl=customDate||addDays(todayStr(),pd.plano.days);
     const patch={status:"montagem_plano",ap2By:currentUser.id,ap2ByName:currentUser.name,ap2At:new Date().toISOString(),ap2Obs:obs||"",stageDeadlines:{...localReq.stageDeadlines,montagem_plano:planDl}};
+    if(planResp){patch.planResponsible=parseInt(planResp);patch.planResponsibleName=planRespName||"";}
     if(signature)patch.ap2Signature=signature;
-    upd(patch,"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Prazo do plano: "+fmtD(planDl)+(obs?" | Obs: "+obs.slice(0,80):"")+(signature?" | Assinado eletronicamente":""));
+    upd(patch,"aprovacao","Aprovacao 2: Avaliacoes aprovadas — Plano de acao iniciado","Aprovado por: "+currentUser.name+" | Responsavel: "+(planRespName||"—")+" | Prazo: "+fmtD(planDl)+(obs?" | Obs: "+obs.slice(0,80):"")+(signature?" | Assinado eletronicamente":""));
     setSigModal(null);
   };
 
@@ -2138,7 +2140,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                 {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
                   const u=allUsers.find(x=>x.id===parseInt(v));
                   const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
-                  onUpdate(r);
+                  setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
                 }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
               </div>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -2444,7 +2446,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               {isAdmin&&<Sel value={localReq.planResponsible||""} onChange={v=>{
                 const u=allUsers.find(x=>x.id===parseInt(v));
                 const r=mkLog({...localReq,planResponsible:parseInt(v),planResponsibleName:u&&u.name||""},currentUser.name,"plano","Responsavel do plano definido","De: "+(localReq.planResponsibleName||"—")+" → Para: "+(u&&u.name||"—"));
-                onUpdate(r);
+                setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
               }} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Definir responsavel..." C={C}/>}
               {canPlan&&localReq.status==="montagem_plano"&&<button style={Sg.btn("primary")} onClick={()=>setAddAc(true)}>+ Nova Acao</button>}
               {isAdmin&&localReq.status==="execucao"&&<button style={Sg.btn("primary")} onClick={()=>setAddAcExec(true)}>+ Acrescentar Acao</button>}
@@ -2591,13 +2593,16 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     {/* Aprovar avaliacoes - iniciar plano */}
     {showAp2&&<Modal open={showAp2} onClose={()=>setShowAp2(false)} title="Aprovar Avaliacoes — Iniciar Plano" width={460}>
       <div style={{fontSize:13,color:C.muted,marginBottom:14}}>As avaliações de impacto foram concluídas. Confirme a aprovação e defina o prazo para montagem do plano de ações.</div>
+      <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Responsável pelo Plano de Ação *</label>
+      <Sel value={ap2PlanResp} onChange={v=>setAp2PlanResp(v)} options={allUsers.filter(u=>u.active).map(u=>({value:u.id,label:u.name}))} placeholder="Selecione o responsável..." C={C}/>
+      <div style={{height:14}}/>
       <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Prazo para Montagem do Plano *</label>
       <input type="date" style={{...Sg.input(),marginBottom:14}} value={ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.montagem_plano&&phaseDl.montagem_plano.days)||5)} min={todayStr()} onChange={e=>setAp2DateVal(e.target.value)}/>
       <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:5}}>Observações da Aprovação (opcional)</label>
       <textarea style={{...Sg.input(),minHeight:72,resize:"vertical",marginBottom:14}} value={ap2Obs} onChange={e=>setAp2Obs(e.target.value)} placeholder="Registre observações sobre as avaliações, condicionantes ou orientações para o plano..."/>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <button style={Sg.btn()} onClick={()=>setShowAp2(false)}>Cancelar</button>
-        <button style={Sg.btn("success")} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,ap2Obs,sig);setAp2Obs("");},title:"Assinar - Aprovar Avaliacoes",desc:"SA: "+localReq.id+" - Iniciar montagem do plano de acao",label:"Assinar e Aprovar",style:"success",saId:localReq.id,sigAction:"aprovacao_avaliacoes"});}}>Continuar →</button>
+        <button style={{...Sg.btn("success"),opacity:ap2PlanResp?1:.4}} disabled={!ap2PlanResp} onClick={()=>{const d=ap2DateVal||addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5);const u=allUsers.find(x=>parseInt(x.id)===parseInt(ap2PlanResp));setShowAp2(false);setSigModal({action:(sig)=>{ap2(d,ap2Obs,ap2PlanResp,u&&u.name||"",sig);setAp2Obs("");setAp2PlanResp("");},title:"Assinar - Aprovar Avaliacoes",desc:"SA: "+localReq.id+" - Responsável: "+(u&&u.name||"")+" | Prazo: "+addDays(todayStr(),(phaseDl&&phaseDl.plano&&phaseDl.plano.days)||5),label:"Assinar e Aprovar",style:"success",saId:localReq.id,sigAction:"aprovacao_avaliacoes"});}}>Continuar →</button>
       </div>
     </Modal>}
 
