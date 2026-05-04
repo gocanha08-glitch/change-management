@@ -1603,18 +1603,34 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
   // ── Reabrir fase ──
   const doReopenPhase=(toPhase,motive)=>{
+    // Preserva todos os dados feitos — só muda status e limpa aprovações da fase
     const patchMap={
-      aberta:            {status:"aberta",triage:null,evaluations:{},actions:[],ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null},
-      avaliacao_inicial: {status:"avaliacao_inicial",evaluations:{},actions:[],ap2By:null,ap2At:null,ap3By:null,ap3At:null},
-      avaliacao_areas:   {status:"avaliacao_areas",evaluations:{},ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      aberta:            {status:"aberta",ap1By:null,ap1At:null,ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      avaliacao_inicial: {status:"avaliacao_inicial",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
+      avaliacao_areas:   {status:"avaliacao_areas",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
       aprovacao_plano:   {status:"aprovacao_plano",ap2By:null,ap2At:null,ap3By:null,ap3At:null},
       montagem_plano:    {status:"montagem_plano",ap3By:null,ap3At:null},
       execucao:          {status:"execucao"},
     };
     const patch=patchMap[toPhase];
     if(!patch)return;
+    // Reabrir avaliacoes individuais da fase: remove o "at" (conclusao) mas preserva respostas
+    let evaluations=localReq.evaluations||{};
+    if(["avaliacao_areas","avaliacao_inicial"].includes(toPhase)){
+      evaluations=Object.fromEntries(Object.entries(evaluations).map(([dept,ev])=>{
+        if(!ev)return[dept,ev];
+        // preserva respostas/rascunho mas reabre para edicao
+        const {at,byId,byName,...rest}=ev;
+        return[dept,{...rest,draft:true}];
+      }));
+    }
+    // Reabrir acoes pendentes se voltando para execucao
+    let actions=localReq.actions||[];
+    if(toPhase==="execucao"){
+      actions=actions.map(a=>a.status==="concluida"?{...a,status:"pendente",doneNote:null,doneAt:null,doneBy:null}:a);
+    }
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_inicial:"Avaliacao Inicial",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
-    let r={...localReq,...patch};
+    let r={...localReq,...patch,evaluations,actions};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
     setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenPhase(null);
   };
