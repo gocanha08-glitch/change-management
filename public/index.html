@@ -1870,7 +1870,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               </>}
 
               {/* ── EDITAR TRIAGEM — só quando status ainda é aberta/avaliacao ── */}
-              {localReq.triage&&["aberta","avaliacao_inicial","avaliacao_areas"].includes(st)&&<>
+              {localReq.triage&&["aberta","avaliacao_inicial","avaliacao_areas"].includes(st)&&isAdmin&&<>
                 <MI onClick={()=>{setEditTriagem(true);setTriageDrawer(true);}} icon="✏" label="Editar Avaliacao Inicial"/>
                 <Sep/>
               </>}
@@ -1991,7 +1991,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     {/* ══════════════════════════════════════════════════════════
         1. DADOS DA SOLICITACAO
     ══════════════════════════════════════════════════════════ */}
-    <SecCard id="solicitacao" title="Dados da Solicitacao" action={localReq.status==="aberta"&&(currentUser.id===localReq.createdBy||isAdmin)?<button onClick={openEditDados} style={{fontSize:11,padding:"4px 12px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.accent,cursor:"pointer",fontFamily:"inherit"}}>✏ Editar Dados</button>:null}>
+    <SecCard id="solicitacao" title="Dados da Solicitacao" action={["aberta","avaliacao_inicial"].includes(localReq.status)&&(currentUser.id===localReq.createdBy||isAdmin)?<button onClick={openEditDados} style={{fontSize:11,padding:"4px 12px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.accent,cursor:"pointer",fontFamily:"inherit"}}>✏ Editar Dados</button>:null}>
       {/* Modal de edição dos dados da solicitação */}
       {editDados&&<Modal open onClose={()=>setEditDados(false)} title="Editar Dados da Solicitacao" width={560}>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
