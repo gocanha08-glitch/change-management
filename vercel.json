@@ -1,6 +1,8 @@
 {
   "outputDirectory": "public",
   "rewrites": [
+    { "source": "/api/users/me", "destination": "/api/users?_route=me" },
+    { "source": "/api/users/:id/roles", "destination": "/api/users?_route=roles&id=:id" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

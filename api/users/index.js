@@ -18,6 +18,76 @@ module.exports = async (req, res) => {
   if (!user) return;
 
   const perms = user.permissions || [];
+  const route = req.query._route;
+
+  // ── /api/users/me — GET perfil próprio, PUT trocar senha ──────────────────
+  if (route === 'me') {
+    if (req.method === 'GET') {
+      try {
+        const rows = await sql`
+          SELECT id, name, email, area, role, eval_depts, active
+          FROM users WHERE id = ${user.id} LIMIT 1
+        `;
+        const u = rows[0];
+        if (!u) return res.status(404).json({ error: 'Usuario nao encontrado' });
+        const roleRows = await sql`
+          SELECT r.id, r.name, r.permissions
+          FROM roles r
+          JOIN user_roles ur ON ur.role_id = r.id
+          WHERE ur.user_id = ${user.id}
+          ORDER BY r.name
+        `;
+        const groups = roleRows.map(r => ({ id: r.id, name: r.name }));
+        const allPerms = roleRows.flatMap(r => Array.isArray(r.permissions) ? r.permissions : []);
+        const permissions = [...new Set(allPerms)];
+        return res.json({
+          id: u.id, name: u.name, email: u.email, area: u.area,
+          role: u.role, evalDepts: u.eval_depts || [], active: u.active,
+          groups, groupIds: groups.map(g => g.id), permissions
+        });
+      } catch (err) {
+        console.error('GET /me error:', err);
+        return res.status(500).json({ error: 'Erro interno' });
+      }
+    }
+    if (req.method === 'PUT') {
+      const { _curPwd, _np } = req.body || {};
+      if (!_curPwd || !_np) return res.status(400).json({ error: 'Senha atual e nova senha obrigatorias' });
+      try {
+        const rows = await sql`SELECT pwd_hash FROM users WHERE id = ${user.id} LIMIT 1`;
+        const u = rows[0];
+        if (!u) return res.status(404).json({ error: 'Usuario nao encontrado' });
+        const valid = await bcrypt.compare(_curPwd, u.pwd_hash);
+        if (!valid) return res.status(401).json({ error: 'Senha atual incorreta' });
+        if (_np.length < 8) return res.status(400).json({ error: 'Nova senha deve ter pelo menos 8 caracteres' });
+        const hash = await bcrypt.hash(_np, 10);
+        await sql`UPDATE users SET pwd_hash = ${hash} WHERE id = ${user.id}`;
+        return res.json({ ok: true });
+      } catch (err) {
+        console.error('PUT /me error:', err);
+        return res.status(500).json({ error: 'Erro interno' });
+      }
+    }
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // ── /api/users/:id/roles — GET grupos de um usuário ──────────────────────
+  if (route === 'roles') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+    const { id } = req.query;
+    try {
+      const roles = await sql`
+        SELECT r.id, r.name, r.description
+        FROM user_roles ur
+        JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = ${id}
+        ORDER BY r.name
+      `;
+      return res.json(roles);
+    } catch (err) {
+      return res.status(500).json({ error: 'Erro interno' });
+    }
+  }
 
   // GET — qualquer autenticado pode listar (para dropdowns de atribuição)
   if (req.method === 'GET') {
