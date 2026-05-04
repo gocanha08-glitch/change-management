@@ -2424,7 +2424,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         const canAct=(isMe||isAdmin)&&["avaliacao_areas","aprovacao_plano"].includes(localReq.status);
         // Avaliacao concluida = somente leitura para todos. Para alterar, usar "Reabrir avaliacao" no menu SGQ.
         return <TaskDrawer open={true} onClose={closeDrawer} title={dept} subtitle={(done?"Concluida por "+ev.byName+" em "+fmt(ev.at):"Avaliacao pendente")+(u?" Â· Responsavel: "+u.name:"")} C={C}>
-          {done
+          {done&&!canAct
             ?<><EvalDetail dept={dept} ev={ev} u={u} isAdmin={false} onEdit={()=>{}} C={C} Sg={Sg}/>
               {isAdmin&&<div style={{marginTop:14,padding:"10px 14px",background:C.warning+"0D",border:"1px solid "+C.warning+"44",borderRadius:8,fontSize:12,color:C.warning}}>
                 Para editar esta avaliacao, use <strong>Acoes SGQ â Reabrir avaliacao</strong>.
