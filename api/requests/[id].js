@@ -3,11 +3,22 @@ const { sql } = require('../../lib/db');
 const { requireAuth } = require('../../lib/auth');
 const { hasPermission } = require('../../lib/permissions');
 const mailer = require('../../lib/email/mailer');
+const crypto = require('crypto');
 
-const CORS = (res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGINS = [
+  'https://change-management-eta.vercel.app',
+  'https://vydence-change.vercel.app',
+  process.env.APP_URL,
+].filter(Boolean);
+
+const CORS = (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Vary', 'Origin');
 };
 
 const STATUS_ORDER = {
@@ -145,10 +156,7 @@ async function dispararEmail(oldStatus, newStatus, sa) {
         const u = rows[0];
         if (!u?.email) continue;
         const deadline = sa.triage?.deadlines?.[dept] || 'A definir';
-        mailer.sendEvaluationPending({
-          to: u.email, name: u.name, saId: sa.id,
-          saTitle: sa.title, dept, deadline, saUrl
-        });
+        mailer.sendEvaluationPending({ to: u.email, name: u.name, saId: sa.id, saTitle: sa.title, dept, deadline, saUrl });
       }
     }
 
@@ -157,10 +165,7 @@ async function dispararEmail(oldStatus, newStatus, sa) {
       const areas = sa.triage?.assignedAreas || [];
       const doneEvals = Object.keys(sa.evaluations || {}).filter(d => sa.evaluations[d]?.at).length;
       if (sgqEmails.length > 0) {
-        mailer.sendApprovalPending({
-          to: sgqEmails, saId: sa.id, saTitle: sa.title,
-          doneEvals, totalEvals: areas.length, saUrl
-        });
+        mailer.sendApprovalPending({ to: sgqEmails, saId: sa.id, saTitle: sa.title, doneEvals, totalEvals: areas.length, saUrl });
       }
     }
 
@@ -173,10 +178,7 @@ async function dispararEmail(oldStatus, newStatus, sa) {
         if (!u?.email) continue;
         const myActions = actions.filter(a => parseInt(a.responsible) === uid);
         for (const ac of myActions) {
-          mailer.sendEvaluationPending({
-            to: u.email, name: u.name, saId: sa.id,
-            saTitle: sa.title, dept: 'Execução', deadline: ac.deadline, saUrl
-          });
+          mailer.sendEvaluationPending({ to: u.email, name: u.name, saId: sa.id, saTitle: sa.title, dept: 'Execução', deadline: ac.deadline, saUrl });
         }
       }
     }
@@ -184,23 +186,29 @@ async function dispararEmail(oldStatus, newStatus, sa) {
     if (oldStatus === 'execucao' && newStatus === 'concluida') {
       const solicitanteEmail = await getUserEmail(sa.createdBy);
       if (solicitanteEmail) {
-        mailer.sendSAConcluded({
-          to: solicitanteEmail, name: sa.createdByName,
-          saId: sa.id, saTitle: sa.title,
-          concludedBy: sa.verifiedByName || '',
-          verifyNote: sa.verifyNote || '',
-          saUrl
-        });
+        mailer.sendSAConcluded({ to: solicitanteEmail, name: sa.createdByName, saId: sa.id, saTitle: sa.title, concludedBy: sa.verifiedByName || '', verifyNote: sa.verifyNote || '', saUrl });
       }
     }
-
   } catch (err) {
     console.error('[email] Erro ao disparar e-mail:', err.message);
   }
 }
 
+async function salvarAssinatura(sa, user, acao, detalhe) {
+  try {
+    const payload = `${sa.id}|${user.id}|${user.name}|${acao}|${new Date().toISOString()}`;
+    const hash = crypto.createHash('sha256').update(payload).digest('hex');
+    await sql`
+      INSERT INTO signatures (request_id, user_id, user_name, action, detail, hash, signed_at)
+      VALUES (${sa.id}, ${parseInt(user.id)}, ${user.name}, ${acao}, ${detalhe || ''}, ${hash}, now())
+    `;
+  } catch (err) {
+    console.error('[assinatura] Erro ao salvar:', err.message);
+  }
+}
+
 module.exports = async (req, res) => {
-  CORS(res);
+  CORS(req, res);
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const user = requireAuth(req, res);
@@ -209,7 +217,6 @@ module.exports = async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'ID obrigatorio' });
 
-  // GET — buscar SA
   if (req.method === 'GET') {
     try {
       const rows = await sql`SELECT data FROM requests WHERE id = ${id} LIMIT 1`;
@@ -226,7 +233,6 @@ module.exports = async (req, res) => {
     }
   }
 
-  // PUT — atualizar SA
   if (req.method === 'PUT') {
     try {
       const newSA = req.body;
@@ -257,14 +263,26 @@ module.exports = async (req, res) => {
         WHERE id = ${id}
       `;
 
+      // Salvar assinatura nas transições relevantes
       if (oldStatus !== newStatus) {
+        const acoes = {
+          avaliacao_inicial: 'Avaliação Inicial realizada',
+          avaliacao_areas: 'SA enviada para Avaliação de Áreas',
+          aprovacao_plano: 'Avaliações aprovadas',
+          montagem_plano: 'Plano de Ação liberado para execução',
+          execucao: 'SA em Execução',
+          concluida: 'SA Concluída',
+          cancelada: 'SA Cancelada',
+        };
+        const detalhe = acoes[newStatus] || `Status alterado para ${newStatus}`;
+        await salvarAssinatura(newSA, user, newStatus, detalhe);
         dispararEmail(oldStatus, newStatus, newSA);
       }
 
       return res.json({ ok: true });
     } catch (err) {
       console.error('PUT request error:', err);
-      return res.status(500).json({ error: 'Erro ao atualizar SA' });
+      return res.status(500).json({ error: 'Erro ao atualizar SA', detail: err.message });
     }
   }
 
