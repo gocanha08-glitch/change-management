@@ -1654,7 +1654,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     if(["avaliacao_areas","avaliacao_inicial"].includes(toPhase)){
       evaluations=Object.fromEntries(Object.entries(evaluations).map(([dept,ev])=>{
         if(!ev)return[dept,ev];
-        // preserva respostas/rascunho mas reabre para edicao
         const {at,byId,byName,...rest}=ev;
         return[dept,{...rest,draft:true}];
       }));
@@ -1667,7 +1666,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const phaseLabels={aberta:"Solicitacao Aberta",avaliacao_inicial:"Avaliacao Inicial",avaliacao_areas:"Avaliacao das Areas",aprovacao_plano:"Aguarda Aprovacao",montagem_plano:"Montagem do Plano",execucao:"Execucao"};
     let r={...localReq,...patch,evaluations,actions};
     r=mkLog(r,currentUser.name,"reabrir","Fase reaberta pelo SGQ","De: "+(REQ_ST[localReq.status]&&REQ_ST[localReq.status].label)+" → Para: "+phaseLabels[toPhase]+" | Motivo: "+motive+" | Por: "+currentUser.name);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setReopenPhase(null);
+    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r).then(()=>setReopenPhase(null)).catch(()=>setReopenPhase(null));
   };
 
   // ── Cancelar SA ──
