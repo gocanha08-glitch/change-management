@@ -1392,7 +1392,8 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
       drawer||drawerEditing||showReject||showRegress||showCancel||
       showAp2||showAp3||reopenPhase||reassignEval||reassignAc||
       reopenEval||reopenAc||addAcExec||extTarget||adminDlTarget||
-      triageDrawer||showAddAc||editAc||confirmRemoveAc||removeAcExec
+      triageDrawer||showAddAc||editAc||confirmRemoveAc||removeAcExec||
+      editDados||addAreaModal||sigModal
     );
     busyRef.current=anyOpen;
     if(!anyOpen){
@@ -1406,7 +1407,8 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   },[request,drawer,drawerEditing,showReject,showRegress,showCancel,
      showAp2,showAp3,reopenPhase,reassignEval,reassignAc,
      reopenEval,reopenAc,addAcExec,extTarget,adminDlTarget,
-     triageDrawer,showAddAc,editAc,confirmRemoveAc,removeAcExec]);
+     triageDrawer,showAddAc,editAc,confirmRemoveAc,removeAcExec,
+     editDados,addAreaModal,sigModal]);
   const [drawerEditVals,setDrawerEditVals]=useState({});
   const openEvalDrawer=(dept)=>setDrawer({type:"eval",dept});
   const openAcDrawer=(ac)=>{setDrawer({type:"action",ac});setDrawerEditing(false);setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});};
@@ -1993,7 +1995,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="solicitacao" title="Dados da Solicitacao" action={["aberta","avaliacao_inicial"].includes(localReq.status)&&(currentUser.id===localReq.createdBy||isAdmin)?<button onClick={openEditDados} style={{fontSize:11,padding:"4px 12px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.accent,cursor:"pointer",fontFamily:"inherit"}}>✏ Editar Dados</button>:null}>
       {/* Modal de edição dos dados da solicitação */}
-      {editDados&&<Modal open onClose={()=>setEditDados(false)} title="Editar Dados da Solicitacao" width={560}>
+      <Modal open={editDados} onClose={()=>setEditDados(false)} title="Editar Dados da Solicitacao" width={560}>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div><label style={Sg.lbl}>Titulo *</label><input style={Sg.input()} value={dadosForm.title||""} onChange={e=>setDF(p=>({...p,title:e.target.value}))} placeholder="Titulo conciso..."/></div>
           <div><label style={Sg.lbl}>Tipo *</label>
@@ -2010,7 +2012,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             <button style={{...Sg.btn("primary"),opacity:(dadosForm.title&&dadosForm.type&&dadosForm.description)?1:.4}} disabled={!(dadosForm.title&&dadosForm.type&&dadosForm.description)} onClick={saveDados}>Salvar</button>
           </div>
         </div>
-      </Modal>}
+      </Modal>
       {/* Grid 3 cols: numero, data, solicitante */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
         <FieldCard label="Numero do Controle" value={localReq.id}/>
