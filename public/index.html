@@ -1420,7 +1420,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const [editDados,setEditDados]=React.useState(false);
   const [dadosForm,setDF]=React.useState({});
   const openEditDados=()=>{setDF({title:localReq.title,type:localReq.type,description:localReq.description,justification:localReq.justification||"",area:localReq.area||""});setEditDados(true);};
-  const saveDados=()=>{let r={...localReq,...dadosForm};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+dadosForm.title);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);upd(r);setEditDados(false);};
+  const saveDados=()=>{let r={...localReq,...dadosForm};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+dadosForm.title);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEditDados(false);};
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
