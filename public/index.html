@@ -969,8 +969,8 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
   const allSet=areas.length>0&&areas.every(a=>assigns[a]&&dls[a]);
   const canSave=crit&&just.trim()&&areas.length>0&&allSet;
 
-  // Read-only
-  if(existing&&request.status!=="aberta"){
+  // Read-only — editar quando status aberta ou avaliacao_inicial
+  if(existing&&!["aberta","avaliacao_inicial"].includes(request.status)){
     const t=existing;const cr=crits.find(c=>c.v===t.criticality);
     // isMandatory usando dados salvos (nao o estado local que está vazio no read-only)
     const isMandSaved=dept=>{
