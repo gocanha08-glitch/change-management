@@ -1430,10 +1430,10 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
     );
     busyRef.current=anyOpen;
     if(!anyOpen){
-      // Só sincroniza se o servidor tem versão mais nova (mais eventos no log)
-      const serverLog=(localReq.log||[]).length;
+      // Sincroniza com o servidor se a SA mudou (id diferente ou servidor tem log mais novo)
+      const serverLog=(request.log||[]).length;
       const localLog=(localReq.log||[]).length;
-      if(serverLog>localLog||localReq.id!==localReq.id){
+      if(request.id!==localReq.id||serverLog>localLog){
         setLocalReq(request);
       }
     }
@@ -1494,9 +1494,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const oldAreas=localReq.triage&&localReq.triage.assignedAreas||[];
     const newAreas=triage.assignedAreas;
     const removedAreas=oldAreas.filter(a=>!newAreas.includes(a));
-    const newEvs=isEdit
-      ? Object.fromEntries(Object.entries(localReq.evaluations||{}).filter(([k])=>newAreas.includes(k)))
-      : {};
+    // Sempre preserva evaluations das areas que continuam atribuidas
+    const newEvs=Object.fromEntries(Object.entries(localReq.evaluations||{}).filter(([k])=>newAreas.includes(k)));
     const newSD={...(localReq.stageDeadlines||{}),avaliacao_areas:isEdit?(localReq.stageDeadlines&&localReq.stageDeadlines.avaliacao_areas||addDays(todayStr(),pd.avaliacao_areas.days)):addDays(todayStr(),pd.avaliacao_areas.days)};
     let detail="Criticidade: "+triage.criticality+" ("+((crits.find(c=>c.v===triage.criticality)||{}).label||"")+") | Areas: "+triage.assignedAreas.join(", ");
     if(isEdit){
