@@ -1298,6 +1298,39 @@ function TaskDrawer({open,onClose,title,subtitle,children,C}){
 // ================================================================
 // REQUEST DETAIL v10 — with deadline extension requests
 // ================================================================
+function EditDadosModal({open, onClose, req, onSave, C, Sg}){
+  const [form, setForm] = React.useState({});
+  React.useEffect(()=>{
+    if(open) setForm({title:req.title||'',type:req.type||'',description:req.description||'',justification:req.justification||'',area:req.area||''});
+  },[open]);
+  const valid = form.title && form.type && form.description;
+  if(!open) return null;
+  return <div style={{position:'fixed',inset:0,background:'#000d',zIndex:900,display:'flex',alignItems:'center',justifyContent:'center',padding:16}} onClick={onClose}>
+    <div style={{background:C.card,border:'1px solid '+C.border,borderRadius:14,width:'100%',maxWidth:560,maxHeight:'93vh',overflow:'auto',padding:24}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <h2 style={{margin:0,fontSize:15,color:C.text,fontWeight:700}}>Editar Dados da Solicitacao</h2>
+        <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer',fontSize:20,padding:4,fontFamily:'inherit'}}>x</button>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <div><label style={Sg.lbl}>Titulo *</label><input style={Sg.input()} value={form.title||''} onChange={e=>setForm(p=>({...p,title:e.target.value}))} placeholder='Titulo conciso...'/></div>
+        <div><label style={Sg.lbl}>Tipo *</label>
+          <select value={form.type||''} onChange={e=>setForm(p=>({...p,type:e.target.value}))} style={Sg.input()}>
+            <option value=''>Selecione...</option>
+            {CHANGE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><label style={Sg.lbl}>Area Solicitante</label><input style={Sg.input()} value={form.area||''} onChange={e=>setForm(p=>({...p,area:e.target.value}))} placeholder='Departamento...'/></div>
+        <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:100,resize:'vertical'}} value={form.description||''} onChange={e=>setForm(p=>({...p,description:e.target.value}))}/></div>
+        <div><label style={Sg.lbl}>Justificativa</label><textarea style={{...Sg.input(),minHeight:64,resize:'vertical'}} value={form.justification||''} onChange={e=>setForm(p=>({...p,justification:e.target.value}))}/></div>
+        <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}}>
+          <button style={Sg.btn()} onClick={onClose}>Cancelar</button>
+          <button style={{...Sg.btn('primary'),opacity:valid?1:.4}} disabled={!valid} onClick={()=>onSave(form)}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQuestions,onBack,onUpdate,initialTab,focusDept,focusAcId,autoOpenDrawer}){
   const {C}=useTheme();const Sg=mkSg(C);
 
@@ -1422,7 +1455,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   const [editDados,setEditDados]=React.useState(false);
   const [dadosForm,setDF]=React.useState({});
   const openEditDados=()=>{setDF({title:localReq.title,type:localReq.type,description:localReq.description,justification:localReq.justification||"",area:localReq.area||""});setEditDados(true);};
-  const saveDados=()=>{let r={...localReq,...dadosForm};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+dadosForm.title);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEditDados(false);};
+  const saveDados=(form)=>{let r={...localReq,...form};r=mkLog(r,currentUser.name,"edicao","Dados da solicitacao editados","Titulo: "+form.title);setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);setEditDados(false);};
   const [openSec,setOpenSec]=useState(()=>{
     const o={solicitacao:true,triagem:true,avaliacoes:true,plano:true,conclusao:true,documentos:false,historico:false};
     if(initialTab==="avaliacao")o.avaliacoes=true;
@@ -1995,24 +2028,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="solicitacao" title="Dados da Solicitacao" action={["aberta","avaliacao_inicial"].includes(localReq.status)&&(currentUser.id===localReq.createdBy||isAdmin)?<button onClick={openEditDados} style={{fontSize:11,padding:"4px 12px",borderRadius:6,border:"1px solid "+C.border,background:"none",color:C.accent,cursor:"pointer",fontFamily:"inherit"}}>✏ Editar Dados</button>:null}>
       {/* Modal de edição dos dados da solicitação */}
-      <Modal open={editDados} onClose={()=>setEditDados(false)} title="Editar Dados da Solicitacao" width={560}>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <div><label style={Sg.lbl}>Titulo *</label><input style={Sg.input()} value={dadosForm.title||""} onChange={e=>setDF(p=>({...p,title:e.target.value}))} placeholder="Titulo conciso..."/></div>
-          <div><label style={Sg.lbl}>Tipo *</label>
-            <select value={dadosForm.type||""} onChange={e=>setDF(p=>({...p,type:e.target.value}))} style={Sg.input()}>
-              <option value="">Selecione...</option>
-              {CHANGE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div><label style={Sg.lbl}>Area Solicitante</label><input style={Sg.input()} value={dadosForm.area||""} onChange={e=>setDF(p=>({...p,area:e.target.value}))} placeholder="Departamento..."/></div>
-          <div><label style={Sg.lbl}>Descricao *</label><textarea style={{...Sg.input(),minHeight:100,resize:"vertical"}} value={dadosForm.description||""} onChange={e=>setDF(p=>({...p,description:e.target.value}))}/></div>
-          <div><label style={Sg.lbl}>Justificativa</label><textarea style={{...Sg.input(),minHeight:64,resize:"vertical"}} value={dadosForm.justification||""} onChange={e=>setDF(p=>({...p,justification:e.target.value}))}/></div>
-          <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:4}}>
-            <button style={Sg.btn()} onClick={()=>setEditDados(false)}>Cancelar</button>
-            <button style={{...Sg.btn("primary"),opacity:(dadosForm.title&&dadosForm.type&&dadosForm.description)?1:.4}} disabled={!(dadosForm.title&&dadosForm.type&&dadosForm.description)} onClick={saveDados}>Salvar</button>
-          </div>
-        </div>
-      </Modal>
+      <EditDadosModal open={editDados} onClose={()=>setEditDados(false)} req={localReq} onSave={(form)=>saveDados(form)} C={C} Sg={Sg}/>
       {/* Grid 3 cols: numero, data, solicitante */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
         <FieldCard label="Numero do Controle" value={localReq.id}/>
