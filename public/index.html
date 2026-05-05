@@ -820,7 +820,7 @@ function EvalForm({dept,existing,readOnly,allUsers,assignedUserId,isAdmin,deptQu
     setObs((existing&&existing.obs)||"");
     setAtts((existing&&existing.attachments)||[]);
     setSubmitted(false);
-  },[dept]);
+  },[dept,existing]);
 
   const needsJ=a=>a==="N"||a==="N/A";
   const setA=(i,a)=>setAns(p=>p.map((x,xi)=>xi===i?{...x,a}:x));
