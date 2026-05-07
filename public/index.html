@@ -3,24 +3,21 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet"/>
-<title>SGQ - Controle de Mudancas</title>
+<title>CHANGE - Gestao de Mudancas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--app-bg,#F5F7FA);font-family:'DM Sans',sans-serif;color:#1A2035;font-size:13px;-webkit-font-smoothing:antialiased;}
+body{background:var(--app-bg,#0F1117);font-family:'Segoe UI',system-ui,sans-serif;color:#E8EAF0;font-size:14px}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--sb-color,#2A3050);border-radius:3px}
 select option{background:#1E2333;color:#E8EAF0}
 input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5)}
 textarea,input,select,button{font-family:inherit}
-
+  @keyframes pulse { 0%,100%{opacity:.35} 50%{opacity:1} } .refresh-dot { animation: pulse 2.5s ease-in-out infinite; }
 </style>
 </head>
 <body><div id="root"></div>
@@ -35,8 +32,6 @@ const APP_DATE = "2026-03-11";
 // ── Permissões ─────────────────────────────────────────────
 const hasPermission = (user, perm) => {
   if (!user) return false;
-  // admin e sgq têm acesso a tudo
-  if (['admin','sgq'].includes(user.role)) return true;
   const perms = user.permissions || [];
   return perms.includes(perm);
 };
@@ -174,17 +169,18 @@ const mkSeed=(phaseDl)=>{
 // ================================================================
 const THEMES = {
   dark: {
-    bg:"#111318", surface:"#1A1D27", card:"#1E2130", border:"#2C3044",
-    accent:"#3B82F6", success:"#22C55E", warning:"#F59E0B", danger:"#EF4444",
-    purple:"#8B5CF6", orange:"#F97316", cyan:"#06B6D4", muted:"#6B7280",
-    text:"#E2E8F0", dim:"#94A3B8", inputBg:"#1A1D27",
+    bg:"#0F1117", surface:"#181C27", card:"#1E2333", border:"#2A3050",
+    accent:"#4F8EF7", success:"#2DD4BF", warning:"#F59E0B", danger:"#EF4444",
+    purple:"#8B5CF6", orange:"#F97316", cyan:"#06B6D4", muted:"#6B7A9F",
+    text:"#E8EAF0", dim:"#9AA3BF", inputBg:"#181C27",
   },
   light: {
-    bg:"#F5F7FA", surface:"#FFFFFF", card:"#FFFFFF", border:"#E2E8F0",
-    accent:"#2563EB", success:"#16A34A", warning:"#D97706", danger:"#DC2626",
-    purple:"#7C3AED", orange:"#EA580C", cyan:"#0891B2", muted:"#64748B",
-    text:"#0F172A", dim:"#475569", inputBg:"#F8FAFC",
+    bg:"#F4F6FB", surface:"#FFFFFF", card:"#FFFFFF", border:"#D1D9E6",
+    accent:"#2563EB", success:"#0D9488", warning:"#D97706", danger:"#DC2626",
+    purple:"#7C3AED", orange:"#EA580C", cyan:"#0891B2", muted:"#6B7280",
+    text:"#111827", dim:"#374151", inputBg:"#F9FAFB",
   },
+
 };
 
 // ThemeContext
@@ -192,7 +188,7 @@ const ThemeCtx = React.createContext({theme:"dark", C:THEMES.dark, setTheme:()=>
 const useTheme = () => React.useContext(ThemeCtx);
 
 function ThemeProvider({children}){
-  const [theme, setThemeRaw] = useState(()=>localStorage.getItem("sgq_theme_v1")||"light");
+  const [theme, setThemeRaw] = useState(()=>localStorage.getItem("cm_theme_v9")||"dark");
   const applyBodyTheme=(C2)=>{
     document.body.style.background=C2.bg;
     document.body.style.color=C2.text;
@@ -201,12 +197,12 @@ function ThemeProvider({children}){
     // fix date picker icon for light mode
     const style=document.getElementById('_theme_style')||document.createElement('style');
     style.id='_theme_style';
-    style.textContent=`input[type=date]::-webkit-calendar-picker-indicator{filter:${['#F4F6FB','#F5F7FA'].includes(C2.bg)?'none':'invert(.5)'}}select option{background:${C2.card};color:${C2.text}}`;
+    style.textContent=`input[type=date]::-webkit-calendar-picker-indicator{filter:${C2.bg==='#F4F6FB'?'none':'invert(.5)'}}select option{background:${C2.card};color:${C2.text}}`;
     document.head.appendChild(style);
   };
   const setTheme = t => {
     setThemeRaw(t);
-    localStorage.setItem("sgq_theme_v1", t);
+    localStorage.setItem("cm_theme_v9", t);
     applyBodyTheme(THEMES[t]||THEMES.dark);
   };
   const C = THEMES[theme] || THEMES.dark;
@@ -254,20 +250,20 @@ const validatePwd=(p,user={})=>{
 };
 
 const mkSg=C=>({
-  card:(x={})=>({background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:16,boxShadow:"0 1px 3px rgba(0,0,0,.04)",...x}),
-  btn:(v="ghost")=>({padding:"6px 14px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:500,outline:"none",flexShrink:0,transition:"all .15s",
+  card:(x={})=>({background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:16,...x}),
+  btn:(v="ghost")=>({padding:"7px 14px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600,outline:"none",flexShrink:0,transition:"opacity .15s",
     ...(v==="primary"?{background:C.accent,color:"#fff"}:
         v==="danger" ?{background:C.danger,color:"#fff"}:
-        v==="success"?{background:C.success,color:"#fff"}:
-        v==="warning"?{background:C.warning,color:"#fff"}:
-        v==="purple" ?{background:C.accent,color:"#fff"}:
-                      {background:C.border,color:C.muted})}),
-  input:()=>({background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"7px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}),
-  lbl:{fontSize:11,fontWeight:600,letterSpacing:.4,color:C.muted,textTransform:"uppercase",display:"block",marginBottom:4},
+        v==="success"?{background:C.success,color:"#000"}:
+        v==="warning"?{background:C.warning,color:"#000"}:
+        v==="purple" ?{background:C.purple,color:"#fff"}:
+                      {background:C.border,color:C.dim})}),
+  input:()=>({background:C.inputBg,border:"1px solid "+C.border,borderRadius:7,color:C.text,padding:"8px 11px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}),
+  lbl:{fontSize:11,fontWeight:700,letterSpacing:.7,color:"#6B7A9F",textTransform:"uppercase",display:"block",marginBottom:4},
 });
 
-function Badge({label,color}){return <span style={{display:"inline-flex",alignItems:"center",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:500,background:color+"15",color,border:"1px solid "+color+"30",whiteSpace:"nowrap",flexShrink:0}}>{label}</span>;}
-function Av({user,size=32}){if(!user)return null;return <div style={{width:size,height:size,borderRadius:"50%",background:"#E2E8F0",border:"1px solid #CBD5E1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:500,color:"#64748B",flexShrink:0}}>{mkI(user.name)}</div>;}
+function Badge({label,color}){return <span style={{display:"inline-flex",alignItems:"center",padding:"2px 8px",borderRadius:20,fontSize:11,fontWeight:700,background:color+"28",color,border:"1px solid "+color+"44",whiteSpace:"nowrap",flexShrink:0}}>{label}</span>;}
+function Av({user,size=32}){if(!user)return null;const col=RC[user.role]||"#6B7A9F";return <div style={{width:size,height:size,borderRadius:"50%",background:col+"22",border:"2px solid "+col+"55",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.34,fontWeight:700,color:col,flexShrink:0}}>{mkI(user.name)}</div>;}
 
 function Sel({value,onChange,options,placeholder,disabled,C}){
   const [open,setOpen]=React.useState(false);
@@ -537,7 +533,7 @@ function getPhaseDeadline(r){
   const go=async()=>{
     if(pwd!==pwd2){setMsg("Senhas nao coincidem.");return;}
     try{
-      const r=await fetch('/api/auth?_route=reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,pwd})});
+      const r=await fetch('/api/auth/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,pwd})});
       const d=await r.json();
       if(!r.ok)throw new Error(d.error);
       setDone(true);
@@ -596,7 +592,7 @@ function Login({users,onLogin}){
         <input style={Sg.input()} value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)} placeholder="seu@email.com"/>
         <button style={{...Sg.btn("primary"),width:"100%",marginTop:8}} onClick={async()=>{
           try{
-            await fetch('/api/auth?_route=forgot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:forgotEmail})});
+            await fetch('/api/auth/forgot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:forgotEmail})});
             setForgotMsg("Se o email existir, voce recebera um link em breve!");
           }catch(e){setForgotMsg("Erro ao enviar.");}
         }}>Enviar link</button>
@@ -673,7 +669,7 @@ function AttachmentsPanel({attachments,onAdd,onRemove,readOnly,stage,currentUser
     {all.length===0&&<div style={{fontSize:11,color:C.muted,padding:"6px 0"}}>Nenhum anexo registrado.</div>}
     {all.map((a,i)=>(
       <div key={a.id||i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 10px",background:C.surface,borderRadius:7,marginBottom:4}}>
-        <div style={{fontSize:13,flexShrink:0}}>{a.hasFile?"":""}</div>
+        <div style={{fontSize:13,flexShrink:0}}>{a.hasFile?"📎":"🔗"}</div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontWeight:600,color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name}</div>
           <div style={{fontSize:10,color:C.muted,display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -685,7 +681,7 @@ function AttachmentsPanel({attachments,onAdd,onRemove,readOnly,stage,currentUser
           </div>
         </div>
         {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px",flexShrink:0}} onClick={()=>download(a)}>Download</button>}
-        {onRemove&&isAdmin&&<button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 8px",flexShrink:0}} title="Remover anexo" onClick={()=>{if(window.confirm("Remover o anexo \""+a.name+"\"? Esta acao fica registrada no historico."))onRemove(a);}}>×</button>}
+        {onRemove&&isAdmin&&<button style={{...Sg.btn("danger"),fontSize:11,padding:"4px 8px",flexShrink:0}} title="Remover anexo" onClick={()=>{if(window.confirm("Remover o anexo \""+a.name+"\"? Esta acao fica registrada no historico."))onRemove(a);}}>✕</button>}
       </div>
     ))}
   </div>;
@@ -1089,7 +1085,7 @@ function TriagePanel({request,matrix,allUsers,currentUser,crits,phaseDl,onSave,C
     <div style={{display:"flex",justifyContent:"flex-end"}}>
       <button style={{...Sg.btn("warning"),opacity:canSave?1:.4,padding:"8px 18px"}} disabled={!canSave}
         onClick={()=>onSave({criticality:crit,flagReg:false,flagProd:false,justification:just,classifiedBy:currentUser.id,classifiedByName:currentUser.name,classifiedAt:new Date().toISOString(),assignedAreas:areas,assignments:assigns,deadlines:{...dls},originalDeadlines:{...dls}})}>
-         Confirmar Triagem
+        🔐 Confirmar Triagem
       </button>
     </div>
   </div>;
@@ -1185,8 +1181,8 @@ function SignatureModal({open,onClose,onConfirm,title,description,confirmLabel,c
     if(!pwd.trim()){setErr("Senha obrigatória");return;}
     setLoading(true);setErr("");
     try{
-      const token=sessionStorage.getItem('sgq_token');
-      const res=await fetch('/api/auth?_route=verify',{
+      const token=sessionStorage.getItem('cm_token');
+      const res=await fetch('/api/auth/verify-password',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
         body:JSON.stringify({password:pwd,sa_id:saId||undefined,action:action||undefined,meaning:title||undefined})
@@ -1198,19 +1194,19 @@ function SignatureModal({open,onClose,onConfirm,title,description,confirmLabel,c
   };
   return <Modal open={open} onClose={onClose} title={title||"Assinatura Eletronica"} width={420}>
     <div style={{padding:"10px 14px",background:C.accent+"0D",border:"1px solid "+C.accent+"33",borderRadius:8,marginBottom:14,fontSize:13,color:C.accent}}>
-       Confirme sua identidade digitando sua senha para assinar eletronicamente.
+      🔐 Confirme sua identidade digitando sua senha para assinar eletronicamente.
     </div>
     {description&&<div style={{fontSize:13,color:C.muted,marginBottom:12,padding:"8px 12px",background:C.surface,borderRadius:8}}>{description}</div>}
     <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.5,display:"block",marginBottom:6}}>Sua Senha *</label>
     <div style={{position:"relative",marginBottom:14}}>
       <input type={showPwd?"text":"password"} style={{...Sg.input(),paddingRight:40}} value={pwd} onChange={e=>{setPwd(e.target.value);setErr("");}} placeholder="Digite sua senha..." onKeyDown={e=>e.key==="Enter"&&go()} autoFocus/>
-      <button type="button" onClick={()=>setShowPwd(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted,padding:0}}>{showPwd?"●":"○"}</button>
+      <button type="button" onClick={()=>setShowPwd(s=>!s)} style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted,padding:0}}>{showPwd?"🙈":"👁️"}</button>
     </div>
     {err&&<div style={{fontSize:12,color:C.danger,marginBottom:10,padding:"6px 10px",background:C.danger+"11",borderRadius:6}}>{err}</div>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
       <button style={Sg.btn()} onClick={onClose} disabled={loading}>Cancelar</button>
       <button style={{...Sg.btn(confirmStyle||"primary"),opacity:pwd.trim()&&!loading?1:.4}} disabled={!pwd.trim()||loading} onClick={go}>
-        {loading?"Verificando...":(" "+(confirmLabel||"Assinar e Confirmar"))}
+        {loading?"Verificando...":("🔐 "+(confirmLabel||"Assinar e Confirmar"))}
       </button>
     </div>
   </Modal>;
@@ -1289,7 +1285,7 @@ function TaskDrawer({open,onClose,title,subtitle,children,C}){
           <div style={{fontSize:15,fontWeight:700,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{title}</div>
           {subtitle&&<div style={{fontSize:12,color:C.muted,marginTop:2}}>{subtitle}</div>}
         </div>
-        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>×</button>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>✕</button>
       </div>
       {/* Scrollable content */}
       <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
@@ -1342,9 +1338,7 @@ function RequestDetail({request,allUsers,matrix,currentUser,crits,phaseDl,deptQu
   const [showReject,setReject]=useState(false);const [rejectNote,setRN]=useState("");
   const [showRegress,setRegress]=useState(false);const [regressNote,setGN]=useState("");
   const [showCancel,setShowCancel]=useState(false);
-  const [showReopenSA,setShowReopenSA]=useState(false);
-  const [sigModal,setSigModal]=useState(null);
-  const [ncModal,setNcModal]=useState(false); // {action, data, title, desc, label, style}
+  const [sigModal,setSigModal]=useState(null); // {action, data, title, desc, label, style}
   const [showAp2,setShowAp2]=useState(false);
   const [showAp3,setShowAp3]=useState(false);
   const [ap2DateVal,setAp2DateVal]=useState("");
@@ -1492,7 +1486,7 @@ const [newArea,setNewArea]=useState({dept:"",responsible:"",deadline:"",motive:"
   };
 
   // ── Actions ──────────────────────────────────────────────────────
-const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r).catch(e=>console.error('upd error:',e));};
+const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,currentUser.name,type,ev,detail);setLocalReq(r);onUpdate(r).then(()=>setLocalReq(r));};
   
   const saveTriage=async(triage,isEdit,signature)=>{
     const pd=phaseDl||DEFAULT_PHASE_DEADLINES;
@@ -1516,12 +1510,24 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     const targetStatus = isEdit ? localReq.status : "avaliacao_areas";
     let r={...localReq,triage:{...triage,...(signature?{triageSignature:signature}:{})},status:isEdit?localReq.status:"avaliacao_inicial",evaluations:newEvs,ap1By:currentUser.id,ap1ByName:currentUser.name,ap1At:new Date().toISOString(),stageDeadlines:newSD};
     r=mkLog(r,currentUser.name,"avaliacao_inicial",isEdit?"Avaliacao inicial editada pelo SGQ":"Avaliacao inicial realizada",detail);
-    // Salva direto — backend SGQ aceita qualquer status sem validação de transição
-    const r2 = isEdit ? r : {...r, status: "avaliacao_areas",
-      log:[...(r.log||[]),{at:new Date().toISOString(),by:currentUser.name,type:"avaliacao_inicial",event:"SA enviada para avaliacao de areas",detail:"Areas: "+triage.assignedAreas.join(", ")}]
-    };
-    setLocalReq({...r2,evaluations:r2.evaluations||{},actions:r2.actions||[]});
-    onUpdate(r2);
+    if(!isEdit && localReq.status==="aberta"){
+      // Backend valida transições individuais: precisa de dois PUTs
+      // 1) aberta → avaliacao_inicial, 2) avaliacao_inicial → avaliacao_areas
+      const token=sessionStorage.getItem('cm_token');
+      const base=window.API_BASE||'';
+      const id=encodeURIComponent(localReq.id);
+      try{
+        // Primeiro PUT: aberta → avaliacao_inicial
+        await fetch(base+'/api/requests/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(r)});
+        // Segundo PUT: avaliacao_inicial → avaliacao_areas
+        const r2={...r,status:"avaliacao_areas"};
+        r2.log=[...(r.log||[]),{at:new Date().toISOString(),by:currentUser.name,type:"avaliacao_inicial",event:"SA enviada para avaliacao de areas",detail:"Areas: "+triage.assignedAreas.join(", ")}];
+        await fetch(base+'/api/requests/'+id,{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify(r2)});
+        setLocalReq(r2);onUpdate(r2);
+      }catch(e){alert('Erro ao salvar triagem: '+e.message);}
+    } else {
+      setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});onUpdate(r);
+    }
     setEditTriagem(false);setSigModal(null);
   };
 
@@ -1663,28 +1669,6 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
   };
 
   // ── Cancelar SA ──
-  const reopenSA=(motive,signature)=>{
-    let r={
-      ...localReq,
-      status:"aberta",
-      cancelledAt:null,
-      cancelledBy:null,
-      cancelledByName:null,
-      cancellationMotive:null,
-      cancelSignature:null,
-      actions:(localReq.actions||[]).map(a=>
-        a.cancelledMotive==="SA cancelada"
-          ? {...a,status:"pendente",cancelledMotive:null,cancelledBy:null,cancelledAt:null}
-          : a
-      ),
-    };
-    if(signature) r={...r,reopenSignature:signature};
-    r=mkLog(r,currentUser.name,"reabrir","SA reaberta","Motivo: "+motive+(signature?" | Assinado por: "+signature.signedByName:"")+" | Por: "+currentUser.name);
-    setLocalReq({...r,evaluations:r.evaluations||{},actions:r.actions||[]});
-    onUpdate(r);
-    setShowReopenSA(false);
-  };
-
   const cancelSA=(motive,signature)=>{
     // Cancelar todas as ações pendentes
     const actions=(localReq.actions||[]).map(a=>
@@ -1866,7 +1850,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         <span style={{fontSize:16,fontWeight:700,color:C.text,flex:1}}>Change Management</span>
         {isAdmin&&<div style={{position:"relative"}} ref={sgqRef}>
           <button style={{...Sg.btn("primary"),fontSize:12,padding:"6px 14px",display:"flex",alignItems:"center",gap:6}} onClick={()=>setSgqOpen(o=>!o)}>
-             Acoes SGQ <span style={{fontSize:10,opacity:.7}}>{sgqOpen?"▲":"▼"}</span>
+            ⚙ Acoes SGQ <span style={{fontSize:10,opacity:.7}}>{sgqOpen?"▲":"▼"}</span>
           </button>
           {sgqOpen&&(()=>{
             // ── helpers de item e separador ──────────────────────────────────
@@ -1908,8 +1892,8 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                 <Sep/>
               </>}
               {st==="aprovacao_plano"&&<>
-                <SectionLabel label="Proximo passo" color={C.accent}/>
-                <MI onClick={()=>setShowAp2(true)} color={C.accent} icon="✓" label="Aprovar avaliacoes — iniciar plano"/>
+                <SectionLabel label="Proximo passo" color={C.purple}/>
+                <MI onClick={()=>setShowAp2(true)} color={C.purple} icon="✓" label="Aprovar avaliacoes — iniciar plano"/>
                 <Sep/>
               </>}
               {st==="montagem_plano"&&(isAdmin||parseInt(localReq.planResponsible)===parseInt(currentUser.id))&&<>
@@ -1926,7 +1910,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
               {/* ── REATRIBUIR AVALIACAO — só faz sentido durante avaliacao/revisao ── */}
               {["avaliacao_areas","aprovacao_plano"].includes(st)&&<Collapsible
-                id="reatrib_ev" icon="" label="Reatribuir avaliacao" count={evsPend.length} color={C.accent}
+                id="reatrib_ev" icon="👤" label="Reatribuir avaliacao" count={evsPend.length} color={C.accent}
                 items={evsPend}
                 renderItem={dept=><button key={dept} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
                   onMouseEnter={e=>e.currentTarget.style.background=C.surface}
@@ -1950,7 +1934,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
 
               {/* ── REATRIBUIR ACAO — durante plano e execucao ── */}
               {["montagem_plano","execucao"].includes(st)&&<Collapsible
-                id="reatrib_ac" icon="" label="Reatribuir acao" count={acsMov.length} color={C.accent}
+                id="reatrib_ac" icon="👤" label="Reatribuir acao" count={acsMov.length} color={C.accent}
                 items={acsMov}
                 renderItem={ac=><button key={ac.id} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:"6px 14px 6px 26px",textAlign:"left",fontSize:12,color:C.text,fontFamily:"inherit",display:"flex",alignItems:"center",gap:7}}
                   onMouseEnter={e=>e.currentTarget.style.background=C.surface}
@@ -1990,33 +1974,16 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
               {/* ── RETORNAR / REJEITAR / CANCELAR — sempre (enquanto ativo) ── */}
               {notFinal&&<>
   <Sep/>
-  {["avaliacao_inicial","avaliacao_areas","aprovacao_plano"].includes(st)&&<MI onClick={()=>{setSgqOpen(false);setAddAreaModal(true);}} color={C.accent} icon="+" label="Adicionar área avaliadora"/>}
+  {["avaliacao_inicial","avaliacao_areas","aprovacao_plano"].includes(st)&&<MI onClick={()=>{setSgqOpen(false);setAddAreaModal(true);}} color={C.cyan} icon="+" label="Adicionar área avaliadora"/>}
   {prevSt&&st!=="aberta"&&<MI onClick={()=>setRegress(true)} color={C.warning} icon="←" label="Retornar fase anterior"/>}
-  <MI onClick={()=>setReject(true)} color={C.danger} icon="×" label="Rejeitar SA"/>
+  <MI onClick={()=>setReject(true)} color={C.danger} icon="✕" label="Rejeitar SA"/>
   <MI onClick={()=>setShowCancel(true)} color={C.danger} icon="⊘" label="Cancelar SA"/>
-</>}
-              {/* ── REABRIR SA — para cancelada ou concluída ── */}
-              {["cancelada","concluida"].includes(st)&&<>
-  <Sep/>
-  <MI onClick={()=>{setSgqOpen(false);setShowReopenSA(true);}} color={C.accent} icon="↺" label={st==="cancelada"?"Reabrir SA cancelada":"Reabrir SA concluída"}/>
 </>}
             </div>;
           })()}
         </div>}
       </div>;
     })()}
-
-    {/* ══ BANNER CANCELADA / CONCLUÍDA ══ */}
-    {localReq.status==="cancelada"&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:"#FEF2F2",border:"1px solid #FECACA"}}>
-      <div style={{fontSize:13,fontWeight:600,color:C.danger}}>SA Cancelada</div>
-      {localReq.cancellationMotive&&<div style={{fontSize:12,color:"#991B1B",marginTop:2}}>Motivo: {localReq.cancellationMotive}</div>}
-      {localReq.cancelledByName&&<div style={{fontSize:11,color:"#B91C1C",marginTop:1}}>Por: {localReq.cancelledByName} · {fmt(localReq.cancelledAt)}</div>}
-    </div>}
-    {localReq.status==="concluida"&&localReq.verifyNote&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:"#F0FDF4",border:"1px solid #86EFAC"}}>
-      <div style={{fontSize:13,fontWeight:600,color:C.success}}>SA Concluída</div>
-      <div style={{fontSize:12,color:"#166534",marginTop:2}}>{localReq.verifyNote}</div>
-      {localReq.verifiedByName&&<div style={{fontSize:11,color:"#15803D",marginTop:1}}>Por: {localReq.verifiedByName} · {fmt(localReq.closedAt)}</div>}
-    </div>}
 
     {/* ══ FOCUS BANNER — shown when coming from task/evaluation click ══ */}
     {(focusDept||focusAcId)&&<div style={{marginBottom:14,padding:"12px 18px",borderRadius:10,background:C.accent+"0D",border:"1px solid "+C.accent+"33",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -2108,15 +2075,13 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     ══════════════════════════════════════════════════════════ */}
     <SecCard id="triagem" title="Avaliacao Inicial da Mudanca">
       {!localReq.triage||editTriagem
-        ?isAdmin&&!["cancelada","concluida"].includes(localReq.status)
+        ?isAdmin
           ?<div>
             <button style={{...Sg.btn("primary"),fontSize:13,padding:"8px 18px"}} onClick={()=>setTriageDrawer(true)}>
-              {editTriagem?"Editar Avaliacao Inicial":"Iniciar Avaliacao Inicial →"}
+              {editTriagem?"✏ Editar Avaliacao Inicial":"Iniciar Avaliacao Inicial →"}
             </button>
           </div>
-          :["cancelada","concluida"].includes(localReq.status)
-            ?<div style={{fontSize:13,color:C.muted,padding:"8px 0"}}>—</div>
-            :<div style={{fontSize:13,color:C.muted,padding:"8px 0"}}>Aguardando triagem pelo SGQ.</div>
+          :<div style={{fontSize:14,color:C.muted,padding:"8px 0"}}>Aguardando triagem pelo SGQ.</div>
         :<div>
           {/* Grid 3: nivel, avaliado por, data */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
@@ -2307,11 +2272,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             <div style={{fontSize:14,color:C.text,lineHeight:1.6}}>{localReq.verifyNote||"—"}</div>
           </FieldCard>
         </div>
-        :localReq.status==="cancelada"
-          ?<div style={{fontSize:13,color:C.muted}}>SA cancelada.</div>
-          :isAdmin&&allActsDone
-            ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar - Encerramento da SA",desc:"SA: "+localReq.id+" - "+localReq.title,label:"Assinar e Encerrar",style:"success",saId:localReq.id,sigAction:"conclusao"})} C={C} Sg={Sg}/>
-            :<div style={{fontSize:13,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
+        :isAdmin&&allActsDone
+          ?<VerifyForm onConfirm={note=>setSigModal({action:(sig)=>concludeSA(note,sig),title:"Assinar - Encerramento da SA",desc:"SA: "+localReq.id+" - "+localReq.title,label:"Assinar e Encerrar",style:"success",saId:localReq.id,sigAction:"conclusao"})} C={C} Sg={Sg}/>
+          :<div style={{fontSize:14,color:C.muted}}>{allActsDone?"Aguardando verificacao pelo SGQ/Admin.":"Disponivel quando todas as acoes estiverem concluidas."}</div>}
     </SecCard>
 
     {/* ══════════════════════════════════════════════════════════
@@ -2330,13 +2293,13 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
             <tbody>
               {allAtts.map((a,i)=>(
                 <tr key={a.id||i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
-                  <Td><span style={{fontWeight:600}}> {a.name}</span></Td>
+                  <Td><span style={{fontWeight:600}}>📎 {a.name}</span></Td>
                   <Td muted>{a._src||"—"}</Td>
                   <Td muted>{a._by||"—"}</Td>
                   <Td muted>{fmtD(a.addedAt&&a.addedAt.slice(0,10))}</Td>
                   <Td><div style={{display:"flex",gap:6,justifyContent:"flex-end"}}>
                     {a.hasFile&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"3px 10px"}} onClick={async()=>{if(!a.r2key){alert("Arquivo local nao disponivel.");return;}try{const r=await apiGet('/api/uploads?key='+encodeURIComponent(a.r2key));window.open(r.downloadUrl,'_blank');}catch(e){alert("Erro: "+e.message);}}}>Download</button>}
-                    {isAdmin&&<button style={{...Sg.btn("danger"),fontSize:12,padding:"3px 8px"}} title="Remover anexo" onClick={()=>{if(window.confirm('Remover "'+a.name+'"? Ficara registrado no historico.'))removeAttachment(a);}}>×</button>}
+                    {isAdmin&&<button style={{...Sg.btn("danger"),fontSize:12,padding:"3px 8px"}} title="Remover anexo" onClick={()=>{if(window.confirm('Remover "'+a.name+'"? Ficara registrado no historico.'))removeAttachment(a);}}>✕</button>}
                   </div></Td>
                 </tr>
               ))}
@@ -2354,7 +2317,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
           <thead><tr><Th w="160px">Data / Hora</Th><Th w="140px">Por</Th><Th w="100px">Tipo</Th><Th>Evento</Th><Th>Detalhe</Th></tr></thead>
           <tbody>
             {(localReq.log||[]).slice().reverse().map((e,i)=>{
-              const tc={avaliacao_inicial:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.accent,sistema:C.accent,criacao:C.success,anexo:C.warning,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
+              const tc={avaliacao_inicial:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,plano:C.accent,execucao:C.success,conclusao:C.success}[e.type]||C.muted;
               return <tr key={i} style={{background:i%2!==0?C.surface+"66":"transparent"}}>
                 <Td muted><span style={{fontSize:13}}>{fmt(e.at)}</span></Td>
                 <Td muted><span style={{fontSize:13}}>{e.by}</span></Td>
@@ -2558,9 +2521,9 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                     </span>
                   </div>
                   <div style={{display:"flex",gap:16,fontSize:12,color:C.muted}}>
-                    <span> {resp?resp.name:"—"}</span>
+                    <span>👤 {resp?resp.name:"—"}</span>
                     <span style={{color:ov&&ac.status!=="concluida"?C.danger:C.muted}}>📅 {fmtD(ac.deadline)}</span>
-                    {ac.obs&&<span> {ac.obs.slice(0,40)}{ac.obs.length>40?"...":""}</span>}
+                    {ac.obs&&<span>📝 {ac.obs.slice(0,40)}{ac.obs.length>40?"...":""}</span>}
                   </div>
                   {canPlan&&localReq.status==="montagem_plano"&&<div style={{display:"flex",gap:6,marginTop:8}} onClick={e=>e.stopPropagation()}>
                     <button style={{...Sg.btn(),fontSize:11,padding:"3px 8px"}} onClick={()=>setEditAc(ac)}>Editar</button>
@@ -2625,7 +2588,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
           {ac.status==="concluida"&&<div style={{padding:"12px 16px",background:C.success+"0D",border:"1px solid "+C.success+"33",borderRadius:10,marginBottom:16}}>
             <div style={{fontSize:10,fontWeight:700,color:C.success,marginBottom:6,textTransform:"uppercase",letterSpacing:.5}}>Concluida em {fmtD(ac.doneAt&&ac.doneAt.slice(0,10))}</div>
             <div style={{fontSize:14,color:C.text,lineHeight:1.5}}>{ac.doneNote||"—"}</div>
-            {ac.doneAtt&&<div style={{fontSize:12,color:C.muted,marginTop:6}}> {ac.doneAtt.name}</div>}
+            {ac.doneAtt&&<div style={{fontSize:12,color:C.muted,marginTop:6}}>📎 {ac.doneAtt.name}</div>}
           </div>}
 
           {/* Form conclusao */}
@@ -2643,10 +2606,10 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
                 setDrawerEditVals({desc:ac.desc,responsible:String(ac.responsible),deadline:ac.deadline,obs:ac.obs||""});
                 setDrawerEditing(true);
               }}>✏ Editar</button>}
-              <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}> Reatribuir</button>
+              <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setReassignAc(ac);setReassignAcUser("");}}>👤 Reatribuir</button>
               <button style={{...Sg.btn(),fontSize:12}} onClick={()=>{closeDrawer();setAdminDlTarget({type:"action",key:ac.id,label:ac.desc,currentDate:ac.deadline});}}>📅 Alterar prazo</button>
               {localReq.status==="montagem_plano"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setConfirmRemoveAc(ac);}}>🗑 Excluir</button>}
-              {localReq.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>× Remover do plano</button>}
+              {localReq.status==="execucao"&&<button style={{...Sg.btn("danger"),fontSize:12}} onClick={()=>{closeDrawer();setRemoveAcExec(ac);}}>✕ Remover do plano</button>}
             </div>
           </div>}
           {canPlan&&localReq.status==="montagem_plano"&&!isAdmin&&<div style={{marginTop:16,display:"flex",flexDirection:"column",gap:8}}>
@@ -2806,7 +2769,7 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
         placeholder="Justifique a inclusão desta área no processo..."/>
     </div>
     {newArea.dept&&allUsers.filter(u=>u.active&&(u.evalDepts||u.eval_depts||[]).includes(newArea.dept)).length===0&&
-      <div style={{fontSize:12,color:C.danger}}> Nenhum avaliador cadastrado para esta área.</div>}
+      <div style={{fontSize:12,color:C.danger}}>⚠️ Nenhum avaliador cadastrado para esta área.</div>}
     <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:4}}>
       <button style={Sg.btn()} onClick={()=>{setAddAreaModal(false);setNewArea({dept:"",responsible:"",deadline:"",motive:""});}}>Cancelar</button>
       <button style={{...Sg.btn("primary"),opacity:newArea.dept&&newArea.responsible&&newArea.deadline&&newArea.motive.trim()?1:.4}}
@@ -2831,19 +2794,11 @@ const upd=(patch,type,ev,detail)=>{let r={...localReq,...patch};if(ev)r=mkLog(r,
     </div>
   </div>
 </Modal>}
-    {/* ══ REABRIR SA ══ */}
-    <MotiveModal open={showReopenSA} onClose={()=>setShowReopenSA(false)}
-      onConfirm={motive=>{setShowReopenSA(false);setSigModal({action:(sig)=>reopenSA(motive,sig),title:"Assinar — Reabertura da SA",desc:"SA: "+localReq.id+" | Motivo: "+motive,label:"Assinar e Reabrir",style:"primary",saId:localReq.id,sigAction:"reabrir_sa"});}}
-      title={"Reabrir SA — "+localReq.id}
-      confirmLabel="Continuar →" confirmStyle="primary"
-      description={"A SA voltará para o status Aberta. Todo o histórico e dados serão preservados."}
-      C={C} Sg={Sg}/>
-
     {/* ══ SIGNATURE MODAL ══ */}
     {sigModal&&<SignatureModal
       open={!!sigModal}
       onClose={()=>setSigModal(null)}
-      onConfirm={(sig)=>{sigModal.action(sig);setSigModal(null);}}
+      onConfirm={(sig)=>sigModal.action(sig)}
       title={sigModal.title}
       description={sigModal.desc}
       confirmLabel={sigModal.label}
@@ -3087,12 +3042,12 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
             :<><div style={{fontSize:15,fontWeight:700,color:C.text}}>Minhas Tarefas</div>
                <div style={{fontSize:12,color:C.muted,marginTop:1}}>{pending} pendente{pending!==1?"s":""} · {tasks.length} total</div></>}
         </div>
-        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0}}>×</button>
+        <button onClick={onClose} style={{background:"transparent",border:"1px solid "+C.border,borderRadius:7,cursor:"pointer",color:C.muted,fontSize:18,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0}}>✕</button>
       </div>
       {/* Content */}
       <div style={{flex:1,overflowY:"auto",padding:"16px 20px"}}>
         {selected?renderTask(selected):<>
-          {tasks.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.muted,fontSize:14}}>Nenhuma tarefa pendente </div>}
+          {tasks.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:C.muted,fontSize:14}}>Nenhuma tarefa pendente 🎉</div>}
           {tasks.map((t,i)=>{
             const uc=urgColor(t.urg);
             return <div key={i}
@@ -3102,7 +3057,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
               onClick={()=>setSelected(t)}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:15}}>{t.type==="eval"?"":t.type==="plan"?"":"⚡"}</span>
+                  <span style={{fontSize:15}}>{t.type==="eval"?"📋":t.type==="plan"?"📝":"⚡"}</span>
                   <span style={{fontSize:13,fontWeight:600,color:C.text}}>{t.label}</span>
                 </div>
                 <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:999,background:uc+"18",color:uc,border:"1px solid "+uc+"33",flexShrink:0}}>{urgLabel(t.urg)}</span>
@@ -3119,7 +3074,7 @@ function MyTasksDrawer({open,onClose,requests,currentUser,allUsers,crits,initial
 }
 
 // ================================================================
-function Dashboard({requests,roRecs,currentUser,allUsers,crits,onNav,onNavRO,onOpenEval,onOpenAction,onNew}){
+function Dashboard({requests,currentUser,allUsers,crits,onNav,onOpenEval,onOpenAction,onNew}){
   const {C}=useTheme();const Sg=mkSg(C);
   const isAdmin=hasPerm(currentUser,'sa.avaliacao_inicial');
   const h=new Date().getHours(),nome=currentUser.name.split(" ")[0];
@@ -3127,14 +3082,15 @@ function Dashboard({requests,roRecs,currentUser,allUsers,crits,onNav,onNavRO,onO
 
   const aprovSGQ=isAdmin?[
     ...requests.filter(r=>r.status==="aberta"||r.status==="avaliacao_inicial").map(r=>({type:"triage",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aval. Inicial",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>r.status==="aprovacao_plano").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.accent,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="aprovacao_plano").map(r=>({type:"revisao",r,urg:"today",tag:"Aprovar Aval.",tagColor:C.purple,deadline:getPhaseDeadline(r)})),
     ...requests.filter(r=>r.status==="montagem_plano"&&(r.actions||[]).length>0).map(r=>({type:"plano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Aprovar Plano",tagColor:C.success,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>r.status==="montagem_plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.accent,deadline:getPhaseDeadline(r)})),
-    ...requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")).map(r=>({type:"extensao",r,urg:"today",tag:"Extensao Prazo",tagColor:C.warning,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>r.status==="montagem_plano"&&!(r.actions||[]).length).map(r=>({type:"montarplano",r,urg:urgCls(getPhaseDeadline(r),""),tag:"Montar Plano",tagColor:C.cyan,deadline:getPhaseDeadline(r)})),
+    ...requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")).map(r=>({type:"extensao",r,urg:"today",tag:"Extensao Prazo",tagColor:C.orange,deadline:getPhaseDeadline(r)})),
   ]:[];
 
   const pendExt=isAdmin?requests.filter(r=>(r.deadlineExtensions||[]).some(e=>e.status==="pending")):[];
 
+  // Analises — prazo específico da área do avaliador
   const analises=[];
   requests.forEach(r=>{
     if(!(["avaliacao_areas","aprovacao_plano"].includes(r.status))||!r.triage)return;
@@ -3146,6 +3102,7 @@ function Dashboard({requests,roRecs,currentUser,allUsers,crits,onNav,onNavRO,onO
     });
   });
 
+  // Acoes — só aparece no dashboard quando SA estiver em execucao
   const acoes=[];
   requests.forEach(r=>{
     if(r.status!=="execucao")return;
@@ -3153,8 +3110,13 @@ function Dashboard({requests,roRecs,currentUser,allUsers,crits,onNav,onNavRO,onO
       acoes.push({r,a,dl:a.deadline,urg:urgCls(a.deadline,a.status)});
     });
   });
+  
+  // SAs aguardando aprovacao do plano (responsavel pelo plano ou admin)
+  const planosAguardando=requests.filter(r=>
+    r.status==="montagem_plano"&&
+    parseInt(r.planResponsible)===parseInt(currentUser.id)
+  );
 
-  const planosAguardando=requests.filter(r=>r.status==="montagem_plano"&&parseInt(r.planResponsible)===parseInt(currentUser.id));
   const minhasSAs=requests.filter(r=>r.createdBy===currentUser.id&&!["concluida","cancelada"].includes(r.status));
   const O={overdue:0,today:1,soon:2,normal:3};
   const sortU=arr=>[...arr].sort((a,b)=>(O[a.urg||"normal"]||3)-(O[b.urg||"normal"]||3));
@@ -3169,282 +3131,178 @@ function Dashboard({requests,roRecs,currentUser,allUsers,crits,onNav,onNavRO,onO
     </div>;
   };
 
-  const total=aprovSGQ.length+analises.length+acoes.length+minhasSAs.length;
-
-  const canAnalyzeRO=hasPerm(currentUser,'ro.analisar');
-  const canCloseRO=hasPerm(currentUser,'ro.fechar');
-  const roParaAnalisar=canAnalyzeRO?(roRecs||[]).filter(r=>r.status==='aberta'||r.status==='em_analise'):[];
-  const roParaConcluir=canCloseRO?(roRecs||[]).filter(r=>r.status==='aguardando_conclusao'):[];
-  const pendRO=roParaAnalisar.length+roParaConcluir.length;
-  const pendCMTotal=aprovSGQ.length+analises.length+acoes.length;
-  const daysSince=d=>d?Math.floor((Date.now()-new Date(d))/(1000*60*60*24)):null;
-
-  const [activeModule,setActiveModule]=React.useState(null);
-
-  const ModuleCards=()=>(
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,marginBottom:16}}>
-      {[
-        {key:'ro',label:'Ocorrências',pend:pendRO,tags:[
-          roParaAnalisar.length>0&&{label:roParaAnalisar.length+" analisar",color:C.warning},
-          roParaConcluir.length>0&&{label:roParaConcluir.length+" concluir",color:C.purple},
-        ].filter(Boolean)},
-        {key:'cm',label:'Controle de Mudanças',pend:pendCMTotal,tags:[
-          aprovSGQ.length>0&&{label:aprovSGQ.length+" aprovações",color:C.warning},
-          analises.length>0&&{label:analises.length+" avaliar",color:C.accent},
-          acoes.length>0&&{label:acoes.length+" ações",color:C.success},
-        ].filter(Boolean)},
-        {key:'nc',label:'Não Conformidade',pend:0,tags:[],disabled:true},
-        {key:'riacp',label:'RIACP',pend:0,tags:[],disabled:true},
-      ].map(mod=>(
-        <div key={mod.key}
-          onClick={()=>!mod.disabled&&setActiveModule(activeModule===mod.key?null:mod.key)}
-          style={{background:C.card,border:"1px solid "+(activeModule===mod.key?C.accent:C.border),borderRadius:10,padding:"12px 14px",cursor:mod.disabled?"default":"pointer",transition:"border-color .15s",opacity:mod.disabled?.5:1}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
-            <span style={{fontSize:12,fontWeight:600,color:C.text}}>{mod.label}</span>
-            {mod.pend>0
-              ?<span style={{background:C.danger,color:"#fff",borderRadius:9,fontSize:10,fontWeight:700,padding:"1px 7px",minWidth:18,textAlign:"center"}}>{mod.pend}</span>
-              :<span style={{fontSize:11,color:C.muted}}>{mod.disabled?"em breve":"—"}</span>
-            }
-          </div>
-          {mod.tags.length>0
-            ?<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {mod.tags.map((t,i)=><span key={i} style={{fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:500,background:t.color+"18",color:t.color}}>{t.label}</span>)}
-            </div>
-            :!mod.disabled&&<div style={{fontSize:11,color:C.muted}}>Sem pendências</div>
-          }
-        </div>
-      ))}
+  const Th=({cols,labels})=>(
+    <div style={{display:"grid",gridTemplateColumns:cols,background:C.surface,padding:"5px 11px",borderBottom:"1px solid "+C.border,gap:8}}>
+      {labels.map(h=><div key={h} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6}}>{h}</div>)}
+    </div>
+  );
+  const Row=({cols,children,i,onClick})=>(
+    <div onClick={onClick} style={{display:"grid",gridTemplateColumns:cols,padding:"7px 11px",borderBottom:"1px solid "+C.border+"22",gap:8,alignItems:"center",background:i%2===0?"transparent":C.surface+"44",cursor:onClick?"pointer":"default"}}
+      onMouseEnter={e=>{if(onClick)e.currentTarget.style.background=C.accent+"0D";}}
+      onMouseLeave={e=>{e.currentTarget.style.background=i%2===0?"transparent":C.surface+"44";}}>
+      {children}
     </div>
   );
 
+  const total=aprovSGQ.length+analises.length+acoes.length+minhasSAs.length;
+
   return <div style={{padding:"18px 22px"}}>
-    <div style={{marginBottom:16}}>
-      <h1 style={{fontSize:18,margin:"0 0 3px",color:C.text,fontWeight:700}}>
-        {h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}, {nome}
-      </h1>
-      <div style={{fontSize:11,color:C.muted}}>
-        {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h1 style={{fontSize:18,margin:"0 0 3px",color:C.text,fontWeight:700}}>
+          {h<12?"Bom dia":h<18?"Boa tarde":"Boa noite"}, {nome}
+        </h1>
+       <div style={{fontSize:11,color:C.muted}}>
+          {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}
+        </div>
       </div>
+      <button style={{...Sg.btn("primary"),padding:"8px 16px",fontSize:13}} onClick={onNew}>+ Nova Solicitacao</button>
     </div>
 
-    <ModuleCards/>
+    {total===0&&pendExt.length===0&&<div style={{...Sg.card({textAlign:"center",padding:48})}}>
+      <div style={{fontSize:32,marginBottom:8}}>✓</div>
+      <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:2}}>Tudo em dia!</div>
+      <div style={{fontSize:12,color:C.muted}}>Nenhuma tarefa pendente no momento.</div>
+      <button style={{...Sg.btn("primary"),marginTop:14}} onClick={()=>onNav("changes")}>Ver Controles</button>
+    </div>}
 
-    {activeModule===null&&<div style={{marginBottom:16}}>
-      {(pendRO+pendCMTotal)>0
-        ?<div style={{...Sg.card({marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"})}}>
-          <div>
-            <div style={{fontSize:13,fontWeight:600,color:C.text}}>{pendRO+pendCMTotal} pendência{(pendRO+pendCMTotal)!==1?"s":""} no total</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:2}}>Selecione um módulo acima para ver os detalhes</div>
-          </div>
-        </div>
-        :<div style={{...Sg.card({marginBottom:12,padding:"12px 16px"})}}>
-          <div style={{fontSize:13,fontWeight:600,color:C.success,marginBottom:2}}>Tudo em dia!</div>
-          <div style={{fontSize:11,color:C.muted}}>Nenhuma pendência no momento.</div>
-        </div>
-      }
-      <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.6,textTransform:"uppercase",marginBottom:8}}>Ações rápidas</div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {hasPerm(currentUser,'ro.abrir')&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"7px 16px"}} onClick={()=>onNav('ro_new')}>+ Nova RO</button>}
-        {isAdmin&&<button style={{...Sg.btn("primary"),fontSize:12,padding:"7px 16px"}} onClick={()=>onNew()}>+ Nova SA</button>}
-        {hasPerm(currentUser,'ro.abrir')&&<button style={{...Sg.btn(),fontSize:12,padding:"7px 16px"}} onClick={()=>onNav('ro_list')}>Ver Ocorrências</button>}
-        <button style={{...Sg.btn(),fontSize:12,padding:"7px 16px"}} onClick={()=>onNav('changes')}>Ver Controles</button>
+    {/* APROVAÇÕES SGQ — admin */}
+    {aprovSGQ.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <ResizableTable
+          storageKey="cm_dash_aprov_cols_v5"
+          cols={[105,220,300,135,42,88,120,180]}
+          headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
+          C={C}
+          onRowClick={row=>{
+            const item=row.r;
+            const rid=item.r&&item.r.id;
+            if(item.type==="triage") onNav("detail",rid,"triage");
+            else if(item.type==="revisao") onNav("detail",rid,"revisao");
+            else if(item.type==="plano"||item.type==="montarplano") onNav("detail",rid,"plano");
+            else if(item.type==="extensao") onNav("detail",rid,"extensoes");
+            else onNav("detail",rid);
+          }}
+          rows={sortU(aprovSGQ).map(item=>{
+            const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
+            return {r:item,type:item.type,cells:[
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
+              <div style={{fontSize:12,fontWeight:600,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</div>,
+              <span style={{fontSize:11,color:C.muted,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.description||"—"}</span>,
+              <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.type}</span>,
+              <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <UrgChip urg={item.urg} dl={item.deadline}/>,
+              <span style={{fontSize:11,fontWeight:700,color:item.tagColor,whiteSpace:"nowrap"}}>{item.tag}</span>,
+              <Badge label={st.label||""} color={st.color||C.muted}/>
+            ]};
+          })}
+        />
       </div>
     </div>}
 
-    {activeModule==='ro'&&<div style={{marginBottom:16}}>
-      {roParaAnalisar.length>0&&<div style={{marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>PARA ANALISAR ({roParaAnalisar.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <div style={{display:"grid",gridTemplateColumns:"110px 1fr 110px 90px 80px 100px",background:C.surface,padding:"5px 11px",borderBottom:"1px solid "+C.border,gap:8}}>
-            {["Código","Descrição","Tipo","Local","Dias aberto","Pendência"].map(hh=>(
-              <div key={hh} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6,textTransform:"uppercase"}}>{hh}</div>
-            ))}
-          </div>
-          {roParaAnalisar.map((r,i)=>{
-            const d=r.data||{};
-            const dias=daysSince(r.createdAt);
-            const diasColor=dias>5?C.danger:dias>2?C.warning:C.muted;
-            return <div key={i} onClick={()=>onNavRO(r.id||r.code)}
-              style={{display:"grid",gridTemplateColumns:"110px 1fr 110px 90px 80px 100px",padding:"8px 11px",borderBottom:"1px solid "+C.border+"33",gap:8,alignItems:"center",cursor:"pointer"}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
-              onMouseLeave={e=>e.currentTarget.style.background=""}>
-              <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.code||r.id}</div>
-              <div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.descricao||r.title||"—"}</div>
-              <div style={{fontSize:11,color:C.dim}}>{d.tipo||"—"}</div>
-              <div style={{fontSize:11,color:C.dim}}>{d.local||"—"}</div>
-              <div style={{fontSize:12,fontWeight:600,color:diasColor}}>{dias!=null?dias+"d":"—"}</div>
-              <span style={{fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:600,background:C.warning+"18",color:C.warning}}>Analisar</span>
-            </div>;
+    {/* ANÁLISES — avaliador */}
+    {analises.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>ANALISES PENDENTES ({analises.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <ResizableTable
+          storageKey="cm_dash_analises_cols_v3"
+          cols={[110,260,380,44,95,120]}
+          headers={["SA","Título SA","Área","Crit.","Prazo","Ação"]}
+          C={C}
+          rows={sortU(analises).map(item=>{
+            const cr=getCrit(item.r.triage&&item.r.triage.criticality);
+            return {r:item,cells:[
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
+              <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.dept}</span>,
+              <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <UrgChip urg={item.urg} dl={item.dl}/>,
+              <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onOpenEval(item.r,item.dept);}}>Avaliar</button>
+            ]};
           })}
-        </div>
-      </div>}
-      {roParaConcluir.length>0&&<div style={{marginBottom:10}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.purple,letterSpacing:.7,marginBottom:6}}>AGUARDANDO CONCLUSÃO ({roParaConcluir.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <div style={{display:"grid",gridTemplateColumns:"110px 1fr 110px 130px 100px",background:C.surface,padding:"5px 11px",borderBottom:"1px solid "+C.border,gap:8}}>
-            {["Código","Descrição","Tipo","Disposição","Pendência"].map(hh=>(
-              <div key={hh} style={{fontSize:9,fontWeight:700,color:C.muted,letterSpacing:.6,textTransform:"uppercase"}}>{hh}</div>
-            ))}
-          </div>
-          {roParaConcluir.map((r,i)=>{
-            const d=r.data||{};
-            return <div key={i} onClick={()=>onNavRO(r.id||r.code)}
-              style={{display:"grid",gridTemplateColumns:"110px 1fr 110px 130px 100px",padding:"8px 11px",borderBottom:"1px solid "+C.border+"33",gap:8,alignItems:"center",cursor:"pointer"}}
-              onMouseEnter={e=>e.currentTarget.style.background=C.accent+"0D"}
-              onMouseLeave={e=>e.currentTarget.style.background=""}>
-              <div style={{fontSize:12,fontWeight:700,color:C.accent}}>{r.code||r.id}</div>
-              <div style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.descricao||r.title||"—"}</div>
-              <div style={{fontSize:11,color:C.dim}}>{d.tipo||"—"}</div>
-              <div style={{fontSize:11,color:C.purple,fontWeight:600}}>{d.disposicao||"—"}</div>
-              <span style={{fontSize:10,padding:"2px 8px",borderRadius:4,fontWeight:600,background:C.purple+"18",color:C.purple}}>Concluir</span>
-            </div>;
-          })}
-        </div>
-      </div>}
-      {pendRO===0&&<div style={{...Sg.card({textAlign:"center",padding:24})}}>
-        <div style={{fontSize:13,color:C.muted}}>Sem pendências em Ocorrências.</div>
-      </div>}
+        />
+      </div>
     </div>}
 
-    {activeModule==='cm'&&<div style={{marginBottom:16}}>
-      {total===0&&pendExt.length===0&&<div style={{...Sg.card({textAlign:"center",padding:48})}}>
-        <div style={{fontSize:32,marginBottom:8}}>✓</div>
-        <div style={{fontSize:14,fontWeight:600,color:C.text,marginBottom:2}}>Tudo em dia no CM!</div>
-        <div style={{fontSize:12,color:C.muted}}>Nenhuma tarefa pendente.</div>
-        <button style={{...Sg.btn("primary"),marginTop:14}} onClick={()=>onNav("changes")}>Ver Controles</button>
-      </div>}
-      {aprovSGQ.length>0&&<div style={{marginBottom:14}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>APROVACOES SGQ ({aprovSGQ.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+    {/* AÇÕES — responsável */}
+    {acoes.length>0&&<div style={{marginBottom:14}}>
+      {planosAguardando.length>0&&<div style={{marginBottom:20}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.purple||"#7C3AED",letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
+        <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
           <ResizableTable
-            storageKey="cm_dash_aprov_cols_v5"
-            cols={[105,220,300,135,42,88,120,180]}
-            headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Ação","Status"]}
+            storageKey="cm_dash_planos_cols_v4"
+            cols={[105,220,320,135,44,130,115]}
+            headers={["ID","Titulo","Descricao","Tipo","Crit.","Acoes no Plano","Acao"]}
+            onRowClick={row=>onNav("detail",row.r.id,"plano")}
             C={C}
-            onRowClick={row=>{
-              const item=row.r;
-              const rid=item.r&&item.r.id;
-              if(item.type==="triage") onNav("detail",rid,"triage");
-              else if(item.type==="revisao") onNav("detail",rid,"revisao");
-              else if(item.type==="plano"||item.type==="montarplano") onNav("detail",rid,"plano");
-              else if(item.type==="extensao") onNav("detail",rid,"extensoes");
-              else onNav("detail",rid);
-            }}
-            rows={sortU(aprovSGQ).map(item=>{
-              const cr=getCrit(item.r.triage&&item.r.triage.criticality);const st=REQ_ST[item.r.status]||{};
-              return {r:item,type:item.type,cells:[
-                <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-                <div style={{fontSize:12,fontWeight:600,color:C.text,lineHeight:1.3,maxHeight:56,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</div>,
-                <span style={{fontSize:11,color:C.muted,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.description||"—"}</span>,
-                <span style={{fontSize:11,color:C.dim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.r.type}</span>,
-                <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-                <UrgChip urg={item.urg} dl={item.deadline}/>,
-                <span style={{fontSize:11,fontWeight:700,color:item.tagColor,whiteSpace:"nowrap"}}>{item.tag}</span>,
-                <Badge label={st.label||""} color={st.color||C.muted}/>
-              ]};
-            })}
-          />
-        </div>
-      </div>}
-      {analises.length>0&&<div style={{marginBottom:14}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.warning,letterSpacing:.7,marginBottom:6}}>ANALISES PENDENTES ({analises.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <ResizableTable
-            storageKey="cm_dash_analises_cols_v3"
-            cols={[110,260,380,44,95,120]}
-            headers={["SA","Título SA","Área","Crit.","Prazo","Ação"]}
-            C={C}
-            rows={sortU(analises).map(item=>{
-              const cr=getCrit(item.r.triage&&item.r.triage.criticality);
-              return {r:item,cells:[
-                <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-                <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
-                <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.dept}</span>,
-                <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-                <UrgChip urg={item.urg} dl={item.dl}/>,
-                <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onOpenEval(item.r,item.dept);}}>Avaliar</button>
-              ]};
-            })}
-          />
-        </div>
-      </div>}
-      {acoes.length>0&&<div style={{marginBottom:14}}>
-        {planosAguardando.length>0&&<div style={{marginBottom:20}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>PLANOS AGUARDANDO APROVACAO ({planosAguardando.length})</div>
-          <div style={{border:"1px solid "+C.border,borderRadius:10,overflow:"hidden"}}>
-            <ResizableTable
-              storageKey="cm_dash_planos_cols_v4"
-              cols={[105,220,320,135,44,130,115]}
-              headers={["ID","Titulo","Descricao","Tipo","Crit.","Acoes no Plano","Acao"]}
-              onRowClick={row=>onNav("detail",row.r.id,"plano")}
-              C={C}
-              rows={planosAguardando.map(r=>{
-                const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
-                return {r,cells:[
-                  <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
-                  <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3,maxHeight:56,overflowY:"auto"}}>{r.title}</span>,
-                  <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
-                  <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
-                  cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>,
-                  <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} ação{(r.actions||[]).length!==1?"ões":""}</div>,
-                  <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onNav("detail",r.id,"plano");}}>Ver Plano</button>
-                ]};
-              })}
-            />
-          </div>
-        </div>}
-        <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <ResizableTable
-            storageKey="cm_dash_acoes_cols_v3"
-            cols={[110,220,78,350,44,95,120]}
-            headers={["SA","Título SA","ID Ação","Descrição Ação","Crit.","Prazo","Ação"]}
-            C={C}
-            rows={sortU(acoes).map(item=>{
-              const cr=getCrit(item.r.triage&&item.r.triage.criticality);
-              return {r:item,cells:[
-                <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
-                <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
-                <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{item.a.id}</span>,
-                <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.a.desc}</span>,
-                <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-                <UrgChip urg={item.urg} dl={item.a.deadline}/>,
-                <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onOpenAction(item.r,item.a);}}>Executar</button>
-              ]};
-            })}
-          />
-        </div>
-      </div>}
-      {minhasSAs.length>0&&<div style={{marginBottom:14}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:6}}>MINHAS SOLICITACOES ({minhasSAs.length})</div>
-        <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-          <ResizableTable
-            storageKey="cm_dash_minhas_cols_v3"
-            cols={[105,220,340,130,44,90,170,60]}
-            headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Status",""]}
-            onRowClick={row=>onNav("detail",row.r.id)}
-            C={C}
-            rows={minhasSAs.map(r=>{
-              const cr=getCrit(r.triage&&r.triage.criticality);const st=REQ_ST[r.status]||{};
-              const dl=getPhaseDeadline(r);const urg=urgCls(dl,"");
+            rows={planosAguardando.map(r=>{
+              const cr=crits.find(c=>c.v===(r.triage&&r.triage.criticality));
               return {r,cells:[
                 <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
                 <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3,maxHeight:56,overflowY:"auto"}}>{r.title}</span>,
                 <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
                 <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
-                <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
-                <UrgChip urg={urg} dl={dl}/>,
-                <Badge label={st.label} color={st.color||C.muted}/>,
-                <span style={{fontSize:11,color:C.accent}}>Ver →</span>
+                cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>,
+                <div style={{fontSize:12,color:C.text}}>{(r.actions||[]).length} ação{(r.actions||[]).length!==1?"ões":""}</div>,
+                <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onNav("detail",r.id,"plano");}}>Ver Plano</button>
               ]};
             })}
           />
         </div>
       </div>}
+      <div style={{fontSize:11,fontWeight:700,color:C.accent,letterSpacing:.7,marginBottom:6}}>ACOES DO PLANO ({acoes.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <ResizableTable
+          storageKey="cm_dash_acoes_cols_v3"
+          cols={[110,220,78,350,44,95,120]}
+          headers={["SA","Título SA","ID Ação","Descrição Ação","Crit.","Prazo","Ação"]}
+          C={C}
+          rows={sortU(acoes).map(item=>{
+            const cr=getCrit(item.r.triage&&item.r.triage.criticality);
+            return {r:item,cells:[
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{item.r.id}</span>,
+              <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{item.r.title}</span>,
+              <span style={{fontSize:11,fontWeight:700,color:C.muted,whiteSpace:"nowrap"}}>{item.a.id}</span>,
+              <span style={{fontSize:12,color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{item.a.desc}</span>,
+              <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <UrgChip urg={item.urg} dl={item.a.deadline}/>,
+              <button style={{...Sg.btn("primary"),fontSize:11,padding:"4px 10px"}} onClick={e=>{e.stopPropagation();onOpenAction(item.r,item.a);}}>Executar</button>
+            ]};
+          })}
+        />
+      </div>
+    </div>}
+
+    {/* MINHAS SAs */}
+    {minhasSAs.length>0&&<div style={{marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.7,marginBottom:6}}>MINHAS SOLICITACOES ({minhasSAs.length})</div>
+      <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
+        <ResizableTable
+          storageKey="cm_dash_minhas_cols_v3"
+          cols={[105,220,340,130,44,90,170,60]}
+          headers={["ID","Título","Descrição","Tipo","Crit.","Prazo Etapa","Status",""]}
+          onRowClick={row=>onNav("detail",row.r.id)}
+          C={C}
+          rows={minhasSAs.map(r=>{
+            const cr=getCrit(r.triage&&r.triage.criticality);const st=REQ_ST[r.status]||{};
+            const dl=getPhaseDeadline(r);const urg=urgCls(dl,"");
+            return {r,cells:[
+              <span style={{fontSize:11,fontWeight:700,color:C.accent}}>{r.id}</span>,
+              <span style={{fontSize:12,fontWeight:600,color:C.text,display:"block",wordBreak:"break-word",lineHeight:1.3,maxHeight:56,overflowY:"auto"}}>{r.title}</span>,
+              <span style={{fontSize:11,color:C.dim,display:"block",lineHeight:1.3,marginTop:2,maxHeight:48,overflowY:"auto",wordBreak:"break-word"}}>{r.description||"—"}</span>,
+              <span title={r.type} style={{fontSize:11,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{r.type}</span>,
+              <div>{cr?<span style={{fontSize:13,fontWeight:800,color:cr.color}}>{cr.v}</span>:<span style={{color:C.muted}}>—</span>}</div>,
+              <UrgChip urg={urg} dl={dl}/>,
+              <Badge label={st.label} color={st.color||C.muted}/>,
+              <span style={{fontSize:11,color:C.accent}}>Ver →</span>
+            ]};
+          })}
+        />
+      </div>
     </div>}
   </div>;
 }
-
 
 // ================================================================
 // CONTROLES DE MUDANCA v10 — lista de SAs com data abertura + prazo etapa
@@ -3528,11 +3386,11 @@ function ResizableTable({cols:initialCols,headers,rows,onRowClick,C,storageKey})
       ))}
       {rows.length===0&&<div style={{textAlign:"center",padding:28,color:C.muted,fontSize:13}}>Nenhum registro encontrado.</div>}
     </div>
-    </div>;
+  </div>;
 }
 
 // ================================================================
-function ChangesTable({requests,currentUser,crits,allUsers,onOpen,onNew}){
+function ChangesTable({requests,currentUser,crits,allUsers,onOpen}){
   const {C}=useTheme();const Sg=mkSg(C);
   const [q,setQ]=useState("");const [sf,setSF]=useState("");const [st2,setST2]=useState("");
 
@@ -3567,11 +3425,8 @@ function ChangesTable({requests,currentUser,crits,allUsers,onOpen,onNew}){
 
   return <div style={{padding:"18px 22px"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:10}}>
-      <div>
-        <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Controle de Mudanças</h1>
-        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{vis.length} registro{vis.length!==1?"s":""}</div>
-      </div>
-      <button style={{...Sg.btn("primary"),padding:"8px 16px",fontSize:13}} onClick={onNew}>+ Nova SA</button>
+      <h1 style={{margin:0,fontSize:18,color:C.text,fontWeight:700}}>Controles de Mudanca</h1>
+      <span style={{fontSize:11,color:C.muted}}>{vis.length} registro{vis.length!==1?"s":""}</span>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:9,flexWrap:"wrap",alignItems:"center"}}>
       <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar ID, titulo, tipo..." style={{...Sg.input(),maxWidth:280}}/>
@@ -3715,7 +3570,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
   const acPend=allItems.filter(i=>i.type==="acao"&&!i.done&&!i.cancel).length;
   const evPend=allItems.filter(i=>i.type==="avaliacao"&&!i.done).length;
 
-  const urgColor=u=>u==="overdue"?C.danger:u==="today"?C.warning:u==="soon"?C.accent:u==="done"?C.success:C.muted;
+  const urgColor=u=>u==="overdue"?C.danger:u==="today"?C.orange:u==="soon"?C.accent:u==="done"?C.success:C.muted;
 
   return <div style={{padding:"18px 22px"}}>
     <div style={{marginBottom:12}}>
@@ -3730,7 +3585,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
         {l:"Atrasadas",v:late,c:C.danger},
         {l:"Concluidas",v:done,c:C.success},
         {l:"Acoes abertas",v:acPend,c:C.accent},
-        {l:"Avals. abertas",v:evPend,c:C.accent||C.accent},
+        {l:"Avals. abertas",v:evPend,c:C.purple||C.accent},
       ].map(k=>(
         <div key={k.l} style={{...Sg.card({padding:"9px 13px",flex:1,minWidth:90,borderTop:"3px solid "+k.c})}}>
           <div style={{fontSize:20,fontWeight:800,color:k.c}}>{k.v}</div>
@@ -3794,7 +3649,7 @@ function ActionsPage({requests,currentUser,allUsers,crits,onNav}){
           const stLabel=i.done?"Concluida":i.cancel?"Cancelada":i.ov?"Atrasada":"Pendente";
           const stColor=i.done?C.success:i.cancel?C.muted:i.ov?C.danger:C.warning;
           const typeLabel=i.type==="acao"?"Acao":"Aval.";
-          const typeColor=i.type==="acao"?C.accent:C.accent||C.accent;
+          const typeColor=i.type==="acao"?C.accent:C.purple||C.accent;
           return {r:i,cells:[
             <span style={{fontSize:11,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{i.r.id}</span>,
             <span style={{fontSize:11,color:C.text,display:"block",lineHeight:1.3,maxHeight:40,overflowY:"hidden",wordBreak:"break-word"}}>{i.r.title}</span>,
@@ -3830,8 +3685,8 @@ function SignaturesPage({requests,currentUser}){
   const load=async()=>{
     setLoading(true);
     try{
-      const token=sessionStorage.getItem('sgq_token');
-      let url='/api/auth?_route=verify&limit=500';
+      const token=sessionStorage.getItem('cm_token');
+      let url='/api/auth/verify-password?limit=500';
       if(fSA)url+='&sa_id='+encodeURIComponent(fSA);
       if(fAction)url+='&action='+encodeURIComponent(fAction);
       if(fFrom)url+='&from='+fFrom;
@@ -3953,819 +3808,6 @@ function NewRequest({currentUser,onSave,onCancel}){
 }
 
 // ================================================================
-// MÓDULO RO — REGISTRO DE OCORRÊNCIAS
-// ================================================================
-
-const RO_TIPOS = ["Produto","Processo"];
-const RO_LOCAIS = ["Produção","Inspeção Recebimento","Inspeção Final","AT","Almoxarifado","P&D"];
-const RO_DISPOSICOES = {
-  Produto: ["Correção Imediata","Segregado","Sucatado","Liberado Condicional"],
-  Processo: ["Correção Imediata","Segregado"],
-};
-// Disposições que precisam de conclusão da qualidade antes de fechar
-const RO_DISP_CONCLUSAO = ["Segregado","Sucatado"];
-const RO_CLASS_PROCESSO = ["Falha Operacional","Falha de Processo","N/A"];
-const RO_CLASS_OCORRENCIA = ["Visual","Montagem","Funcional","Falha Operacional","Falha de Processo","N/A"];
-
-const RO_STATUS_LABELS = {
-  aberta:              {label:"Aberta",              color:"#2563EB"},
-  em_analise:          {label:"Em Análise",          color:"#D97706"},
-  aguardando_conclusao:{label:"Aguard. Conclusão",   color:"#7C3AED"},
-  fechada:             {label:"Fechada",             color:"#16A34A"},
-};
-
-function ROStatusBadge({status}){
-  const s = RO_STATUS_LABELS[status]||{label:status,color:"#64748B"};
-  return <Badge label={s.label} color={s.color}/>;
-}
-
-// ── Autocomplete de produto ──────────────────────────────────────
-// IMPORTANTE: usa ReactDOM.createPortal para fugir de overflow:auto/hidden
-// do container pai (caso típico: dropdown dentro de tabela com scroll horizontal).
-function ProdutoAutocomplete({value, onChange, onSelect, C, Sg, placeholder}){
-  const [q, setQ] = useState(value||"");
-  const [results, setResults] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [coords, setCoords] = useState({top:0,left:0,width:0});
-  const ref = React.useRef(null);
-  const inputRef = React.useRef(null);
-
-  React.useEffect(()=>{ setQ(value||""); },[value]);
-
-  // Click fora fecha — considera tanto o container quanto o dropdown portado
-  React.useEffect(()=>{
-    const handler = e => {
-      const inHost = ref.current && ref.current.contains(e.target);
-      const dd = document.getElementById('produto-autocomplete-dropdown');
-      const inDd = dd && dd.contains(e.target);
-      if(!inHost && !inDd) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return ()=>document.removeEventListener("mousedown", handler);
-  },[]);
-
-  // Recalcula posição absoluta do dropdown (em coordenadas da viewport)
-  const updateCoords = () => {
-    if(inputRef.current){
-      const r = inputRef.current.getBoundingClientRect();
-      setCoords({top: r.bottom + 2, left: r.left, width: r.width});
-    }
-  };
-
-  React.useEffect(()=>{
-    if(!open) return;
-    updateCoords();
-    const onScroll = () => setOpen(false);   // fecha ao rolar
-    const onResize = () => updateCoords();
-    window.addEventListener('scroll', onScroll, true);
-    window.addEventListener('resize', onResize);
-    return ()=>{
-      window.removeEventListener('scroll', onScroll, true);
-      window.removeEventListener('resize', onResize);
-    };
-  },[open]);
-
-  const search = async (term) => {
-    if(!term||term.length<2){ setResults([]); setOpen(false); return; }
-    setLoading(true);
-    try{
-      const token = sessionStorage.getItem('sgq_token');
-      const res = await fetch('/api/produtos?q='+encodeURIComponent(term),{headers:{'Authorization':'Bearer '+token}});
-      const data = await res.json();
-      const list = Array.isArray(data)?data:[];
-      setResults(list);
-      // Se retornou exatamente 1 resultado com código igual ao digitado → preenche direto
-      if(list.length===1 && list[0].codigo.toLowerCase()===term.toLowerCase()){
-        onSelect(list[0]);
-        setOpen(false);
-      } else {
-        setOpen(list.length>0);
-      }
-    }catch{ setResults([]); }
-    setLoading(false);
-  };
-
-  // Busca exata ao sair do campo (blur) ou apertar Enter/Tab
-  const fetchExact = async (term) => {
-    if(!term||term.length<2) return;
-    try{
-      const token = sessionStorage.getItem('sgq_token');
-      const res = await fetch('/api/produtos?codigo='+encodeURIComponent(term.trim()),{headers:{'Authorization':'Bearer '+token}});
-      const data = await res.json();
-      if(data && data.codigo){ onSelect(data); setOpen(false); }
-    }catch{}
-  };
-
-  const debounceRef = React.useRef(null);
-  const handleChange = (v) => {
-    setQ(v);
-    onChange(v);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(()=>search(v), 300);
-  };
-
-  // Dropdown via portal — escapa do overflow do container pai
-  const dropdown = (open && results.length>0) ? ReactDOM.createPortal(
-    <div id="produto-autocomplete-dropdown" style={{
-      position:"fixed",
-      top: coords.top,
-      left: coords.left,
-      width: coords.width,
-      zIndex: 9999,
-      background: C.card,
-      border:"1px solid "+C.border,
-      borderRadius:8,
-      boxShadow:"0 8px 24px rgba(0,0,0,0.18)",
-      maxHeight:220,
-      overflowY:"auto"
-    }}>
-      {results.map((p,i)=>(
-        <div key={i}
-          style={{padding:"8px 12px",cursor:"pointer",borderBottom:"1px solid "+C.border,fontSize:12}}
-          onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-          onMouseDown={e=>e.preventDefault()}
-          onClick={()=>{ onSelect(p); setQ(p.codigo); setOpen(false); }}>
-          <span style={{fontWeight:700,color:C.accent}}>{p.codigo}</span>
-          <span style={{color:C.muted,marginLeft:8}}>{p.descricao}</span>
-        </div>
-      ))}
-    </div>,
-    document.body
-  ) : null;
-
-  return <div ref={ref} style={{position:"relative",width:"100%"}}>
-    <div style={{position:"relative"}}>
-      <input
-        ref={inputRef}
-        style={{...Sg.input(), paddingRight: loading?32:10}}
-        value={q}
-        onChange={e=>handleChange(e.target.value)}
-        placeholder={placeholder||"Digite o código..."}
-        onFocus={()=>{ if(results.length>0) setOpen(true); }}
-        onBlur={()=>{ setTimeout(()=>{ if(q.trim()) fetchExact(q.trim()); setOpen(false); },200); }}
-        onKeyDown={e=>{ if(e.key==='Enter'||e.key==='Tab'){ fetchExact(q.trim()); setOpen(false); } }}
-        autoComplete="off"
-      />
-      {loading&&<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:10,color:C.muted}}>...</span>}
-    </div>
-    {dropdown}
-  </div>;
-}
-
-// ── Linha de item (produto afetado) ─────────────────────────────
-function ItemRow({item, idx, onChange, onRemove, C, Sg}){
-  return <tr>
-    <td style={{padding:"4px 6px",width:140}}>
-      <ProdutoAutocomplete
-        value={item.codigo||""}
-        onChange={v=>onChange({...item,codigo:v,descricao:item.descricao})}
-        onSelect={p=>onChange({...item,codigo:p.codigo,descricao:p.descricao})}
-        C={C} Sg={Sg} placeholder="Código..."/>
-    </td>
-    <td style={{padding:"4px 6px"}}>
-      <input style={{...Sg.input(),fontSize:12}} value={item.descricao||""} onChange={e=>onChange({...item,descricao:e.target.value})} placeholder="Descrição (auto ou manual)"/>
-    </td>
-    <td style={{padding:"4px 6px",width:110}}>
-      <input style={{...Sg.input(),fontSize:12}} value={item.lote||""} onChange={e=>onChange({...item,lote:e.target.value})} placeholder="Lote"/>
-    </td>
-    <td style={{padding:"4px 6px",width:80}}>
-      <input style={{...Sg.input(),fontSize:12}} type="number" min="0" value={item.qtdNC||""} onChange={e=>onChange({...item,qtdNC:e.target.value})} placeholder="0"/>
-    </td>
-    <td style={{padding:"4px 6px",width:28,textAlign:"center"}}>
-      <button onClick={onRemove} style={{background:"none",border:"none",cursor:"pointer",color:C.danger,fontSize:16,padding:0,lineHeight:1}}>×</button>
-    </td>
-  </tr>;
-}
-
-// ── Tabela de itens dinâmica ─────────────────────────────────────
-function ItensTable({itens, onChange, readOnly, C, Sg}){
-  const addItem = () => onChange([...itens,{codigo:"",descricao:"",lote:"",qtdNC:""}]);
-  const updItem = (i,v) => { const n=[...itens]; n[i]=v; onChange(n); };
-  const remItem = i => onChange(itens.filter((_,j)=>j!==i));
-
-  return <div>
-    <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-        <thead>
-          <tr style={{background:C.surface,borderBottom:"1px solid "+C.border}}>
-            {["Código","Descrição","Lote","Qtd NC",""].map((h,i)=>(
-              <th key={i} style={{padding:"6px 8px",textAlign:"left",fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase"}}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {itens.length===0&&<tr><td colSpan={5} style={{padding:"12px 8px",color:C.muted,fontSize:12,textAlign:"center"}}>Nenhum item adicionado</td></tr>}
-          {itens.map((item,i)=>(
-            readOnly
-              ? <tr key={i} style={{borderBottom:"1px solid "+C.border}}>
-                  <td style={{padding:"6px 8px",fontWeight:700,color:C.accent,fontSize:12}}>{item.codigo||"—"}</td>
-                  <td style={{padding:"6px 8px",color:C.text,fontSize:12}}>{item.descricao||"—"}</td>
-                  <td style={{padding:"6px 8px",color:C.dim,fontSize:12}}>{item.lote||"—"}</td>
-                  <td style={{padding:"6px 8px",color:C.text,fontSize:12}}>{item.qtdNC||"—"}</td>
-                  <td/>
-                </tr>
-              : <ItemRow key={i} item={item} idx={i} onChange={v=>updItem(i,v)} onRemove={()=>remItem(i)} C={C} Sg={Sg}/>
-          ))}
-        </tbody>
-      </table>
-    </div>
-    {!readOnly&&<button style={{...Sg.btn(),fontSize:11,padding:"4px 12px",marginTop:8}} onClick={addItem}>+ Adicionar item</button>}
-  </div>;
-}
-
-// ── ROList ───────────────────────────────────────────────────────
-function ROList({roRecords, currentUser, allUsers, onOpen, onNew}){
-  const {C}=useTheme();const Sg=mkSg(C);
-  const [fText,setFText]=useState("");
-  const [fStatus,setFStatus]=useState("");
-  const [fTipo,setFTipo]=useState("");
-  const canNew = hasPerm(currentUser,'ro.abrir');
-
-  const vis = (roRecords||[]).filter(r=>{
-    const q=fText.toLowerCase();
-    const ok = !q||(r.code||r.id||"").toLowerCase().includes(q)||(r.title||"").toLowerCase().includes(q)||(r.data?.descricao||"").toLowerCase().includes(q);
-    const okS = !fStatus||r.status===fStatus;
-    const okT = !fTipo||r.data?.tipo===fTipo;
-    return ok&&okS&&okT;
-  });
-
-  return <div style={{padding:"18px 22px"}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-      <div>
-        <h1 style={{margin:0,fontSize:17,color:C.text,fontWeight:700}}>Registro de Ocorrências</h1>
-        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{(roRecords||[]).length} registro{(roRecords||[]).length!==1?"s":""} no total</div>
-      </div>
-      {canNew&&<button style={{...Sg.btn("primary"),padding:"8px 16px"}} onClick={onNew}>+ Nova RO</button>}
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
-      <input value={fText} onChange={e=>setFText(e.target.value)} placeholder="Buscar por código, título..." style={{...Sg.input(),maxWidth:280}}/>
-      <select value={fStatus} onChange={e=>setFStatus(e.target.value)} style={{...Sg.input(),maxWidth:180}}>
-        <option value="">Todos os status</option>
-        {Object.entries(RO_STATUS_LABELS).map(([v,s])=><option key={v} value={v}>{s.label}</option>)}
-      </select>
-      <select value={fTipo} onChange={e=>setFTipo(e.target.value)} style={{...Sg.input(),maxWidth:140}}>
-        <option value="">Todos os tipos</option>
-        {RO_TIPOS.map(t=><option key={t} value={t}>{t}</option>)}
-      </select>
-      <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{vis.length} resultado{vis.length!==1?"s":""}</span>
-    </div>
-    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-      {vis.length===0
-        ? <div style={{textAlign:"center",padding:36,color:C.muted}}>Nenhum registro encontrado.</div>
-        : <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead>
-              <tr style={{borderBottom:"1px solid "+C.border,background:C.surface}}>
-                {["Código","Tipo","Local","Descrição","Itens","Abertura","Status"].map(h=>(
-                  <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {vis.map((r,i)=>{
-                const d=r.data||{};
-                const itens=(d.itens||[]).filter(x=>x.codigo);
-                return <tr key={r.id||i} style={{borderBottom:"1px solid "+C.border,cursor:"pointer"}}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.surface}
-                  onMouseLeave={e=>e.currentTarget.style.background=""}
-                  onClick={()=>onOpen(r.id||r.code)}>
-                  <td style={{padding:"9px 12px",fontSize:12,fontWeight:700,color:C.accent,whiteSpace:"nowrap"}}>{r.code||r.id}</td>
-                  <td style={{padding:"9px 12px",fontSize:12,color:C.text}}>{d.tipo||"—"}</td>
-                  <td style={{padding:"9px 12px",fontSize:12,color:C.dim}}>{d.local||"—"}</td>
-                  <td style={{padding:"9px 12px",fontSize:12,color:C.text,maxWidth:260}}>
-                    <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.descricao||r.title||"—"}</div>
-                  </td>
-                  <td style={{padding:"9px 12px",fontSize:12,color:C.muted,textAlign:"center"}}>
-                    {itens.length>0?<span style={{background:C.accent+"20",color:C.accent,borderRadius:10,padding:"1px 8px",fontSize:11,fontWeight:600}}>{itens.length}</span>:"—"}
-                  </td>
-                  <td style={{padding:"9px 12px",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{fmt(r.createdAt)}</td>
-                  <td style={{padding:"9px 12px"}}><ROStatusBadge status={r.status}/></td>
-                </tr>;
-              })}
-            </tbody>
-          </table>
-      }
-    </div>
-  </div>;
-}
-
-// ── NewRO ────────────────────────────────────────────────────────
-function NewRO({currentUser, onSave, onCancel}){
-  const {C}=useTheme();const Sg=mkSg(C);
-  const [f,setF]=useState({tipo:"",local:"",opChamado:"",descricao:"",classificacao:"",disposicao:""});
-  const [itens,setItens]=useState([]);
-  const [attachments,setAttachments]=useState([]);
-  const set = (k,v)=>setF(p=>({...p,[k]:v}));
-  const ok = f.tipo&&f.local&&f.descricao;
-
-  return <div style={{padding:"18px 22px",maxWidth:760}}>
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-      <div>
-        <h1 style={{margin:0,fontSize:17,color:C.text,fontWeight:700}}>Nova Ocorrência</h1>
-        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Campos com * são obrigatórios</div>
-      </div>
-      <button style={Sg.btn()} onClick={onCancel}>Cancelar</button>
-    </div>
-    <div style={{...Sg.card(),display:"flex",flexDirection:"column",gap:14}}>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div>
-          <label style={Sg.lbl}>Tipo *</label>
-          <select style={Sg.input()} value={f.tipo} onChange={e=>{set("tipo",e.target.value);set("disposicao","");}}>
-            <option value="">Selecione...</option>
-            {RO_TIPOS.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={Sg.lbl}>Local *</label>
-          <select style={Sg.input()} value={f.local} onChange={e=>set("local",e.target.value)}>
-            <option value="">Selecione...</option>
-            {RO_LOCAIS.map(l=><option key={l} value={l}>{l}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div><label style={Sg.lbl}>Nº OP / Chamado</label><input style={Sg.input()} value={f.opChamado} onChange={e=>set("opChamado",e.target.value)} placeholder="Ex: OP-12345"/></div>
-      <div><label style={Sg.lbl}>Descrição da Ocorrência *</label><textarea style={{...Sg.input(),minHeight:72,resize:"vertical"}} value={f.descricao} onChange={e=>set("descricao",e.target.value)} placeholder="Descreva o que foi identificado..."/></div>
-
-      {/* Itens afetados — só mostra se tipo Produto */}
-      {f.tipo==="Produto"&&<div style={{padding:12,background:C.surface,borderRadius:8,border:"1px solid "+C.border}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:10}}>Itens Afetados</div>
-        <ItensTable itens={itens} onChange={setItens} readOnly={false} C={C} Sg={Sg}/>
-      </div>}
-
-      {/* Classificação da ocorrência */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-        <div>
-          <label style={Sg.lbl}>Classificação da Ocorrência</label>
-          <select style={Sg.input()} value={f.classificacao} onChange={e=>set("classificacao",e.target.value)}>
-            <option value="">Selecione...</option>
-            {f.tipo==="Processo"
-              ? RO_CLASS_PROCESSO.map(c=><option key={c} value={c}>{c}</option>)
-              : RO_CLASS_OCORRENCIA.map(c=><option key={c} value={c}>{c}</option>)
-            }
-          </select>
-        </div>
-        {f.tipo&&<div>
-          <label style={Sg.lbl}>Disposição</label>
-          <select style={Sg.input()} value={f.disposicao} onChange={e=>set("disposicao",e.target.value)}>
-            <option value="">Nenhuma / A definir</option>
-            {(RO_DISPOSICOES[f.tipo]||[]).map(d=><option key={d} value={d}>{d}</option>)}
-          </select>
-        </div>}
-      </div>
-
-      <AttachmentsPanel attachments={attachments} onAdd={a=>setAttachments(p=>[...p,a])} onRemove={a=>setAttachments(p=>p.filter(x=>x.id!==a.id))} readOnly={false} stage="abertura" currentUser={currentUser} C={C}/>
-
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8,paddingTop:4}}>
-        <button style={Sg.btn()} onClick={onCancel}>Cancelar</button>
-        <button style={{...Sg.btn("primary"),opacity:ok?1:.4,padding:"8px 20px"}} disabled={!ok} onClick={()=>onSave(f,itens,attachments)}>Abrir Ocorrência</button>
-      </div>
-    </div>
-  </div>;
-}
-
-// ── GerarNCModal ────────────────────────────────────────────────
-function GerarNCModal({ro, currentUser, C, Sg, onClose, onConfirm}){
-  const d = ro.data||{};
-  const [titulo, setTitulo] = useState((d.descricao||"").substring(0,80));
-  const [descricao, setDescricao] = useState("Originada da RO "+(ro.code||ro.id)+". "+(d.descricao||""));
-
-  const ok = titulo.trim()&&descricao.trim();
-
-  return <Modal open={true} onClose={onClose} title={"Gerar NC a partir de "+(ro.code||ro.id)} width={560}>
-    <div style={{fontSize:13,color:C.muted,marginBottom:14,padding:"8px 12px",background:C.accent+"0D",borderRadius:7,border:"1px solid "+C.accent+"30"}}>
-      Os itens afetados e o vínculo com esta RO serão transferidos automaticamente.
-    </div>
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div>
-        <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,display:"block",marginBottom:4}}>Título da NC *</label>
-        <input style={Sg.input()} value={titulo} onChange={e=>setTitulo(e.target.value)} placeholder="Título da não conformidade..."/>
-      </div>
-      <div>
-        <label style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,display:"block",marginBottom:4}}>Descrição *</label>
-        <textarea style={{...Sg.input(),minHeight:100,resize:"vertical"}} value={descricao} onChange={e=>setDescricao(e.target.value)}/>
-      </div>
-      {(d.itens||[]).length>0&&<div style={{padding:"8px 12px",background:C.surface,borderRadius:7,border:"1px solid "+C.border}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,marginBottom:6}}>Itens que serão vinculados</div>
-        {(d.itens||[]).filter(x=>x.codigo).map((item,i)=>(
-          <div key={i} style={{fontSize:12,color:C.text,padding:"3px 0"}}>
-            <span style={{fontWeight:700,color:C.accent}}>{item.codigo}</span>
-            {item.descricao&&<span style={{color:C.muted,marginLeft:8}}>{item.descricao}</span>}
-            {item.lote&&<span style={{color:C.muted,marginLeft:8}}>Lote: {item.lote}</span>}
-          </div>
-        ))}
-      </div>}
-    </div>
-    <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:18}}>
-      <button style={Sg.btn()} onClick={onClose}>Cancelar</button>
-      <button style={{...Sg.btn("primary"),opacity:ok?1:.4}} disabled={!ok} onClick={()=>onConfirm({titulo,descricao,roCode:ro.code||ro.id,itens:d.itens||[],tipo:d.tipo,local:d.local,classificacao:d.classificacao})}>
-        Criar NC
-      </button>
-    </div>
-  </Modal>;
-}
-
-// ── RODetail ─────────────────────────────────────────────────────
-function RODetail({roRecord, currentUser, allUsers, onBack, onUpdate, onGenerateNC}){
-  const {C}=useTheme();const Sg=mkSg(C);
-  const [sigModal,setSigModal]=useState(null);
-  const [ncModal,setNcModal]=useState(false);
-  const [analise,setAnalise]=useState("");
-  const [disposicaoEdit,setDisposicaoEdit]=useState("");
-  const [conclusao,setConclusao]=useState("");
-  const [itensEdit,setItensEdit]=useState([]);
-  const [editingItens,setEditingItens]=useState(false);
-  const [addingAtt,setAddingAtt]=useState(false);
-
-  const r = roRecord;
-  React.useEffect(()=>{
-    if(r){
-      setAnalise(r.data?.analise||"");
-      setDisposicaoEdit(r.data?.disposicao||"");
-      setItensEdit(r.data?.itens||[]);
-      setConclusao("");
-    }
-  },[r?.id||r?.code]);
-
-  const addAttachment = async (att) => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...r,
-      data: {...(r.data||{}), attachments: [...((r.data||{}).attachments||[]), att]},
-      log: [...(r.log||[]), {at:now, by:currentUser.name, type:"anexo", event:"Anexo adicionado", detail:att.name||""}],
-    };
-    await onUpdate(updated);
-  };
-
-  const removeAttachment = async (att) => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...r,
-      data: {...(r.data||{}), attachments: ((r.data||{}).attachments||[]).filter(x=>x.id!==att.id)},
-      log: [...(r.log||[]), {at:now, by:currentUser.name, type:"anexo", event:"Anexo removido", detail:att.name||""}],
-    };
-    await onUpdate(updated);
-  };
-
-  if(!r) return <div style={{padding:32,color:C.muted}}>Registro não encontrado.</div>;
-  const d = r.data||{};
-  const status = r.status;
-  const canAnalyze = hasPerm(currentUser,'ro.analisar');
-  const canClose   = hasPerm(currentUser,'ro.fechar');
-
-  // Disposição atual requer conclusão da qualidade?
-  const dispAtual = disposicaoEdit||d.disposicao||"";
-  const needsConclusao = RO_DISP_CONCLUSAO.includes(dispAtual);
-
-  const doAnalyze = async (sig) => {
-    const now = new Date().toISOString();
-    // Se disposição requer conclusão → vai para aguardando_conclusao
-    const novoStatus = needsConclusao ? "aguardando_conclusao" : "em_analise";
-    const updated = {
-      ...r,
-      status: novoStatus,
-      data: {...d, analise, disposicao: disposicaoEdit, itens: itensEdit,
-        analiseBy: currentUser.id, analiseByName: currentUser.name, analiseAt: now},
-      log: [...(r.log||[]), {at:now, by:currentUser.name, type:"analise",
-        event:"Análise registrada", detail: (disposicaoEdit?"Disposição: "+disposicaoEdit+". ":"")+analise.substring(0,60)}],
-    };
-    await onUpdate(updated);
-    setSigModal(null);
-  };
-
-  const doConclusao = async (sig) => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...r,
-      status: "fechada",
-      data: {...d, conclusaoFinal: conclusao,
-        conclusaoBy: currentUser.id, conclusaoByName: currentUser.name, conclusaoAt: now},
-      log: [...(r.log||[]), {at:now, by:currentUser.name, type:"conclusao",
-        event:"Conclusão final registrada", detail: conclusao.substring(0,80)}],
-    };
-    await onUpdate(updated);
-    setSigModal(null);
-  };
-
-  const doClose = async (sig) => {
-    const now = new Date().toISOString();
-    const updated = {
-      ...r,
-      status: "fechada",
-      data: {...d, fechadoBy: currentUser.id, fechadoByName: currentUser.name, fechadoAt: now},
-      log: [...(r.log||[]), {at:now, by:currentUser.name, type:"fechamento", event:"Ocorrência fechada", detail:""}],
-    };
-    await onUpdate(updated);
-    setSigModal(null);
-  };
-
-  const itensVisiveis = editingItens ? itensEdit : (d.itens||[]);
-
-  return <div style={{padding:"18px 22px",maxWidth:820}}>
-    {/* Header */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-      <div>
-        <button style={{...Sg.btn(),fontSize:11,padding:"3px 10px",marginBottom:8}} onClick={onBack}>← Voltar</button>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <h1 style={{margin:0,fontSize:17,color:C.text,fontWeight:700}}>{r.code||r.id}</h1>
-          <ROStatusBadge status={status}/>
-        </div>
-        <div style={{fontSize:12,color:C.muted,marginTop:3}}>{d.tipo||""}{d.local?" · "+d.local:""}</div>
-      </div>
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
-        {status==="em_analise"&&canClose&&<button style={Sg.btn("success")} onClick={()=>setSigModal({action:"fechar",title:"Fechar Ocorrência"})}>Fechar RO</button>}
-        {status==="fechada"&&<button style={{...Sg.btn("primary"),fontSize:12}} onClick={()=>setNcModal(true)}>Gerar NC</button>}
-      </div>
-    </div>
-
-    {/* Banner aguardando conclusão */}
-    {status==="aguardando_conclusao"&&<div style={{padding:"10px 14px",background:C.purple+"15",border:"1px solid "+C.purple+"40",borderRadius:8,marginBottom:14,fontSize:13,color:C.purple,fontWeight:600}}>
-      Aguardando conclusão da qualidade — disposição: <strong>{d.disposicao}</strong>
-    </div>}
-
-    {/* Banner fechada */}
-    {status==="fechada"&&<div style={{padding:"10px 14px",background:C.success+"15",border:"1px solid "+C.success+"40",borderRadius:8,marginBottom:14,fontSize:13,color:C.success,fontWeight:600}}>
-      Ocorrência fechada {d.conclusaoAt?("em "+fmt(d.conclusaoAt)+" por "+d.conclusaoByName):d.fechadoAt?("em "+fmt(d.fechadoAt)+" por "+d.fechadoByName):""}
-    </div>}
-
-    {/* Dados principais */}
-    <div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:12}}>Dados da Ocorrência</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-        <div><span style={Sg.lbl}>Tipo</span><div style={{fontSize:13,color:C.text}}>{d.tipo||"—"}</div></div>
-        <div><span style={Sg.lbl}>Local</span><div style={{fontSize:13,color:C.text}}>{d.local||"—"}</div></div>
-        <div><span style={Sg.lbl}>Nº OP / Chamado</span><div style={{fontSize:13,color:C.text}}>{d.opChamado||"—"}</div></div>
-        <div><span style={Sg.lbl}>Classificação</span><div style={{fontSize:13,color:C.text}}>{d.classificacao||"—"}</div></div>
-        <div><span style={Sg.lbl}>Aberto por</span><div style={{fontSize:13,color:C.text}}>{r.owner_name||r.createdByName||"—"}</div></div>
-        {d.disposicao&&<div><span style={Sg.lbl}>Disposição</span><div style={{fontSize:13,color:C.text}}>{d.disposicao}</div></div>}
-      </div>
-      <div><span style={Sg.lbl}>Descrição</span><div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",background:C.surface,borderRadius:6,padding:"8px 10px",marginTop:2}}>{d.descricao||"—"}</div></div>
-    </div>
-
-    {/* Itens afetados (Produto) */}
-    {d.tipo==="Produto"&&<div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase"}}>Itens Afetados</div>
-        {status!=="fechada"&&canAnalyze&&!editingItens&&<button style={{...Sg.btn(),fontSize:11,padding:"3px 10px"}} onClick={()=>setEditingItens(true)}>Editar itens</button>}
-        {editingItens&&<div style={{display:"flex",gap:6}}>
-          <button style={{...Sg.btn(),fontSize:11,padding:"3px 10px"}} onClick={()=>{setItensEdit(d.itens||[]);setEditingItens(false);}}>Cancelar</button>
-          <button style={{...Sg.btn("primary"),fontSize:11,padding:"3px 10px"}} onClick={async()=>{
-            const now=new Date().toISOString();
-            await onUpdate({...r,data:{...d,itens:itensEdit},log:[...(r.log||[]),{at:now,by:currentUser.name,type:"itens",event:"Itens atualizados",detail:itensEdit.length+" item(ns)"}]});
-            setEditingItens(false);
-          }}>Salvar itens</button>
-        </div>}
-      </div>
-      <ItensTable itens={editingItens?itensEdit:(d.itens||[])} onChange={v=>{if(editingItens)setItensEdit(v);}} readOnly={!editingItens} C={C} Sg={Sg}/>
-    </div>}
-
-    {/* Análise */}
-    <div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:12}}>Análise / Conclusão da Qualidade</div>
-      {status==="fechada"||status==="aguardando_conclusao"
-        ? <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",background:C.surface,borderRadius:6,padding:"8px 10px"}}>{d.analise||"—"}</div>
-        : <>
-          <textarea style={{...Sg.input(),minHeight:80,resize:"vertical",marginBottom:10}} value={analise} onChange={e=>setAnalise(e.target.value)} placeholder="Registre a análise e conclusão..." disabled={!canAnalyze}/>
-          {d.tipo&&<div style={{marginBottom:10}}>
-            <label style={Sg.lbl}>Disposição</label>
-            <select style={Sg.input()} value={disposicaoEdit} onChange={e=>setDisposicaoEdit(e.target.value)} disabled={!canAnalyze}>
-              <option value="">Nenhuma / A definir</option>
-              {(RO_DISPOSICOES[d.tipo]||[]).map(dsp=><option key={dsp} value={dsp}>{dsp}</option>)}
-            </select>
-          </div>}
-          {needsConclusao&&disposicaoEdit&&<div style={{padding:"8px 12px",background:C.purple+"12",border:"1px solid "+C.purple+"30",borderRadius:6,fontSize:12,color:C.purple,marginBottom:10}}>
-            Disposição "{disposicaoEdit}" requer conclusão da qualidade antes de fechar.
-          </div>}
-          {canAnalyze&&<button style={{...Sg.btn("primary"),opacity:analise.trim()?1:.4}} disabled={!analise.trim()} onClick={()=>setSigModal({action:"analise",title:"Registrar Análise",confirmLabel:"Salvar Análise",confirmStyle:"primary"})}>Salvar Análise</button>}
-        </>
-      }
-      {d.analiseAt&&<div style={{fontSize:11,color:C.muted,marginTop:8}}>Análise por {d.analiseByName||"—"} em {fmt(d.analiseAt)}</div>}
-    </div>
-
-    {/* Conclusão final — Segregado/Sucatado */}
-    {status==="aguardando_conclusao"&&canClose&&<div style={{...Sg.card(),marginBottom:14,border:"1px solid "+C.purple+"40"}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.purple,letterSpacing:.4,textTransform:"uppercase",marginBottom:12}}>Conclusão Final da Qualidade</div>
-      <div style={{fontSize:13,color:C.muted,marginBottom:10}}>Item está <strong>{d.disposicao}</strong>. Registre o que foi feito com ele.</div>
-      <textarea style={{...Sg.input(),minHeight:80,resize:"vertical",marginBottom:10}} value={conclusao} onChange={e=>setConclusao(e.target.value)} placeholder="Ex: Material descartado conforme procedimento PR-001, lote separado e destruído..."/>
-      <button style={{...Sg.btn("success"),opacity:conclusao.trim()?1:.4}} disabled={!conclusao.trim()} onClick={()=>setSigModal({action:"conclusao",title:"Registrar Conclusão Final",confirmLabel:"Confirmar e Fechar RO",confirmStyle:"success"})}>Confirmar Conclusão e Fechar</button>
-    </div>}
-
-    {/* Conclusão final — exibição */}
-    {d.conclusaoFinal&&<div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:8}}>Conclusão Final</div>
-      <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap",background:C.surface,borderRadius:6,padding:"8px 10px"}}>{d.conclusaoFinal}</div>
-      <div style={{fontSize:11,color:C.muted,marginTop:6}}>Por {d.conclusaoByName||"—"} em {fmt(d.conclusaoAt)}</div>
-    </div>}
-
-    {/* NCs vinculadas */}
-    {(d.linkedNCs||[]).length>0&&<div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:10}}>Não Conformidades Vinculadas</div>
-      {(d.linkedNCs||[]).map(nc=>(
-        <div key={nc} style={{padding:"6px 10px",background:C.surface,borderRadius:6,fontSize:13,color:C.accent,marginBottom:4}}>{nc}</div>
-      ))}
-    </div>}
-
-    {/* Anexos */}
-    <div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:12}}>Anexos</div>
-      <AttachmentsPanel
-        attachments={(d.attachments)||[]}
-        onAdd={addAttachment}
-        onRemove={removeAttachment}
-        readOnly={status==="fechada"}
-        stage={status}
-        currentUser={currentUser}
-        isAdmin={canAnalyze}
-        refId={r.id||r.code}
-        refType="ro"
-        C={C}/>
-    </div>
-
-    {/* Histórico */}
-    <div style={{...Sg.card({padding:0,overflow:"hidden"})}}>
-      <div style={{padding:"12px 14px 8px",fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase"}}>Histórico</div>
-      {(r.log||[]).length===0
-        ? <div style={{padding:"14px",color:C.muted,fontSize:13}}>Sem eventos registrados.</div>
-        : <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead>
-              <tr style={{background:C.surface,borderBottom:"1px solid "+C.border}}>
-                {["Data","Usuário","O que foi feito"].map(h=>(
-                  <th key={h} style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[...(r.log||[])].reverse().map((e,i)=>(
-                <tr key={i} style={{borderBottom:"1px solid "+C.border}}>
-                  <td style={{padding:"7px 12px",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{fmt(e.at)}</td>
-                  <td style={{padding:"7px 12px",fontSize:12,color:C.dim,whiteSpace:"nowrap"}}>{e.by||"—"}</td>
-                  <td style={{padding:"7px 12px",fontSize:12,color:C.text}}>
-                    <div style={{fontWeight:500}}>{e.event}</div>
-                    {e.detail&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>{e.detail}</div>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-      }
-    </div>
-
-    {/* Signature modal */}
-    {sigModal&&<SignatureModal
-      open={true}
-      onClose={()=>setSigModal(null)}
-      title={sigModal.title}
-      confirmLabel={sigModal.confirmLabel||"Confirmar"}
-      confirmStyle={sigModal.confirmStyle||"primary"}
-      saId={r.id||r.code}
-      action={sigModal.action}
-      C={C} Sg={Sg}
-      onConfirm={async(sig)=>{
-        if(sigModal.action==="fechar") await doClose(sig);
-        else if(sigModal.action==="conclusao") await doConclusao(sig);
-        else await doAnalyze(sig);
-      }}
-    />}
-
-    {/* Modal Gerar NC */}
-    {ncModal&&<GerarNCModal
-      ro={r}
-      currentUser={currentUser}
-      C={C} Sg={Sg}
-      onClose={()=>setNcModal(false)}
-      onConfirm={onGenerateNC}
-    />}
-  </div>;
-}
-
-// ================================================================
-// PRODUTOS — gerenciamento da base de produtos
-// ================================================================
-function SeedProdutos({currentUser}){
-  const {C}=useTheme();const Sg=mkSg(C);
-  const [info,setInfo]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const [uploading,setUploading]=useState(false);
-  const [uploadResult,setUploadResult]=useState(null);
-  const fileRef=React.useRef(null);
-
-  const SEED = [
-    {codigo:"026377",descricao:"KIT COMPLETO PLACA MODELO LM-PW1-001 - PEME V1.1 - R1.0 – RETRAB MS-PW1-001",tipo:"TP",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"025358",descricao:"KIT COMPLETO PLACA MODELO LM-PW1-001 - PEME V1.1 - R1.3 ROHS",tipo:"PI",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"026438",descricao:"KIT COMPLETO PLACA MODELO LM-PW1-001 - PEME V1.2 - R1.0 ROHS",tipo:"MP",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"029897",descricao:"KIT COMPLETO PLACA MODELO LM-PW1-001 - PEME V1.2 - R1.0 ROHS - RETRAB MS-PW1-003",tipo:"MP",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"029932",descricao:"KIT COMPLETO PLACA MODELO LM-PW1-001 - PEME V1.2 - R1.1 ROHS",tipo:"MP",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"020424",descricao:"KIT PLACA DE CI PW1-001-PEME V1.1",tipo:"PI",unidade:"UN",familia:"Placa PW1"},
-    {codigo:"025385",descricao:"KIT PLACA LM-PW1-001 - PEME V1.1 - R1.1 RETRAB MS-PW1-001",tipo:"PI",unidade:"UN",familia:"Placa PW1"},
-  ];
-
-  React.useEffect(()=>{ loadInfo(); },[]);
-
-  const loadInfo = async () => {
-    setLoading(true);
-    try{
-      const token=sessionStorage.getItem('sgq_token');
-      const res=await fetch('/api/produtos',{headers:{'Authorization':'Bearer '+token}});
-      const data=await res.json();
-      if(Array.isArray(data)){
-        const ativos=data.filter(p=>p.ativo);
-        const lastUpd=data.map(p=>p.updated_at).filter(Boolean).sort().reverse()[0];
-        setInfo({total:data.length, ativos:ativos.length, lastUpd});
-      }
-    }catch{}
-    setLoading(false);
-  };
-
-  const runSeed = async () => {
-    setUploading(true); setUploadResult(null);
-    try{
-      const token=sessionStorage.getItem('sgq_token');
-      const res=await fetch('/api/produtos',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({produtos:SEED,replace:false})});
-      const data=await res.json();
-      if(res.ok){ setUploadResult({ok:true,msg:data.inserted+" inseridos, "+data.updated+" atualizados."}); loadInfo(); }
-      else setUploadResult({ok:false,msg:data.error||'Erro'});
-    }catch(e){setUploadResult({ok:false,msg:e.message});}
-    setUploading(false);
-  };
-
-  const handleCSV = async (file) => {
-    if(!file) return;
-    setUploading(true); setUploadResult(null);
-    try{
-      const text=await file.text();
-      const lines=text.split(new RegExp('\r?\n')).filter(l=>l.trim());
-      // Detecta separador
-      const sep=lines[0].indexOf(';')>=0?';':',';
-      const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/['"]/g,''));
-      const iCod=headers.findIndex(h=>h.includes('codigo')||h.includes('código')||h==='code');
-      const iDesc=headers.findIndex(h=>h.includes('descri'));
-      const iTipo=headers.findIndex(h=>h.includes('tipo')||h==='type');
-      const iUn=headers.findIndex(h=>h.includes('unidade')||h==='un'||h==='unit');
-      const iFam=headers.findIndex(h=>h.includes('familia')||h.includes('família')||h==='family');
-      if(iCod<0||iDesc<0){ setUploadResult({ok:false,msg:'CSV precisa ter colunas "codigo" e "descricao"'}); setUploading(false); return; }
-      const produtos=lines.slice(1).map(l=>{
-        const cols=l.split(sep).map(c=>c.trim().replace(/^["']|["']$/g,''));
-        return {codigo:cols[iCod],descricao:cols[iDesc],tipo:iTipo>=0?cols[iTipo]:null,unidade:iUn>=0?cols[iUn]:'UN',familia:iFam>=0?cols[iFam]:null};
-      }).filter(p=>p.codigo&&p.descricao);
-      const token=sessionStorage.getItem('sgq_token');
-      const res=await fetch('/api/produtos',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({produtos,replace:false})});
-      const data=await res.json();
-      if(res.ok){ setUploadResult({ok:true,msg:data.inserted+" inseridos, "+data.updated+" atualizados de "+produtos.length+" linhas."}); loadInfo(); }
-      else setUploadResult({ok:false,msg:data.error||'Erro'});
-    }catch(e){setUploadResult({ok:false,msg:e.message});}
-    setUploading(false);
-  };
-
-  return <div style={{padding:"18px 22px",maxWidth:560}}>
-    <h1 style={{margin:"0 0 4px",fontSize:17,color:C.text,fontWeight:700}}>Gestão de Produtos</h1>
-    <div style={{fontSize:11,color:C.muted,marginBottom:20}}>Base de produtos usada pelo autocomplete em todos os módulos.</div>
-
-    {/* Status atual */}
-    <div style={{...Sg.card(),marginBottom:16,display:"flex",gap:24,alignItems:"center"}}>
-      {loading?<span style={{fontSize:13,color:C.muted}}>Carregando...</span>:<>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:28,fontWeight:700,color:C.accent}}>{info?.ativos??0}</div>
-          <div style={{fontSize:11,color:C.muted}}>produtos ativos</div>
-        </div>
-        <div style={{flex:1}}>
-          <div style={{fontSize:12,color:C.muted}}>Última atualização</div>
-          <div style={{fontSize:13,color:C.text,fontWeight:600}}>{info?.lastUpd?fmt(info.lastUpd):"Nunca"}</div>
-        </div>
-        <button style={{...Sg.btn(),fontSize:11,padding:"4px 10px"}} onClick={loadInfo}>Atualizar</button>
-      </>}
-    </div>
-
-    {/* Upload CSV */}
-    <div style={{...Sg.card(),marginBottom:14}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:10}}>Importar CSV</div>
-      <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Colunas obrigatórias: <strong>codigo</strong>, <strong>descricao</strong>. Opcionais: tipo, unidade, familia. Separador: <code>;</code> ou <code>,</code>.</div>
-      <input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={e=>handleCSV(e.target.files[0])}/>
-      <button style={{...Sg.btn("primary"),opacity:uploading?.5:1}} disabled={uploading} onClick={()=>fileRef.current.click()}>
-        {uploading?"Importando...":"Selecionar CSV"}
-      </button>
-    </div>
-
-    {/* Seed de teste */}
-    {(info?.ativos??0)===0&&<div style={{...Sg.card(),marginBottom:14,border:"1px dashed "+C.border}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.muted,letterSpacing:.4,textTransform:"uppercase",marginBottom:8}}>Dados de Teste</div>
-      <div style={{fontSize:12,color:C.muted,marginBottom:10}}>Nenhum produto cadastrado. Carregue os dados de teste para começar.</div>
-      <button style={{...Sg.btn(),opacity:uploading?.5:1}} disabled={uploading} onClick={runSeed}>
-        {uploading?"Carregando...":"Carregar dados de teste (7 produtos)"}
-      </button>
-    </div>}
-
-    {uploadResult&&<div style={{padding:"10px 14px",borderRadius:8,fontSize:13,fontWeight:600,
-      background:uploadResult.ok?C.success+"15":C.danger+"15",
-      color:uploadResult.ok?C.success:C.danger,
-      border:"1px solid "+(uploadResult.ok?C.success:C.danger)+"40"}}>
-      {uploadResult.ok?"Concluído: ":""}{uploadResult.msg}
-    </div>}
-  </div>;
-}
-
-// ================================================================
 // USER MANAGER + AUDIT LOG + SETTINGS
 // ================================================================
 
@@ -4776,7 +3818,7 @@ function AuditLog({requests,sysLog}){
   const all=[...evts,...(sysLog||[])].sort((a,b)=>new Date(b.at)-new Date(a.at));
   const types=[...new Set(all.map(e=>e.type).filter(Boolean))];
   const vis=all.filter(e=>(!f||(e.event+e.by+(e.reqId||"")+(e.detail||"")).toLowerCase().includes(f.toLowerCase()))&&(!fType||e.type===fType));
-  const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.accent,sistema:C.accent,criacao:C.success,anexo:C.warning,extensao:C.warning,owner:C.muted,plano:C.accent,execucao:C.success};
+  const tc={triagem:C.warning,avaliacao:C.accent,aprovacao:C.success,rejeicao:C.danger,retorno:C.purple,sistema:C.cyan,criacao:C.success,anexo:C.orange,extensao:C.warning,owner:C.muted,plano:C.accent,execucao:C.success};
   return <div style={{padding:"18px 22px"}}>
     <h1 style={{margin:"0 0 12px",fontSize:18,color:C.text,fontWeight:700}}>Auditoria — v{APP_VERSION}</h1>
     <div style={{display:"flex",gap:8,marginBottom:11,flexWrap:"wrap"}}>
@@ -4846,7 +3888,7 @@ const PERFIS={
         <label style={{fontSize:10,fontWeight:700,color:CC.muted,letterSpacing:.5,display:"block",marginBottom:4}}>{pwdLabel}</label>
         <div style={{position:"relative"}}>
           <input type={u._showPwd?"text":"password"} autoComplete="new-password" value={u.pwd||u._np||""} onChange={e=>onPwdChange?onPwdChange(e.target.value):onChange({...u,pwd:e.target.value})} placeholder={pwdRequired?"Obrigatoria":"Deixar vazio para manter"} style={{...inp,paddingRight:36}}/>
-          <button type="button" onClick={()=>onChange({...u,_showPwd:!u._showPwd})} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:CC.muted,padding:0}}>{u._showPwd?"●":"○"}</button>
+          <button type="button" onClick={()=>onChange({...u,_showPwd:!u._showPwd})} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:CC.muted,padding:0}}>{u._showPwd?"🙈":"👁️"}</button>
         </div>
         {(()=>{const pwd=u.pwd||u._np||"";if(!pwd)return<div style={{fontSize:10,color:CC.muted,marginTop:4}}>Requisitos: 8-20 caracteres · maiúscula · minúscula · número · especial (!@#$...)</div>;const err=validatePwd(pwd,{name:u.name,email:u.email});return err?<div style={{fontSize:10,color:CC.danger,marginTop:4}}>⚠ {err}</div>:<div style={{fontSize:10,color:CC.success,marginTop:4}}>✓ Senha válida</div>;})()}
       </div>
@@ -4882,39 +3924,13 @@ const ALL_PERMS_META = [
     {id:"grupos.ver",    label:"Grupos (visualizar)"},
     {id:"auditoria.ver", label:"Auditoria"},
   ]},
-  {section:"Controle de Mudanças (SA)", items:[
+  {section:"Solicitações de Alteração (SA)", items:[
     {id:"sa.criar",            label:"Abrir nova SA"},
     {id:"sa.ver_todas",        label:"Ver SAs de todas as áreas"},
     {id:"sa.avaliacao_inicial",label:"Realizar avaliação inicial"},
     {id:"sa.aprovacao_plano",  label:"Aprovar plano de ação"},
     {id:"sa.concluir",         label:"Concluir SA"},
     {id:"sa.cancelar",         label:"Cancelar SA"},
-    {id:"sa.abrir",            label:"Abrir SA (legado)"},
-    {id:"sa.analisar",         label:"Analisar SA"},
-    {id:"sa.aprovar",          label:"Aprovar SA"},
-    {id:"sa.fechar",           label:"Fechar SA"},
-    {id:"sa.excluir",          label:"Excluir SA"},
-  ]},
-  {section:"Registros de Ocorrência (RO)", items:[
-    {id:"ro.abrir",    label:"Abrir RO"},
-    {id:"ro.analisar", label:"Analisar RO"},
-    {id:"ro.aprovar",  label:"Aprovar RO"},
-    {id:"ro.fechar",   label:"Fechar RO"},
-    {id:"ro.excluir",  label:"Excluir RO"},
-  ]},
-  {section:"Não Conformidade (NC)", items:[
-    {id:"nc.abrir",    label:"Abrir NC"},
-    {id:"nc.analisar", label:"Analisar NC"},
-    {id:"nc.aprovar",  label:"Aprovar NC"},
-    {id:"nc.fechar",   label:"Fechar NC"},
-    {id:"nc.excluir",  label:"Excluir NC"},
-  ]},
-  {section:"RIACP", items:[
-    {id:"riacp.abrir",    label:"Abrir RIACP"},
-    {id:"riacp.analisar", label:"Analisar RIACP"},
-    {id:"riacp.aprovar",  label:"Aprovar RIACP"},
-    {id:"riacp.fechar",   label:"Fechar RIACP"},
-    {id:"riacp.excluir",  label:"Excluir RIACP"},
   ]},
   {section:"Configurações do Sistema", items:[
     {id:"config.criticidades", label:"Editar criticidades"},
@@ -4939,7 +3955,7 @@ function GroupManager({currentUser,C:Cprop,canManage=false}){
 
   const load=async()=>{
     setLoading(true);
-    try{const r=await apiGet('/api/users?_route=roles');if(r)setGroups(r);}
+    try{const r=await apiGet('/api/roles');if(r)setGroups(r);}
     catch(e){setErr("Erro ao carregar grupos");}
     finally{setLoading(false);}
   };
@@ -4972,8 +3988,8 @@ function GroupManager({currentUser,C:Cprop,canManage=false}){
     setSaving(true);setErr("");
     try{
       let r;
-      if(isNew) r=await apiPost('/api/users?_route=roles',{name:editing.name,description:editing.description,permissions:editing.permissions});
-      else r=await apiPut('/api/users?_route=roles',{id:editing.id,name:editing.name,description:editing.description,permissions:editing.permissions});
+      if(isNew) r=await apiPost('/api/roles',{name:editing.name,description:editing.description,permissions:editing.permissions});
+      else r=await apiPut('/api/roles',{id:editing.id,name:editing.name,description:editing.description,permissions:editing.permissions});
       if(r&&r.error){setErr(r.error);return;}
       setEditing(null);load();
     }catch(e){setErr(e.message||"Erro ao salvar");}
@@ -4982,7 +3998,7 @@ function GroupManager({currentUser,C:Cprop,canManage=false}){
 
   const del=async(g)=>{
     try{
-      const r=await apiFetch('/api/users?_route=roles',{method:'DELETE',body:{id:g.id}});
+      const r=await apiFetch('/api/roles',{method:'DELETE',body:{id:g.id}});
       if(r&&r.error){setErr(r.error);return;}
       setConfirmDel(null);load();
     }catch(e){setErr(e.message||"Erro ao excluir");}
@@ -5111,7 +4127,7 @@ function UserManager({users,currentUser,onSave,addSysLog,canManage=false}){
 
   // Carregar grupos disponíveis
   React.useEffect(()=>{
-    apiGet('/api/users?_route=roles').then(r=>{if(r)setAllGroups(r);}).catch(()=>{});
+    apiGet('/api/roles').then(r=>{if(r)setAllGroups(r);}).catch(()=>{});
   },[]);
 
   const blank={name:"",role:"geral",area:"",email:"",pwd:"",active:true,evalDepts:[],groupIds:[]};
@@ -5278,7 +4294,7 @@ const saveEdit=async()=>{
               <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{(u.groups&&u.groups.length>0)?u.groups.map(g=><Badge key={g.id} label={g.name} color={PERFIS[g.name.toLowerCase()]?.color||"#6366F1"}/>):<Badge label={PERFIS[u.role]?.label||u.role} color={PERFIS[u.role]?.color||C.muted}/>}</div>,
               <Badge label={u.active?"Ativo":"Inativo"} color={u.active?C.success:C.muted}/>,
               <div style={{display:"flex",gap:5}}>
-                {canManage&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async(e)=>{e.stopPropagation();let gIds=[];try{const ur=await apiGet('/api/users?_route=roles&id='+u.id);if(ur)gIds=ur.map(r=>r.id);}catch(e2){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>}
+                {canManage&&<button style={{...Sg.btn(),fontSize:10,padding:"3px 8px"}} onClick={async(e)=>{e.stopPropagation();let gIds=[];try{const ur=await apiGet('/api/users/'+u.id+'/roles');if(ur)gIds=ur.map(r=>r.id);}catch(e2){}setEd({...u,_np:"",groupIds:gIds});setPE("");}}>Editar</button>}
                 {canManage&&u.active&&u.id!==currentUser.id&&<button style={{...Sg.btn("danger"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();setCD(u);}}>Desativar</button>}
                 {!u.active&&<button style={{...Sg.btn("success"),fontSize:10,padding:"3px 8px"}} onClick={e=>{e.stopPropagation();reactivate(u.id);}}>Reativar</button>}
               </div>
@@ -5461,7 +4477,7 @@ function IndicatorsPage({requests,allUsers,crits}){
   const byCrit={};crits.forEach(c=>{byCrit[c.v]=pool.filter(r=>r.triage&&r.triage.criticality===c.v).length;});
   const byStatus={};Object.keys(REQ_ST).forEach(s=>{byStatus[s]=pool.filter(r=>r.status===s).length;});
   const byType={};CHANGE_TYPES.forEach(t=>{byType[t]=pool.filter(r=>r.type===t).length;});
-  const typeColors=[C.accent,C.warning,C.success,C.accent,C.warning,C.accent];
+  const typeColors=[C.accent,C.warning,C.success,C.purple,C.orange,C.cyan];
 
   const totalExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).length,0);
   const approvedExt=pool.reduce((n,r)=>n+(r.deadlineExtensions||[]).filter(e=>e.status==="approved").length,0);
@@ -5580,15 +4596,15 @@ function IndicatorsPage({requests,allUsers,crits}){
       <KPI label="Total SAs" value={total} color={C.accent}/>
       <KPI label="Em andamento" value={abertas} color={C.warning}/>
       <KPI label="Concluidas" value={concluidas} color={C.success}/>
-      <KPI label={abPer!==null?"Abertas no periodo":"Abertas no periodo"} value={abPer!==null?abPer:"—"} color={abPer!==null?C.accent:C.muted} sub={abPer===null?"Selecione periodo":undefined}/>
+      <KPI label={abPer!==null?"Abertas no periodo":"Abertas no periodo"} value={abPer!==null?abPer:"—"} color={abPer!==null?C.cyan:C.muted} sub={abPer===null?"Selecione periodo":undefined}/>
       <KPI label="Fechadas no periodo" value={fePer!==null?fePer:"—"} color={fePer!==null?C.success:C.muted} sub={fePer===null?"Selecione periodo":undefined}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:9,marginBottom:14}}>
       <KPI label="Aval. atrasadas" value={overdueEvals.length} color={overdueEvals.length?C.danger:C.success}/>
       <KPI label="Acoes pendentes" value={acPend} color={C.warning} sub={acDone+" concluidas"}/>
       <KPI label="Acoes atrasadas" value={overdueAcs.length} color={overdueAcs.length?C.danger:C.success}/>
-      <KPI label="Extensoes" value={totalExt} color={C.warning} sub={approvedExt+" apr | "+pendingExt+" pend | "+rejectedExt+" rej"}/>
-      <KPI label="Tempo medio total" value={avgTotal!==null?avgTotal+"d":"--"} color={C.accent} sub={avgTriagem!=null?"Ate triagem: "+avgTriagem+"d":""}/>
+      <KPI label="Extensoes" value={totalExt} color={C.orange} sub={approvedExt+" apr | "+pendingExt+" pend | "+rejectedExt+" rej"}/>
+      <KPI label="Tempo medio total" value={avgTotal!==null?avgTotal+"d":"--"} color={C.purple} sub={avgTriagem!=null?"Ate triagem: "+avgTriagem+"d":""}/>
     </div>
 
     {/* Charts row 1: donuts */}
@@ -5864,7 +4880,7 @@ const go=async()=>{
     const err=validatePwd(n1);if(err){setPwdErr(err);return;}
     if(n1!==n2){setMsg("err:Senhas nao coincidem.");return;}
     try{
-      await apiPut('/api/users?_route=me',{_curPwd:cur,_np:n1});
+      await apiPut('/api/users/me',{_curPwd:cur,_np:n1});
       setMsg("ok:Senha alterada com sucesso!");setCur("");setN1("");setN2("");setPwdErr("");
     }catch(e){setMsg("err:"+e.message);}
   };
@@ -5906,9 +4922,9 @@ const go=async()=>{
       <div>
         <div style={{fontSize:10,fontWeight:700,color:C.muted,marginBottom:9,letterSpacing:.7}}>ALTERAR SENHA</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:9}}>
-          <div><label style={Sg.lbl}>Senha Atual</label><div style={{position:"relative"}}><input type={showCur?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowCur(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showCur?"●":"○"}</button></div></div>
-          <div><label style={Sg.lbl}>Nova Senha</label><div style={{position:"relative"}}><input type={showN1?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/><button type="button" onClick={()=>setShowN1(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN1?"●":"○"}</button></div>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
-          <div><label style={Sg.lbl}>Confirmar</label><div style={{position:"relative"}}><input type={showN2?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowN2(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN2?"●":"○"}</button></div></div>
+          <div><label style={Sg.lbl}>Senha Atual</label><div style={{position:"relative"}}><input type={showCur?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={cur} onChange={e=>{setCur(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowCur(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showCur?"🙈":"👁️"}</button></div></div>
+          <div><label style={Sg.lbl}>Nova Senha</label><div style={{position:"relative"}}><input type={showN1?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n1} onChange={e=>{setN1(e.target.value);setMsg("");setPwdErr("");}}/><button type="button" onClick={()=>setShowN1(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN1?"🙈":"👁️"}</button></div>{pwdErr&&<div style={{fontSize:11,color:C.danger,marginTop:2}}>{pwdErr}</div>}</div>
+          <div><label style={Sg.lbl}>Confirmar</label><div style={{position:"relative"}}><input type={showN2?"text":"password"} style={{...Sg.input(),paddingRight:36}} value={n2} onChange={e=>{setN2(e.target.value);setMsg("");}}/><button type="button" onClick={()=>setShowN2(s=>!s)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#6b7a9f",padding:0}}>{showN2?"🙈":"👁️"}</button></div></div>
         </div>
         {msg&&msg.startsWith("err:")&&<div style={{fontSize:12,color:C.danger,fontWeight:600,marginBottom:7}}>{msg.slice(4)}</div>}
         {msg&&msg.startsWith("ok:")&&!msg.includes("Tema")&&<div style={{fontSize:12,color:C.success,fontWeight:600,marginBottom:7}}>{msg.slice(3)}</div>}
@@ -5952,76 +4968,6 @@ const go=async()=>{
   </div>;
 }
 
-
-// ================================================================
-// CM CONFIG — Configurações do módulo Controle de Mudanças
-// Sub-tabs: Criticidade | Perguntas | Matriz | Prazos
-// ================================================================
-function CMConfig({crits, matrix, deptQ, phaseDl, currentUser, onSaveCrits, onSaveMatrix, onSaveDeptQ, onSavePhaseDl}){
-  const {C}=useTheme();
-  const Sg=mkSg(C);
-  const [tab,setTab]=React.useState('crits');
-  const tabs=[
-    {id:'crits',    label:'Criticidade'},
-    {id:'perguntas',label:'Perguntas por Área'},
-    {id:'matriz',   label:'Matriz de Triagem'},
-    {id:'prazos',   label:'Prazos'},
-  ];
-  return <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
-    {/* Header */}
-    <div style={{padding:'18px 24px 0',borderBottom:'1px solid '+C.border,background:C.card}}>
-      <div style={{fontSize:18,fontWeight:700,color:C.text,marginBottom:12}}>Configurações — Controle de Mudanças</div>
-      <div style={{display:'flex',gap:0}}>
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)}
-          style={{padding:'8px 18px',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',
-            fontSize:13,fontWeight:tab===t.id?700:400,
-            color:tab===t.id?C.accent:C.muted,
-            borderBottom:'2px solid '+(tab===t.id?C.accent:'transparent'),
-            transition:'all .15s'}}>
-          {t.label}
-        </button>)}
-      </div>
-    </div>
-    {/* Content */}
-    <div style={{flex:1}}>
-      {tab==='crits'    &&<CritEditor crits={crits} currentUser={currentUser} onSave={onSaveCrits}/>}
-      {tab==='perguntas'&&<QuestionsEditor deptQuestions={deptQ} currentUser={currentUser} onSave={onSaveDeptQ}/>}
-      {tab==='matriz'   &&<MatrixEditor matrix={matrix} crits={crits} currentUser={currentUser} onSave={onSaveMatrix}/>}
-      {tab==='prazos'   &&<PrazosEditor phaseDl={phaseDl} currentUser={currentUser} onSave={onSavePhaseDl}/>}
-    </div>
-  </div>;
-}
-
-// Prazos editor — extraído de Settings para uso standalone
-function PrazosEditor({phaseDl, currentUser, onSave}){
-  const {C}=useTheme();const Sg=mkSg(C);
-  const canEdit=hasPerm(currentUser,'config.prazos');
-  const [localPh,setLocalPh]=React.useState(()=>Object.fromEntries(Object.entries(DEFAULT_PHASE_DEADLINES).map(([k,v])=>[k,{...v,...(phaseDl&&phaseDl[k]?{days:phaseDl[k].days}:{})}])));
-  const [saved,setSaved]=React.useState(false);
-  const save=()=>{onSave(localPh);setSaved(true);setTimeout(()=>setSaved(false),2200);};
-  return <div style={{padding:'18px 22px',maxWidth:640}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
-      <div>
-        <div style={{fontSize:14,fontWeight:700,color:C.text}}>Prazos Padrão por Etapa</div>
-        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Define em quantos dias cada etapa deve ser concluída após seu início.</div>
-      </div>
-      {canEdit&&<button style={{...Sg.btn(saved?'success':'primary'),minWidth:90}} onClick={save}>{saved?'Salvo!':'Salvar'}</button>}
-    </div>
-    {Object.entries(localPh).map(([key,ph])=>(
-      <div key={key} style={{display:'grid',gridTemplateColumns:'180px 110px 1fr',gap:12,alignItems:'center',padding:'9px 11px',background:C.surface,borderRadius:7,marginBottom:5,border:'1px solid '+C.border}}>
-        <div style={{fontSize:12,fontWeight:700,color:C.text}}>{ph.label}</div>
-        <div style={{display:'flex',alignItems:'center',gap:7}}>
-          <input type="number" min="1" max="365" disabled={!canEdit}
-            style={{...Sg.input(),width:64,textAlign:'center'}}
-            value={ph.days} onChange={e=>setLocalPh(p=>({...p,[key]:{...p[key],days:parseInt(e.target.value)||1}}))}/>
-          <span style={{fontSize:11,color:C.muted}}>dias</span>
-        </div>
-        <div style={{fontSize:10,color:C.muted,lineHeight:1.4}}>{ph.desc}</div>
-      </div>
-    ))}
-  </div>;
-}
-
 // ================================================================
 // APP v10 — API mode (Vercel + Neon backend)
 // Replaces localStorage with REST API calls
@@ -6031,13 +4977,13 @@ const API = window.API_BASE || '';
 
 // ---- API helpers ----
 async function apiFetch(path, opts={}) {
-  const token = sessionStorage.getItem('sgq_token');
+  const token = sessionStorage.getItem('cm_token');
   const res = await fetch(API + path, {
     headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  if (res.status === 401) { sessionStorage.removeItem('sgq_token'); window.location.reload(); return null; }
+  if (res.status === 401) { sessionStorage.removeItem('cm_token'); window.location.reload(); return null; }
   if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error || 'Erro '+res.status); }
   return res.json();
 }
@@ -6062,8 +5008,6 @@ function App() {
   // Data state
   const [users,    setUR] = useState([]);
   const [requests, setRR] = useState([]);
-  const [roRecs,   setRO] = useState([]);
-  const [ncRecs,   setNC_] = useState([]);
   const [matrix,   setMR] = useState(null);
   const [crits,    setCR] = useState(DEFAULT_CRITS);
   const [phaseDl,  setPH] = useState(JSON.parse(JSON.stringify(DEFAULT_PHASE_DEADLINES)));
@@ -6072,18 +5016,18 @@ function App() {
 
   // ---- Bootstrap: check existing session ----
   useEffect(() => {
-    const token = sessionStorage.getItem('sgq_token');
-    const userStr = sessionStorage.getItem('sgq_user');
+    const token = sessionStorage.getItem('cm_token');
+    const userStr = sessionStorage.getItem('cm_user');
     if (token && userStr) {
       try {
         const u = JSON.parse(userStr);
         setLI(u);
         // Se sessão antiga não tem groups/permissions, buscar do servidor
         if (!u.groups && !u.roles) {
-          apiGet('/api/users?_route=me').then(fresh => {
+          apiGet('/api/users/me').then(fresh => {
             if (fresh && !fresh.error) {
               const updated = {...u, groups: fresh.groups||[], groupIds: fresh.groupIds||[], permissions: fresh.permissions||[]};
-              sessionStorage.setItem('sgq_user', JSON.stringify(updated));
+              sessionStorage.setItem('cm_user', JSON.stringify(updated));
               setLI(updated);
             }
           }).catch(()=>{});
@@ -6100,16 +5044,14 @@ function App() {
   }, [loggedIn]);
 
 const loadAll = async () => {
-    const [us, rs, ros] = await Promise.all([
+    const [us, rs] = await Promise.all([
       apiGet('/api/users').catch(()=>null),
-      apiGet('/api/records?module=sa').catch(()=>null),
-      apiGet('/api/records?module=ro').catch(()=>null),
+      apiGet('/api/requests').catch(()=>null),
     ]);
     if (us) setUR(us);
     if (rs) setRR(rs);
-    if (ros) setRO(ros);
     try {
-      const mx = await apiGet('/api/config?key=matrix');
+      const mx = await apiGet('/api/config/matrix');
       if (mx) {
         // Merge com mkMatrix() para garantir que todos os tipos e areas existam
         const base = mkMatrix();
@@ -6125,17 +5067,17 @@ const loadAll = async () => {
         setMR(merged);
       }
     } catch {}
-    try { const cr = await apiGet('/api/config?key=crits'); if (cr) setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};})); } catch {}
-    try { const ph = await apiGet('/api/config?key=phasedl'); if (ph) setPH(ph); } catch {}
-    try { const dq = await apiGet('/api/config?key=deptq'); if (dq) setDQ(dq); } catch {}
+    try { const cr = await apiGet('/api/config/crits'); if (cr) setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};})); } catch {}
+    try { const ph = await apiGet('/api/config/phasedl'); if (ph) setPH(ph); } catch {}
+    try { const dq = await apiGet('/api/config/deptq'); if (dq) setDQ(dq); } catch {}
   };
 
   // ---- Auth ----
   const login = async (email, password) => {
-    const data = await apiPost('/api/auth?_route=login', { email, password });
+    const data = await apiPost('/api/auth/login', { email, password });
     if (!data) return 'Erro de conexao';
-    sessionStorage.setItem('sgq_token', data.token);
-    sessionStorage.setItem('sgq_user', JSON.stringify(data.user));
+    sessionStorage.setItem('cm_token', data.token);
+    sessionStorage.setItem('cm_user', JSON.stringify(data.user));
     setLI(data.user);
     setView('dashboard');
     try { if(historyOK) window.history.replaceState({v:'dashboard'}, '', '?view=dashboard'); } catch {}
@@ -6148,7 +5090,7 @@ const loadAll = async () => {
     if (!loggedIn) return;
     const refreshPerms = async () => {
       try {
-        const fresh = await apiGet('/api/users?_route=me');
+        const fresh = await apiGet('/api/users/me');
         if (fresh && fresh.id) {
           setLI(prev => {
             if (!prev || prev.id !== fresh.id) return prev;
@@ -6158,7 +5100,7 @@ const loadAll = async () => {
               groups: fresh.groups,
               groupIds: fresh.groupIds
             };
-            sessionStorage.setItem('sgq_user', JSON.stringify(updated));
+            sessionStorage.setItem('cm_user', JSON.stringify(updated));
             return updated;
           });
         }
@@ -6170,8 +5112,8 @@ const loadAll = async () => {
   }, [loggedIn?.id]);
 
   const logout = () => {
-    sessionStorage.removeItem('sgq_token');
-    sessionStorage.removeItem('sgq_user');
+    sessionStorage.removeItem('cm_token');
+    sessionStorage.removeItem('cm_user');
     setLI(null); setView('dashboard');
     try { if(typeof historyOK!=='undefined'&&historyOK) window.history.replaceState({v:'dashboard'}, '', '?view=dashboard'); } catch {}
   };
@@ -6180,30 +5122,17 @@ const loadAll = async () => {
   const addSL = async (by, type, event, detail) => {
     const entry = { at: new Date().toISOString(), by, type, event, detail: detail||'' };
     setSL(p => [entry, ...p]);
-    try { await apiPut('/api/config?key=syslog', entry); } catch {}
+    try { await apiPut('/api/config/syslog', entry); } catch {}
   };
 
 const saveReq = async (r) => {
     try {
-      const saId = r.id || r.code;
-      if (!saId) { console.error('saveReq: SA sem id', r); return; }
-      const exists = requests.find(x => x.id === saId || x.code === saId);
-      if (exists) {
-        await apiPut('/api/records?module=sa&id=' + encodeURIComponent(saId), r);
-      } else {
-        const res = await apiPost('/api/records?module=sa', r);
-        // Backend retorna { ok, id, code } — garante que o id local bate com o code
-        if (res && res.code) r = { ...r, id: res.code };
-      }
-      setRR(p => {
-        const idx = p.findIndex(x => x.id === saId || x.code === saId);
-        if (idx >= 0) { const n=[...p]; n[idx]=r; return n; }
-        return [r, ...p];
-      });
-    } catch (err) {
-      console.error('Erro ao salvar SA:', err);
-      alert('Erro ao salvar: ' + err.message);
-    }
+      const exists = requests.find(x => x.id === r.id);
+      if (exists) await apiPut('/api/requests/' + encodeURIComponent(r.id), r);
+      else await apiPost('/api/requests', r);
+      // Atualiza estado local imediatamente
+      setRR(p => exists ? p.map(x => x.id === r.id ? r : x) : [r, ...p]);
+    } catch (err) { alert('Erro ao salvar SA: ' + err.message); }
   };
 
   const saveUsers = async (list, by, action, detail) => {
@@ -6227,103 +5156,28 @@ const saveReq = async (r) => {
   };
 
   const saveMatrix = async (m, by) => {
-    await apiPut('/api/config?key=matrix', m);
+    await apiPut('/api/config/matrix', m);
     setMR(m); addSL(by, 'config', 'Matriz atualizada', '');
   };
 
   const saveCrits = async (cr, by) => {
-    await apiPut('/api/config?key=crits', cr);
+    await apiPut('/api/config/crits', cr);
     // Always merge desc from DEFAULT_CRITS so TriagePanel shows descriptions
     setCR(cr.map(c=>{const def=DEFAULT_CRITS.find(d=>d.v===c.v)||{};return {...def,...c,desc:c.desc&&c.desc.trim()?c.desc:def.desc||""};}));
     addSL(by, 'config', 'Criticidades atualizadas', '');
   };
 
   const savePhaseDl = async (ph, by) => {
-    await apiPut('/api/config?key=phasedl', ph);
+    await apiPut('/api/config/phasedl', ph);
     setPH(ph); addSL(by, 'config', 'Prazos de etapa atualizados', '');
   };
 
   const saveDeptQ = async (q, by) => {
-    await apiPut('/api/config?key=deptq', q);
+    await apiPut('/api/config/deptq', q);
     setDQ(q); addSL(by, 'config', 'Perguntas de avaliacao atualizadas', '');
   };
 
   const updateReq = (r) => saveReq(r);
-
-  const saveNC = async (r) => {
-    try {
-      const ncId = r.id || r.code;
-      const exists = ncRecs.find(x => x.id === ncId || x.code === ncId);
-      if (exists && ncId) {
-        await apiPut('/api/records?module=nc&id=' + encodeURIComponent(ncId), r);
-      } else {
-        const res = await apiPost('/api/records?module=nc', r);
-        if (res && res.code) r = { ...r, id: res.code, code: res.code };
-      }
-      setNC_(p => {
-        const idx = p.findIndex(x => x.id === (r.id||r.code) || x.code === (r.id||r.code));
-        if (idx >= 0) { const n=[...p]; n[idx]=r; return n; }
-        return [r, ...p];
-      });
-      return r;
-    } catch (err) {
-      alert('Erro ao salvar NC: ' + err.message);
-    }
-  };
-
-  const generateNC = async ({titulo, descricao, roCode, itens, tipo, local, classificacao}) => {
-    const now = new Date().toISOString();
-    const nc = {
-      title: titulo,
-      status: 'aberta',
-      data: {
-        titulo, descricao, tipo, local, classificacao,
-        itens: itens||[],
-        linkedROs: [roCode],
-        origem: 'ro',
-      },
-      log: [{at:now, by:loggedIn.name, type:'criacao', event:'NC aberta', detail:'Originada de '+roCode}],
-      createdBy: loggedIn.id, createdByName: loggedIn.name, createdAt: now,
-      owner_id: loggedIn.id, owner_name: loggedIn.name,
-    };
-    const saved = await saveNC(nc);
-    if (saved) {
-      // Vincula NC na RO
-      const ro = roRecs.find(x => x.code === roCode || x.id === roCode);
-      if (ro) {
-        const updatedRO = {
-          ...ro,
-          data: {...(ro.data||{}), linkedNCs: [...((ro.data||{}).linkedNCs||[]), saved.code||saved.id]},
-          log: [...(ro.log||[]), {at:now, by:loggedIn.name, type:'nc_gerada', event:'NC gerada', detail:(saved.code||saved.id)}],
-        };
-        await saveRO(updatedRO);
-      }
-      addSL(loggedIn.name, 'criacao', 'NC criada a partir de RO', (saved.code||saved.id)+' ← '+roCode);
-      alert('NC '+(saved.code||saved.id)+' criada com sucesso!');
-    }
-  };
-
-  const saveRO = async (r) => {
-    try {
-      const roId = r.id || r.code;
-      const exists = roRecs.find(x => x.id === roId || x.code === roId);
-      if (exists && roId) {
-        await apiPut('/api/records?module=ro&id=' + encodeURIComponent(roId), r);
-      } else {
-        const res = await apiPost('/api/records?module=ro', r);
-        if (res && res.code) r = { ...r, id: res.code, code: res.code };
-      }
-      setRO(p => {
-        const idx = p.findIndex(x => x.id === roId || x.code === roId);
-        if (idx >= 0) { const n=[...p]; n[idx]=r; return n; }
-        return [r, ...p];
-      });
-      return r;
-    } catch (err) {
-      console.error('Erro ao salvar RO:', err);
-      alert('Erro ao salvar: ' + err.message);
-    }
-  };
 
   const createReq = async (r) => {
     await saveReq(r);
@@ -6334,7 +5188,6 @@ const saveReq = async (r) => {
   const isAdmin = loggedIn && hasPerm(loggedIn,'sa.avaliacao_inicial');
   const isSuperAdmin = loggedIn && hasPerm(loggedIn,'grupos.gerenciar');
   const selected = requests.find(r => r.id === selId);
-  const selectedRO = roRecs.find(r => r.id === selId || r.code === selId);
 
   // ---- Browser history (back/forward button support) ----
   // Only active on real domains (not srcdoc/iframe previews)
@@ -6379,10 +5232,9 @@ const saveReq = async (r) => {
     const refresh = async () => {
       try {
         // Only refresh requests and users — config rarely changes
-        const [us, rs, ros] = await Promise.all([
+        const [us, rs] = await Promise.all([
           apiGet('/api/users').catch(()=>null),
-          apiGet('/api/records?module=sa').catch(()=>null),
-          apiGet('/api/records?module=ro').catch(()=>null),
+          apiGet('/api/requests').catch(()=>null),
         ]);
         // Merge carefully: don't overwrite if user is actively editing
         // We compare by updatedAt / log length to detect server changes
@@ -6399,7 +5251,6 @@ const saveReq = async (r) => {
             return lr; // keep local (user may be editing)
           });
         });
-        if (ros) setRO(ros);
         if (us) setUR(us);
       } catch {}
     };
@@ -6413,29 +5264,20 @@ const saveReq = async (r) => {
   const pendAcs = loggedIn ? requests.filter(r=>(r.actions||[]).some(a=>a.responsible===loggedIn.id&&!['concluida','cancelada'].includes(a.status))).length : 0;
   const pendExt = isAdmin ? requests.reduce((s,r)=>s+(r.deadlineExtensions||[]).filter(e=>e.status==='pending').length,0) : 0;
 
-  // ---- Sidebar expandable sections state ----
-  const [expandedSections, setExpandedSections] = useState(()=>{
-    // Auto-expand the section that contains the current view
-    const cmViews=['changes','acoes','new','detail','matrix','crits','perguntas','cm_config'];
-    const roViews=['ro_list','ro_detail','ro_new'];
-    const admViews=['users','grupos','log','signatures','produtos'];
-    return {
-      cm: cmViews.includes(view),
-      ro: roViews.includes(view),
-      adm: admViews.includes(view),
-    };
-  });
-  const toggleSection = k => setExpandedSections(p=>({...p,[k]:!p[k]}));
-
-  // Keep sections expanded when navigating into them
-  React.useEffect(()=>{
-    const cmViews=['changes','acoes','new','detail','matrix','crits','perguntas','cm_config'];
-    const roViews=['ro_list','ro_detail','ro_new'];
-    const admViews=['users','grupos','log','signatures','produtos'];
-    if(cmViews.includes(view)) setExpandedSections(p=>({...p,cm:true}));
-    if(roViews.includes(view)) setExpandedSections(p=>({...p,ro:true}));
-    if(admViews.includes(view)) setExpandedSections(p=>({...p,adm:true}));
-  },[view]);
+  const navItems=[
+    {id:"dashboard",  label:"Inicio",        badge:0},
+    {id:"changes",    label:"Controles",     badge:0},
+    {id:"acoes",      label:"Tarefas",       badge:(pendEv+pendAcs)||0},
+    {id:"indicators", label:"Indicadores",   badge:0},
+    {id:"crits",     label:"Criticidade",  badge:0},
+    {id:"perguntas", label:"Perguntas",    badge:0},
+    {id:"settings",   label:"Meu Perfil", badge:0},
+    {id:"matrix",    label:"Matriz",       badge:0},
+    ...(hasPerm(loggedIn,'users')          ?[{id:"users",     label:"Usuarios",     badge:0,adm:true}]:[]),
+    ...((hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))?[{id:"grupos", label:"Grupos", badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'auditoria.ver')  ?[{id:"log",       label:"Auditoria",    badge:0,adm:true}]:[]),
+    ...(hasPerm(loggedIn,'auditoria.ver')||hasPerm(loggedIn,'sa.avaliacao_inicial')?[{id:"signatures",label:"Assinaturas",badge:0,adm:true,hidden:true}]:[]),
+  ];
 
   // ---- Inline eval modal state ----
   const [inEval, setInEval] = useState(null);
@@ -6444,106 +5286,31 @@ const saveReq = async (r) => {
   if (!loggedIn) return <Login users={users} onLogin={async(email,pwd)=>{const err=await login(email,pwd);return err;}} />;
 
   const VYDENCE_LOGO = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCABOAPkDASIAAhEBAxEB/8QAHQABAAICAwEBAAAAAAAAAAAAAAcIBQYCAwQBCf/EAEEQAAEDAwIDBgMEBwUJAAAAAAECAwQABQYHERIhMQgTFEFRYSIycRVCUoEJFiMzkaGxYnKCkrIXJDc4Q3SiwdH/xAAbAQEAAgMBAQAAAAAAAAAAAAAABQYBAwQCB//EACcRAAICAgIBAwMFAAAAAAAAAAABAgMEEQUxEiFBURMUcSKRodHw/9oADAMBAAIRAxEAPwC5dKUoBSlKAV8WtKE8S1BI9Sdq4SHmo7C333EttNpKlKUdgAPOqsam5zcMrvbxRJdatbKymMyhRSCBy4jt1JqQ4/j55s2k9JdsieV5avjoJtbk+kWqSQobpIIPmK+1WHR7UCZjeQMW24S3HbPLWG1BxRV3Kz0UN/frVnUqCkhSSCkjcEedec/Bnh2eLe0+mbeM5GGfV5xWmu0faUpXCSIpSlAKUpQClKUApSvDf7tbrDZpV4u0pEWDFR3j7yzslCfU0B7qVq2C6gYlm7sxvGLu1cDD4e/7voni32/oa2mgFKUoBSlKAUpSgFKUoBSlKAUpSgFKUoBSlYvK73Ex3H5l4mrCWYzZWRvzUfICvUYuTUV2zzOShFyl0iMe0bmPgLajFoLu0mYOKUUnmhr0/wAX/qq+LcAGw6CvTkd6l3y9S7xOWVPyXCsjfcIHkkewrEOve9XvCx1i0qtd+/5PnGddLOyHa+ul+DsfcCklJPI+lWc7O2cfrNjBtM53iudsAQvc83G+iVD6chVVHHiVpbSFLWr5UJG6lfQedSfolh+osbLYGRW21mHDB4XlyzwJebPVJT83v9a5OUhXbQ1N6a6JPh3ZTenBbT9GWvpSlU0uxicsyOzYrZXLzf5zcGC2pKVvOdAVHYfzrowzL8czGE/Mxu6M3BhhzunVtHklW2+xrSe1dYF5HoVkENCeIstplbezZ4j/AEqHP0d16j+AybH0hIeW6i4AD8BAR/WhksZmuoeHYbMjxMkvca3vyGy40hw81JB2JrpyLUzCMfiW6XeL9GiM3JovRFL32dR6j+NVA7as0ZFr7BsLLYfcgtx2OEDf96pJIrd+3RhqYWneH3BhsKj2f/cCduneJAH+mg0Wsslzg3m0xrrbJCJMOUgOMup6LSfMVrMHVDBZ2TDG4uQRXbqXC0IyT8XEOorT+yVkkK49n+zL7xKE2dpUOQr8Jb5k/wADVbeylbHMl7Tsm+paStuA7Lkuq28lKUlBoNF6bxdLbZ4Dk+6z40GK387z7gQgfmar3r/rZprkWlGVYxashblXKVCU0y0lpXCtW45A7beVQ72r8qvWf61/qLDfV9mQn2ojDCVHgdcXtxOLHnwnet31L7NeHYPoper+JUuZfLbD78SCeFBWCAQE+nM0Gjr/AEdaEok5mAkJ28KOQ/sqq1eS5BZMbtqrjfbnFt8VP/UfcCQT6DfqfYVVX9Hcd5OaKPn4U/8Aiqo17RuTytQ9eZFjudzESxQJyYLKlH9myj7zxSeXFzNBr1Lc2PXzSm8XVNtiZXGS+o7AvJU2gn+8oAVJiHG1tJdQtKm1J4goHcEeu/pVDNaMD0PtmnK5uEZQ3MvsLg4mu84vGbkA7g/LtzPKps7FuW3DIdHLparjIckuWRxUdDy1EqUhSCpI39hyoNEmZXrFpvjLqmbrlUAOpOykMr71ST6EJ32NeXFNcNMMmuCYFsyqJ4hR2Sl/dniPoCrbnVJ9H8Is+e66Sccu6nWojr77q1MgcSiFdCfQ1uvau0PxzTe02y+408+lh57uXWHVblCthwrQrqDvQaL1AggEHcHoa1fOtQcOwlkOZLfYkFSuaWlL3dI9Qgc9vfao87POcT3+zSzkV0WqXLtEJ7jW4rm93QKhufpsKqvpDiVw7QGr06TkF1eS2WzOlv8AzLS0VbIab35AbkD6UGi5uI63aZZTdG7ZaMmjrlunhbbdSpsrPoOIDc1vl1uMC1QXJ1zmx4cVobrefcCEJ+pNQtj3ZiwHH80suT2l2cy9an++SyohaHlbbfFv/HlUI9uXM7neNR2sHZkFFpt7LbjjaVEJddX14x5hNAWPa7QWkrl1FtTljAeK+DiLag3v/e22296kyBLiz4bUyDJakxnk8TbrSwpCx6gjkao/ftN9BoulshMLNmZGUMRC8l4L5POBO/dcHTYnlW5fo+cruEqPfcOlPLdjQmkTI4UonuQo8JQn0G/Og0W0pSlDApSlAKrV2lM1F1viMYgPcUOAoLklPRbvkPy57ipf1nzJvDMMkS0KBnyQWYaN+ZWR1/IbmqcSJDrrq3XnFOOuKK3Fq6qUepNT/C4m39eXt1/ZXucyn4/bw9+/x8HY69Xlcd9663HfevK4+nntudvQE1YJTIKqg3DCM5Xh7T64Vgtsy4OLCm50r4lsAeSU9PzrOK1/1GS9xmbBKN/k8KkflvUUPSmx1cA+p2rzreChulQI9jXJZj1TflKO2StM7YpRi9IuBoZrW1nVxXYbxCat93S33jXdr3bfSOu2/n7VMlfm5bLvNst3iXi2vFqZCdDzSh6jy/Mbir+aXZjAzrC4OQwVJHfJ4X2gdyy6PmQfcVX+Sw1TJTgv0snsS2Uo6n2Z+5Q49xt0i3zGw5HktKadQfvJUNiP4GqCYhcZWgHaLuLFzS59nNd626lpP76OoFTQTv1AOwr9A6jvVTRnBNSrnEuWUQZLkuI0Wm3I8hTRKSd9jt151FnYmVY7Nlknao9oudm1xQtUO3yVzlqWN0hSie7ZP0B3/Krf6uYdGzzT664zI4UqlMnuHCN+7dHyqH0NfNLtOsW02sjtoxWG5HYed711TrhcccV5bqPM7eVYTXvVeBpRjbN0mWuVPclOd1HS2NmwvyC1eQoCleFZ5kGllkzfAbhDfQ9OQqKUKPD4V3YhTnvxAirGdhDBXbFgEjLbgyUzL2R3KlDZXh09Nx7q3NQ5g2IZV2jdV3ctv1uTbbAHU+Ldba4ErQk8mUH7yj5qq9dthRrdb48CG0lqPHbS20hPRKQNgKBlAu0Nb7lp52kXb87GX4Z6U1OhrUOT6BtxpB6bjmNqnTWbXHTTMNCcgt9ryNgXW428oat7iVB4OEg8B5bb/nU26gYPjGeWY2rJ7W1NY6tqI2caPqhXVJqIFdkbS8yuNLl4Sxv+68WSf83Wg2aJ+jt28VmiDtuPC7j/AAqqJNfcfVhev1xN+trki0TJyZrbZ5eKjE/ElKvxciKvNpdpjiGm0OTGxWAuP4ogvuOulxxzbpuo+m9ezUTAsWz+z/ZmUWtuY0nctOfK40T1KFdUmg36larcx2PpFranuvxYbqkBS4zrr3etq/CQBtvU06EwNPGtNZt302hrj2m4qdUorUSVrQCjfmeXStPHZG0u8Xxly8ljf914s7/5utS/geE2DCcRbxbH47rFsb4+FC3CtXxfMdzQFK+yt/zPufWT/qqZO3//AMN7V/34qQ8I0G09w7NDl9kiT27qSslbkxS0fEdz8J5VsOqem+MalWdi1ZSxJdjMO96gMPlo8X1FBv1Ik7L1rdvfZZnWdjbvZrEphvfpxKSQP5mq/wDZizeHpDqrPj5U05HjuMfZsxZSQYykL3CyOvCdqvNpxhFh0/xpvHscafagtrK0pedLitz15mtZ1R0P0+1EnfaN9ta2rhtsZURzulr9OPb5tveg2c7Xrnpfdr/bLFZ8qi3C4XJ7uWGmUq67E7kkDYcqqr238Zn2XV79YlsK+zLqw2GnSPhLiPnQT5bjpVgsM7MGm+M5BDvrH2o/OhOh2OpcohKVD1A61LOX4zYstsbtlyG3MT4TvVt1O/CfJQPkR5Gg6Km4cOyXdcejTrwyxZbgWx4iJJed40KA5n4QQQambs2wNI3ftq+aWxVoQl0QpTxWohzh2UNgo9OdYCV2SNLnJXeMqvDLRO5a8WVfwJqUNK9NMV0ztUm24rGkMsSXe9e754uKUrbbfc0BuVKUoYFcXXENNLddWEIQkqUonYADqa5VFHaOy4WfGhYIb6m59ySUqKFc22fvE/XmK341Esi1Vx9znysmGNU7Z9IgvWfMX83zh92KVKt8ImPESOhAPxLP1PQ+laimAEp45LoSPNKf/tetBQyhEeM0eZCUIQN1KPkB6mp30h0bI7m/ZkzxOHZbFvPRHoV+p9vKrjbZRg0pS6XS+Sk1RyeQufgtb7Zo+l2j07Ky1PuDK7dZjzDjg/avj+yPIH1qw9m0+w6021Fvi2CEWkjmXGwpSz6k+ZrZ0JShAQhISkDYADYCvtVXL5C3Il8L4Rb8PjqsWPy/l/70NSmaZ4BMO8nEbS6fUxxWnZL2d9OruFKjxJdsd2PAYr/CgH3T51L1K545N0OpP9zrdUH7FK9TuzxmWMMOXCxOfrHAQOJSGkcMhA9Aj723rXk7KGoqsQz39Xrm8tq03hwNFKxt3Enonkem/Pc1d+oS180FtGcx3bzjqWrTkqPjS6j4W5JHPZYHn6K8qka+QV0XVf0/c8/SUfWJNoII3HMUrAadR7/Ewe0RcoUyq8sxkollpXEkrHLkfPltWfqJktNo3CsNluLY9ltvbt+SWmLdIjboeS1IRxJCx0O1ZmlYB0W6FEt0JqFAjNRozSQltppISlIHkAK76UoBSlKAUpSgFcXnG2WVvOrCG20lS1HoAOZNcq8d8juS7LOisgF16M42gE7AkpIH9aA1P/alipWhKFzVh8kQlJjkicR5Mn7/APKs3a8usE/H5N9bnoZhQytMxT3wGMpHzJcH3VDfmK1G34fe2cbwCCuNFD9kfaXN2WPgCUkHhPn+VdUrBLvMw/OLQruYz93u0iZCUlYIUlQTw8fpvsdwaA3DGMvs2QSXYkNb7MptsPdxIb7ta2T8rqR5oPka1q56lRX8ux60WDjlxZ9wciSJga3Y3QglSUr/ABAjY15sBxq8qlyXshskmDL+zRCRNXckPkDpwoCQNh51ibDjObMXPE7VMx6Czb7FcXX3J7UtP7ZspUEq7vbfiO43oCR7beku5Bf4b02MWraGVKQOSmQpBUSs++249q6cZzOz5FKW1a0y3WOEralFkhh9I6ltX3hWETiVzfv+euvd2xGvrUVEN1C91EtslKuIeXxbfUV2aeHMIlpj2K74xDtqYcUtImMS0LQpQGySGwNwD19qAy9ozOz3G+CzcMuJMcCjHRKZ7vxIT8xb/EB5114Vfpt4vOTRJSWw3bLj4ZjhGxKOAHn77mo/wrFc/Od4xd8nQ+6LU3NTKkPT0OpUp1OyO7QACB0rdMDtV6tWWZaufBbbgz54lQ5CHgouJKACCn7pBFAbnSlKAVXXWjTjOrzn0i6WuGi4w5IAZV3wR3I/CQfLz3qxVK6sTLniz84fycmZh15cFCe9d+hEujukEfGHU3rIFNTrvt+zSBu3H+nqr3qWqUrXfkWXz87HtmzHx68eHhWtIUpStJvFKUoBSlKAUpSgFKUoBSlKAUpSgFKUoBSlKAUpSgFKUoBSlKAUpSgFKUoD/9k=";
-
-  // ---- Sidebar with expandable module sections ----
-  const SidebarNavItem = ({id, label, badge, indent=false}) => {
-    const active = view===id;
-    return <button onClick={()=>nav(id)} style={{width:'100%',padding: indent ? '6px 14px 6px 26px' : '8px 14px',background:active?C.accent+'15':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'3px solid '+(active?C.accent:'transparent')}}>
-      <span style={{fontSize: indent ? 11 : 12, color:active?C.accent:C.dim, fontWeight:active?700:400, textAlign:'left'}}>{label}</span>
-      {badge>0&&<span style={{background:C.danger,color:'#fff',borderRadius:9,fontSize:9,fontWeight:700,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{badge}</span>}
-    </button>;
-  };
-
-  const SidebarSection = ({sectionKey, label, icon, children, badge=0}) => {
-    const open = expandedSections[sectionKey];
-    const isChildActive = view && (
-      (sectionKey==='cm' && ['changes','acoes','new','detail','matrix','crits','perguntas','cm_config'].includes(view)) ||
-      (sectionKey==='ro' && ['ro_list','ro_detail','ro_new'].includes(view)) ||
-      (sectionKey==='adm' && ['users','grupos','log','signatures'].includes(view))
-    );
-    return <div>
-      <button onClick={()=>toggleSection(sectionKey)} style={{width:'100%',padding:'8px 14px',background:isChildActive&&!open?C.accent+'08':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'2px solid '+(isChildActive?C.accent:'transparent')}}>
-        <div style={{display:'flex',alignItems:'center',gap:7,flex:1,minWidth:0}}>
-          <span style={{fontSize:12,color:isChildActive?C.accent:C.muted,fontWeight:isChildActive?600:400,textAlign:'left',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-          {badge>0&&<span style={{background:C.danger,color:'#fff',borderRadius:9,fontSize:9,fontWeight:700,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{badge}</span>}
-          <span style={{fontSize:9,color:C.muted,transition:'transform .2s',display:'inline-block',transform:open?'rotate(90deg)':'none'}}>▶</span>
-        </div>
-      </button>
-      {open && <div style={{borderLeft:'2px solid '+C.border,marginLeft:20,marginBottom:2}}>{children}</div>}
-    </div>;
-  };
-
-  const pendCM = (pendEv+pendAcs)||0;
-  const pendAdm = (hasPerm(loggedIn,'auditoria.ver') ? 0 : 0);
-  const canSeeAdm = hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar')||hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar')||hasPerm(loggedIn,'auditoria.ver')||isAdmin;
-
   const Sidebar = () => (
-    <div style={{width:192,background:C.surface,borderRight:'1px solid '+C.border,display:'flex',flexDirection:'column',height:'100vh',position:'fixed',left:0,top:0,zIndex:10,overflowY:'auto'}}>
-      {/* Logo */}
+    <div style={{width:178,background:C.card,borderRight:'1px solid '+C.border,display:'flex',flexDirection:'column',height:'100vh',position:'fixed',left:0,top:0,zIndex:10,overflowY:'auto'}}>
       <div style={{padding:'14px 12px 10px',borderBottom:'1px solid '+C.border}}>
         <img src={VYDENCE_LOGO} alt="Vydence Medical" style={{width:120,display:'block',marginBottom:9}}/>
         <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:1}}>
-          <span style={{fontSize:11,fontWeight:600,color:C.muted,letterSpacing:.5}}>SGQ</span>
-          <span style={{fontSize:8,color:C.muted,letterSpacing:.3}}>Portal da Qualidade</span>
+          <span style={{fontSize:10,fontWeight:800,color:C.accent,letterSpacing:1.3}}>CHANGE</span>
+          <span style={{fontSize:8,color:C.muted}}>Management</span>
         </div>
-        <div style={{fontSize:10,color:C.muted,letterSpacing:.2}}>
-          v{APP_VERSION}
+        <div style={{fontSize:8,color:C.muted,letterSpacing:.2,display:'flex',alignItems:'center',gap:4}}>
+          <div title="Dados atualizados automaticamente a cada 30s" className="refresh-dot" style={{width:5,height:5,borderRadius:'50%',background:C.success,flexShrink:0}}/>
+          v{APP_VERSION} · {(()=>{const g=loggedIn.roles||loggedIn.groups||[];return g.length>0?g.map(r=>r.name).join(', '):loggedIn.role.toUpperCase();})()}
         </div>
       </div>
-
-      {/* Nav */}
       <div style={{flex:1,padding:'6px 0'}}>
-
-        {/* Início */}
-        <SidebarNavItem id="dashboard" label="Início" badge={0}/>
-
-        {/* Módulo: Controle de Mudanças */}
-        <SidebarSection sectionKey="cm" label="Controle de Mudanças" icon="" badge={pendCM}>
-          <SidebarNavItem id="changes" label="Controles" indent/>
-          <SidebarNavItem id="acoes"   label="Tarefas"   badge={pendCM} indent/>
-          <SidebarNavItem id="cm_config" label="Configurações" indent/>
-        </SidebarSection>
-
-        {/* Módulo: Ocorrências */}
-        <SidebarSection sectionKey="ro" label="Ocorrências" icon="">
-          <SidebarNavItem id="ro_list" label="Registros" indent/>
-        </SidebarSection>
-
-        {/* Módulos futuros */}
-        {['Não Conformidade','RIACP'].map(m=>(
-          <div key={m} style={{padding:'6px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',opacity:.35,cursor:'not-allowed'}}>
-            <span style={{fontSize:12,color:C.muted}}>{m}</span>
-            <span style={{fontSize:9,color:C.muted}}>em breve</span>
-          </div>
-        ))}
-
-        <div style={{height:1,background:C.border,margin:'6px 12px'}}/>
-
-        {/* Indicadores */}
-        <SidebarNavItem id="indicators" label="Indicadores" badge={0}/>
-
-        <div style={{height:1,background:C.border,margin:'6px 12px'}}/>
-
-        {/* Administração */}
-        {canSeeAdm && <SidebarSection sectionKey="adm" label="Administração" icon="">
-          {(hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar'))&&<SidebarNavItem id="users"      label="Usuários"  indent/>}
-          {(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<SidebarNavItem id="grupos"   label="Grupos"    indent/>}
-          {(hasPerm(loggedIn,'auditoria.ver')||isAdmin)&&<SidebarNavItem id="log"         label="Auditoria" indent/>}
-          {(hasPerm(loggedIn,'auditoria.ver')||isAdmin)&&<SidebarNavItem id="signatures"  label="Assinaturas" indent/>}
-          {isAdmin&&<SidebarNavItem id="seed_produtos" label="Produtos" indent/>}
-        </SidebarSection>}
-
-        {/* Meu Perfil */}
-        <SidebarNavItem id="settings" label="Meu Perfil" badge={0}/>
-
+        {navItems.map(n=>{
+          const active=view===n.id;
+          return <button key={n.id} onClick={()=>nav(n.id)} style={{width:'100%',padding:'8px 14px',background:active?C.accent+'15':'transparent',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6,fontFamily:'inherit',borderLeft:'3px solid '+(active?C.accent:'transparent')}}>
+            <span style={{fontSize:12,color:active?C.accent:n.adm?C.muted:C.dim,fontWeight:active?700:400,textAlign:'left'}}>{n.label}</span>
+            {n.badge>0&&<span style={{background:C.danger,color:'#fff',borderRadius:9,fontSize:9,fontWeight:700,padding:'1px 5px',minWidth:16,textAlign:'center'}}>{n.badge}</span>}
+          </button>;
+        })}
       </div>
-
-      {/* User footer */}
       <div style={{padding:'10px 12px',borderTop:'1px solid '+C.border}}>
         <div style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-          <div style={{width:26,height:26,borderRadius:'50%',background:C.border,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,color:C.muted,flexShrink:0}}>
+          <div style={{width:26,height:26,borderRadius:'50%',background:C.accent+'22',border:'1px solid '+C.accent+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,color:C.accent,flexShrink:0}}>
             {loggedIn.name.split(' ').map(w=>w[0]).slice(0,2).join('')}
           </div>
           <div style={{flex:1,minWidth:0}}>
@@ -6558,8 +5325,8 @@ const saveReq = async (r) => {
 
   return <div style={{display:'flex',minHeight:'100vh'}}>
     <Sidebar/>
-    <div style={{marginLeft:192,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
-      {view==='dashboard' &&<Dashboard requests={requests} roRecs={roRecs} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNavRO={(id)=>{setSel(id);setView('ro_detail');}} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
+    <div style={{marginLeft:178,flex:1,minHeight:'100vh',background:C.bg,overflowY:'auto'}}>
+      {view==='dashboard' &&<Dashboard requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} isAdmin={isAdmin} onNav={nav} onNew={()=>nav('new')} onOpenEval={(r,dept)=>{nav("detail",r.id,"avaliacao",dept);}} onOpenAction={(r,ac)=>{nav("detail",r.id,"execucao",null,ac.id);}}/>}
       <MyTasksDrawer
         open={myTasksOpen}
         onClose={()=>{setMyTasksOpen(false);setMyTasksTarget(null);}}
@@ -6574,30 +5341,18 @@ const saveReq = async (r) => {
         deptQuestions={deptQ}
         phaseDl={phaseDl}
         C={C}/>
-      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)} onNew={()=>nav('new')}/>}
+      {view==='changes'   &&<ChangesTable requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onOpen={(id)=>nav('detail',id)}/>}
       {view==='acoes'     &&<ActionsPage requests={requests} currentUser={loggedIn} allUsers={users} crits={crits} onNav={nav}/>}
       {view==='indicators'&&<IndicatorsPage requests={requests} allUsers={users} crits={crits}/>}
-      {view==='ro_list'   &&<ROList roRecords={roRecs} currentUser={loggedIn} allUsers={users} onOpen={(id)=>{setSel(id);setView('ro_detail');}} onNew={()=>setView('ro_new')}/>}
-      {view==='ro_new'    &&hasPerm(loggedIn,'ro.abrir')&&<NewRO currentUser={loggedIn} onCancel={()=>setView('ro_list')} onSave={async(f,itens,atts)=>{
-        const now=new Date().toISOString();
-        const r={title:f.descricao.substring(0,60)||"Ocorrência",status:"aberta",data:{...f,itens:itens||[],attachments:atts||[]},log:[{at:now,by:loggedIn.name,type:"criacao",event:"RO aberta",detail:"Tipo: "+f.tipo+(itens&&itens.length?" | "+itens.length+" item(ns)":"")}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now,owner_id:loggedIn.id,owner_name:loggedIn.name};
-        const saved=await saveRO(r);
-        addSL(loggedIn.name,'criacao','Nova RO aberta',(saved&&(saved.code||saved.id))||"");
-        setView('ro_list');
-      }}/>}
-      {view==='ro_detail'&&selId&&selectedRO&&<RODetail roRecord={selectedRO} currentUser={loggedIn} allUsers={users} onBack={()=>setView('ro_list')} onUpdate={saveRO} onGenerateNC={generateNC}/>}
       {view==='new'       &&<NewRequest currentUser={loggedIn} onSave={(f,atts)=>{const pd=phaseDl||DEFAULT_PHASE_DEADLINES;const now=new Date().toISOString();const yr=new Date().getFullYear();const id='SA-'+String(requests.length+1).padStart(3,'0')+'/'+yr;const r={id,...f,area:f.area||loggedIn.area||'Administrativo',status:'aberta',triage:null,evaluations:{},actions:[],attachments:atts||[],deadlineExtensions:[],stageDeadlines:{avaliacao_inicial:addDays(todayStr(),pd.avaliacao_inicial.days),avaliacao_areas:null,aprovacao_plano:null,montagem_plano:null,execucao:null},log:[{at:now,by:loggedIn.name,type:'criacao',event:'SA criada',detail:'Tipo: '+f.type}],createdBy:loggedIn.id,createdByName:loggedIn.name,createdAt:now};createReq(r);nav('detail',r.id);}} onCancel={()=>nav('changes')}/>}
       {view==='detail'&&selId&&selected&&<RequestDetail request={selected} allUsers={users} matrix={matrix||mkMatrix()} crits={crits} phaseDl={phaseDl} deptQuestions={deptQ} currentUser={loggedIn} onBack={()=>nav('changes')} onUpdate={updateReq} initialTab={initialTab} focusDept={focusDept} focusAcId={focusAcId} autoOpenDrawer={!!(focusDept||focusAcId)}/>}
       {view==='matrix'    &&<MatrixEditor matrix={matrix||mkMatrix()} crits={crits} currentUser={loggedIn} onSave={saveMatrix}/>}
       {view==='crits'     &&<CritEditor crits={crits} currentUser={loggedIn} onSave={saveCrits}/>}
       {view==='perguntas' &&<QuestionsEditor deptQuestions={deptQ} currentUser={loggedIn} onSave={saveDeptQ}/>}
-      {view==='cm_config' &&<CMConfig crits={crits} matrix={matrix||mkMatrix()} deptQ={deptQ} phaseDl={phaseDl} currentUser={loggedIn} onSaveCrits={saveCrits} onSaveMatrix={saveMatrix} onSaveDeptQ={saveDeptQ} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)}/>}
       {view==='users'     &&(hasPerm(loggedIn,'users')||hasPerm(loggedIn,'usuarios.gerenciar'))&&<UserManager users={users} currentUser={loggedIn} isSuperAdmin={isSuperAdmin} canManage={hasPerm(loggedIn,'usuarios.gerenciar')} onSave={saveUsers}/>}
-      {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('sgq_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
+      {view==='settings'  &&<Settings phaseDl={phaseDl} currentUser={loggedIn} theme={theme} setTheme={setTheme} onChangePwd={(np)=>{const u={...loggedIn,pwd:np};sessionStorage.setItem('cm_user',JSON.stringify(u));setLI(u);}} onSavePhaseDl={(ph)=>savePhaseDl(ph,loggedIn.name)} onLogout={logout}/>}
       {view==='log'&&(isAdmin||hasPerm(loggedIn,'auditoria.ver'))&&<AuditLog requests={requests} sysLog={sysLog}/>}
       {view==='grupos'    &&(hasPerm(loggedIn,'grupos.ver')||hasPerm(loggedIn,'grupos.gerenciar'))&&<GroupManager currentUser={loggedIn} C={C} canManage={hasPerm(loggedIn,'grupos.gerenciar')}/>}
-      {view==='seed_produtos'&&isAdmin&&<SeedProdutos currentUser={loggedIn}/>}
-      {view==='produtos'  &&isAdmin&&<ProdutosAdmin currentUser={loggedIn}/>}
     </div>
   </div>;
 }
